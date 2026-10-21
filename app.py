@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import pypdfium2 as pdfium
@@ -98,18 +99,27 @@ class Worker(QThread):
                 self.update.emit(0, "Failed", str(error))
             self.finished_batch.emit(done, failed)
             return
-        for index, (source, target) in enumerate(self.jobs):
+        def perform(index: int, source: Path, target: Path):
             self.update.emit(index, "Reducing size" if self.target_mb else "Converting", source.name)
             try:
                 if self.target_mb:
                     reduce_size(source, target, self.target_mb)
                 else:
                     convert(source, target)
-                done += 1
                 self.update.emit(index, "Done", target.name)
+                return True
             except Exception as error:
-                failed += 1
                 self.update.emit(index, "Failed", str(error))
+                return False
+
+        # ponytail: two workers cap CPU and disk contention; raise only if benchmarks justify it.
+        with ThreadPoolExecutor(max_workers=min(2, len(self.jobs))) as pool:
+            futures = [pool.submit(perform, index, source, target) for index, (source, target) in enumerate(self.jobs)]
+            for future in as_completed(futures):
+                if future.result():
+                    done += 1
+                else:
+                    failed += 1
         self.finished_batch.emit(done, failed)
 
 
@@ -121,6 +131,7 @@ class Window(QMainWindow):
         self.setMinimumSize(780, 700)
         self.paths: list[Path] = []
         self.worker: Worker | None = None
+        self.last_error = ""
         self.settings = QSettings("Local File Converter", "Local File Converter")
         self.output_dir = Path(self.settings.value("output_dir", str(Path.home() / "Downloads")))
         self._build()
@@ -401,6 +412,7 @@ class Window(QMainWindow):
             QMessageBox.warning(self, "Duplicate output names", "Two files would produce the same output name. Convert them in separate batches.")
             return
         self.progress.setMaximum(len(jobs))
+        self.last_error = ""
         self.progress.setValue(0)
         self.convert_button.setEnabled(False)
         self.compress_button.setEnabled(False)
@@ -425,6 +437,7 @@ class Window(QMainWindow):
             QMessageBox.warning(self, "Output exists", f"The archive already exists:\n{target}")
             return
         self.progress.setMaximum(len(self.paths))
+        self.last_error = ""
         self.progress.setValue(0)
         self.convert_button.setEnabled(False)
         self.compress_button.setEnabled(False)
@@ -452,6 +465,7 @@ class Window(QMainWindow):
             QMessageBox.warning(self, "Duplicate output names", "Two files would produce the same output name. Reduce them in separate batches.")
             return
         self.progress.setMaximum(len(jobs))
+        self.last_error = ""
         self.progress.setValue(0)
         self.convert_button.setEnabled(False)
         self.compress_button.setEnabled(False)
@@ -468,13 +482,19 @@ class Window(QMainWindow):
             item.setText(f"{self.paths[index].name}\n{kind(self.paths[index]).upper()}  ·  {stage}")
             item.setToolTip(detail)
         self.status.setText(f"{stage}: {detail}")
+        if stage == "Failed":
+            self.last_error = detail
         if stage in {"Done", "Failed", "Compressed"}:
             self.progress.setValue(self.progress.value() + 1)
 
     def _done(self, done: int, failed: int):
         self.add_button.setEnabled(True)
         self._refresh_formats()
-        self.status.setText(f"Finished: {done} converted, {failed} failed. Saved in {self.output_dir}")
+        location = self.worker.archive if self.worker and self.worker.archive else self.output_dir
+        summary = f"Finished: {done} processed, {failed} failed."
+        if done:
+            summary += f" Saved in {location}."
+        self.status.setText(f"{summary}. {self.last_error}" if self.last_error else summary)
 
 
 def main():

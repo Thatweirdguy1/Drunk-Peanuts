@@ -1,7 +1,8 @@
 PySide6-Essentials>=6.8,<7
 Pillow>=11,<13
 pillow-heif>=0.21,<2
-rawpy>=0.24,<1
+rawpy>=0.24,<0.26; sys_platform == "darwin" and platform_machine == "x86_64"
+rawpy>=0.24,<1; sys_platform != "darwin" or platform_machine != "x86_64"
 pypdf>=5,<7
 pypdfium2>=4.30,<6
 python-docx>=1.1,<2

@@ -1,14 +1,17 @@
 """Small end-to-end checks using only temporary files."""
 
 import tempfile
+import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from zipfile import ZipFile
 
 from PIL import Image
 from pypdf import PdfReader
 
 from converter import available_formats, compress, convert, reduce_size
+from app import Worker
 
 
 class ConversionTest(unittest.TestCase):
@@ -63,6 +66,15 @@ class ConversionTest(unittest.TestCase):
             self.assertLessEqual(target.stat().st_size, int(0.02 * 1024 * 1024))
             with Image.open(target) as image:
                 self.assertEqual(image.format, "WEBP")
+
+    def test_batch_runs_two_files_concurrently(self):
+        barrier = threading.Barrier(2, timeout=3)
+        worker = Worker([(Path("a"), Path("a.out")), (Path("b"), Path("b.out"))])
+        result = []
+        worker.finished_batch.connect(lambda done, failed: result.append((done, failed)))
+        with patch("app.convert", side_effect=lambda *_: barrier.wait()):
+            worker.run()
+        self.assertEqual(result, [(2, 0)])
 
 
 if __name__ == "__main__":
