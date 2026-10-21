@@ -9,6 +9,7 @@ from zipfile import ZipFile
 
 from PIL import Image
 from pypdf import PdfReader
+from docx import Document
 
 from converter import available_formats, compress, convert, reduce_size
 from app import Worker
@@ -41,6 +42,26 @@ class ConversionTest(unittest.TestCase):
             convert(spreadsheet, output)
             self.assertIn("alpha,3", output.read_text(encoding="utf-8-sig"))
             self.assertNotIn("xlsx", available_formats(spreadsheet))
+
+    def test_local_document_conversion(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "notes.txt"
+            source.write_text("First line\nSecond line", encoding="utf-8")
+            word = root / "notes.docx"
+            convert(source, word)
+            self.assertEqual([p.text for p in Document(word).paragraphs], ["First line", "Second line"])
+            pdf = root / "notes.pdf"
+            convert(source, pdf)
+            extracted = root / "extracted.docx"
+            convert(pdf, extracted)
+            self.assertIn("First line", "\n".join(p.text for p in Document(extracted).paragraphs))
+            self.assertIn("docx", available_formats(pdf))
+
+        with patch("converter.office_binary", return_value="soffice"):
+            self.assertIn("pdf", available_formats(Path("slides.pptx")))
+            self.assertNotIn("xlsx", available_formats(Path("slides.pptx")))
+            self.assertIn("rtf", available_formats(Path("letter.docx")))
 
     def test_zip_compression(self):
         with tempfile.TemporaryDirectory() as folder:

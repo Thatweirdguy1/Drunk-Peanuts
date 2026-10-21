@@ -35,7 +35,9 @@ RASTER = {"jpg", "png", "webp", "tiff", "bmp", "gif", "ico", "pdf"}
 VIDEO = {"mp4", "mov", "avi", "mpeg", "mpg", "mkv", "webm"}
 AUDIO = {"mp3", "wav", "aiff", "m4a", "aac", "flac", "ogg"}
 OFFICE = {"doc", "docx", "ppt", "pptx", "xls", "xlsx", "odt", "ods", "odp", "rtf"}
-OFFICE_OUTPUT = {"pdf", "docx", "odt", "pptx", "odp", "xlsx", "ods", "txt"}
+WRITER = {"doc", "docx", "odt", "rtf", "txt"}
+PRESENTATION = {"ppt", "pptx", "odp"}
+SHEET = {"xls", "xlsx", "ods", "csv"}
 FFMPEG_VIDEO = {"mp4", "mov", "avi", "mpeg", "mkv", "webm", "gif", "mp3", "wav", "m4a", "aac", "flac", "ogg"}
 FFMPEG_AUDIO = {"mp3", "wav", "aiff", "m4a", "aac", "flac", "ogg"}
 
@@ -65,28 +67,41 @@ def available_formats(path: Path) -> list[str]:
     if group == "Image":
         choices = RASTER | {"svg"} if ext == "svg" else RASTER
     elif group == "PDF":
-        choices = {"png", "jpg", "webp", "txt"}
+        choices = {"png", "jpg", "webp", "txt", "docx"}
     elif group == "Video":
         choices = FFMPEG_VIDEO
     elif group == "Audio":
         choices = FFMPEG_AUDIO
     elif ext == "csv":
-        choices = {"xlsx", "txt"}
+        choices = {"xlsx", "txt"} | ({"pdf", "ods", "xls"} if office_binary() else set())
     elif ext == "xlsx":
-        choices = {"csv", "pdf", "ods"} if shutil.which("soffice") or shutil.which("libreoffice") else {"csv"}
-    elif ext == "docx":
-        choices = {"txt"} | ({"pdf", "odt", "rtf"} if office_binary() else set())
-    elif group == "Document":
-        choices = OFFICE_OUTPUT if office_binary() else set()
-    elif ext == "txt":
-        choices = {"pdf"}
+        choices = {"csv"} | ({"pdf", "ods", "xls"} if office_binary() else set())
+    elif ext in WRITER:
+        choices = ({"pdf", "doc", "docx", "odt", "rtf", "txt"} if office_binary() else set())
+        if ext == "docx":
+            choices.add("txt")
+        if ext == "txt":
+            choices.update({"pdf", "docx"})
+    elif ext in PRESENTATION:
+        choices = PRESENTATION | {"pdf"} if office_binary() else set()
+    elif ext in SHEET:
+        choices = SHEET | {"pdf"} if office_binary() else set()
     else:
         choices = set()
     return sorted(choices - {ext})
 
 
 def office_binary() -> str | None:
-    return shutil.which("soffice") or shutil.which("libreoffice")
+    found = shutil.which("soffice") or shutil.which("libreoffice")
+    if found:
+        return found
+    if os.name == "nt":
+        for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
+            if base:
+                candidate = Path(base) / "LibreOffice" / "program" / "soffice.exe"
+                if candidate.is_file():
+                    return str(candidate)
+    return None
 
 
 def ffmpeg_binary() -> str:
@@ -209,6 +224,17 @@ def _text_to_pdf(source: Path, target: Path) -> None:
     document.save()
 
 
+def _text_to_docx(source: Path, target: Path) -> None:
+    document = Document()
+    for line in source.read_text(encoding="utf-8-sig").splitlines():
+        document.add_paragraph(line)
+    document.save(target)
+
+
+def _pdf_text(source: Path) -> str:
+    return "\n\n".join(page.extract_text() or "" for page in PdfReader(str(source)).pages)
+
+
 def convert(source: Path, target: Path) -> None:
     source, target = Path(source).resolve(strict=True), Path(target).resolve()
     if not source.is_file() or source == target:
@@ -223,8 +249,16 @@ def convert(source: Path, target: Path) -> None:
     if group == "Image":
         _save_image(source, target, fmt)
     elif group == "PDF" and fmt == "txt":
-        text = "\n\n".join(page.extract_text() or "" for page in PdfReader(str(source)).pages)
-        target.write_text(text, encoding="utf-8")
+        target.write_text(_pdf_text(source), encoding="utf-8")
+    elif group == "PDF" and fmt == "docx":
+        document = Document()
+        pages = PdfReader(str(source)).pages
+        for index, page in enumerate(pages):
+            if index:
+                document.add_page_break()
+            for line in (page.extract_text() or "").splitlines():
+                document.add_paragraph(line)
+        document.save(target)
     elif group == "PDF":
         _pdf_to_image(source, target, fmt)
     elif group in {"Video", "Audio"}:
@@ -248,6 +282,8 @@ def convert(source: Path, target: Path) -> None:
         shutil.copyfile(source, target)
     elif source.suffix.lower() == ".txt" and fmt == "pdf":
         _text_to_pdf(source, target)
+    elif source.suffix.lower() == ".txt" and fmt == "docx":
+        _text_to_docx(source, target)
     else:
         _office(source, target, fmt)
 

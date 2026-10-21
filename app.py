@@ -366,7 +366,8 @@ class Window(QMainWindow):
         if 0 <= row < len(self.paths):
             path = self.paths[row]
             target = self.format.currentText().upper() or "—"
-            self.details.setText(f"{path.name}\n{kind(path)} input  →  {target} output")
+            note = "\nSelectable text only; PDF layout and images are not preserved." if path.suffix.lower() == ".pdf" and target == "DOCX" else ""
+            self.details.setText(f"{path.name}\n{kind(path)} input  →  {target} output{note}")
 
     def _refresh_formats(self):
         previous = self.format.currentText()
