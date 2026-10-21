@@ -23,7 +23,7 @@ from PIL import Image, ImageOps, ImageSequence, UnidentifiedImageError
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice
 from PySide6.QtGui import QImage, QPainter
 from PySide6.QtSvg import QSvgRenderer
-from pypdf import PdfReader
+from pypdf import PdfReader, PdfWriter
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
@@ -233,6 +233,131 @@ def _text_to_docx(source: Path, target: Path) -> None:
 
 def _pdf_text(source: Path) -> str:
     return "\n\n".join(page.extract_text() or "" for page in PdfReader(str(source)).pages)
+
+
+def pdf_merge(sources: list[Path], target: Path) -> None:
+    if len(sources) < 2 or any(path.suffix.lower() != ".pdf" for path in sources):
+        raise ValueError("Select at least two PDFs to merge.")
+    if target.exists() or target in sources:
+        raise FileExistsError(f"Output already exists: {target.name}")
+    writer = PdfWriter()
+    created = False
+    try:
+        for source in sources:
+            writer.append(str(source))
+        with target.open("xb") as output:
+            created = True
+            writer.write(output)
+    except Exception:
+        if created:
+            target.unlink(missing_ok=True)
+        raise
+    finally:
+        writer.close()
+
+
+def pdf_split(source: Path, folder: Path) -> None:
+    if source.suffix.lower() != ".pdf" or folder.exists():
+        raise ValueError("Choose a PDF and a new output folder.")
+    pages = PdfReader(str(source)).pages
+    folder.mkdir(parents=True, exist_ok=False)
+    try:
+        for index, page in enumerate(pages, 1):
+            writer = PdfWriter()
+            writer.add_page(page)
+            with (folder / f"page-{index}.pdf").open("xb") as output:
+                writer.write(output)
+            writer.close()
+    except Exception:
+        shutil.rmtree(folder)
+        raise
+
+
+def pdf_reorder(source: Path, target: Path, order: list[int]) -> None:
+    pages = PdfReader(str(source)).pages
+    if sorted(order) != list(range(1, len(pages) + 1)):
+        raise ValueError(f"Enter each page number once, from 1 to {len(pages)}.")
+    if target.exists() or target == source:
+        raise FileExistsError(f"Output already exists: {target.name}")
+    writer = PdfWriter()
+    created = False
+    try:
+        for number in order:
+            writer.add_page(pages[number - 1])
+        with target.open("xb") as output:
+            created = True
+            writer.write(output)
+    except Exception:
+        if created:
+            target.unlink(missing_ok=True)
+        raise
+    finally:
+        writer.close()
+
+
+def pdf_rotate(source: Path, target: Path, degrees: int) -> None:
+    if degrees not in {90, 180, 270}:
+        raise ValueError("Choose 90, 180, or 270 degrees.")
+    if target.exists() or target == source:
+        raise FileExistsError(f"Output already exists: {target.name}")
+    writer = PdfWriter()
+    created = False
+    try:
+        for page in PdfReader(str(source)).pages:
+            writer.add_page(page.rotate(degrees))
+        with target.open("xb") as output:
+            created = True
+            writer.write(output)
+    except Exception:
+        if created:
+            target.unlink(missing_ok=True)
+        raise
+    finally:
+        writer.close()
+
+
+def edit_image(source: Path, target: Path, action: str, values: tuple[int, ...] = ()) -> None:
+    if kind(source) != "Image" or target.exists() or source == target:
+        raise ValueError("Choose an image and a new output path.")
+    with _image(source) as opened:
+        if getattr(opened, "n_frames", 1) > 1:
+            raise ValueError("Edit animated images frame by frame after conversion.")
+        image = ImageOps.exif_transpose(opened).copy()
+    if action == "resize":
+        width, height = values
+        if width < 1 or height < 1:
+            raise ValueError("Width and height must be positive.")
+        image.thumbnail((width, height), Image.Resampling.LANCZOS)
+    elif action == "crop":
+        left, top, width, height = values
+        if min(left, top) < 0 or min(width, height) < 1 or left + width > image.width or top + height > image.height:
+            raise ValueError("Crop rectangle must fit inside the image.")
+        image = image.crop((left, top, left + width, top + height))
+    elif action == "rotate":
+        degrees, = values
+        if degrees not in {90, 180, 270}:
+            raise ValueError("Choose 90, 180, or 270 degrees.")
+        image = image.rotate(-degrees, expand=True)
+    elif action == "strip_metadata":
+        pass
+    else:
+        raise ValueError("Unknown image tool.")
+    image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
+    if target.suffix.lower() in {".jpg", ".jpeg", ".bmp"} and "A" in image.getbands():
+        background = Image.new("RGB", image.size, "white")
+        background.paste(image, mask=image.getchannel("A"))
+        image = background
+    # Pixel-only copy prevents EXIF, GPS, comments, and other source metadata from leaking.
+    image = Image.frombytes(image.mode, image.size, image.tobytes())
+    created = False
+    try:
+        with target.open("xb") as output:
+            created = True
+            image.save(output, format={".jpg": "JPEG", ".jpeg": "JPEG", ".tif": "TIFF", ".tiff": "TIFF"}.get(target.suffix.lower(), target.suffix[1:].upper()))
+    except Exception:
+        if created:
+            target.unlink(missing_ok=True)
+        raise
 
 
 def convert(source: Path, target: Path) -> None:

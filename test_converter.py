@@ -17,7 +17,8 @@ from PySide6.QtWidgets import QApplication
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from converter import available_formats, compress, convert, reduce_size
-from app import Window, Worker
+from app import Window, Worker, numbered_target
+from converter import edit_image, pdf_merge, pdf_reorder, pdf_rotate, pdf_split
 
 
 class ConversionTest(unittest.TestCase):
@@ -128,6 +129,90 @@ class ConversionTest(unittest.TestCase):
                 self.assertEqual(window.format.currentText(), "docx")
                 start.assert_called_once()
             window.close()
+
+    def test_mixed_formats_and_numbered_outputs(self):
+        app = QApplication.instance() or QApplication([])
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            image = root / "same.png"
+            Image.new("RGB", (20, 20), "red").save(image)
+            text = root / "same.txt"
+            text.write_text("hello", encoding="utf-8")
+            (root / "same.pdf").write_bytes(b"existing")
+            (root / "same.docx").write_bytes(b"existing word file")
+            window = Window()
+            window.output_dir = root
+            window._add_files([image, text])
+            self.assertEqual(window.formats[image], "webp")
+            window.list.setCurrentRow(1)
+            window.format.setCurrentText("docx")
+            self.assertEqual(window.formats[text], "docx")
+            self.assertEqual(window.formats[image], "webp")
+            reserved = {str(image).casefold(), str(text).casefold()}
+            first = numbered_target(root, "same", ".pdf", reserved)
+            second = numbered_target(root, "same", ".pdf", reserved)
+            self.assertEqual((first.name, second.name), ("same (2).pdf", "same (3).pdf"))
+            window._convert()
+            self.assertTrue(window.worker.wait(10000))
+            app.processEvents()
+            self.assertTrue((root / "same.webp").exists())
+            self.assertEqual(Document(root / "same (2).docx").paragraphs[0].text, "hello")
+            self.assertEqual((root / "same.docx").read_bytes(), b"existing word file")
+            window.close()
+
+    def test_pdf_tools_keep_pages_and_sources(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            first = root / "first.pdf"
+            second = root / "second.pdf"
+            (root / "first.txt").write_text("FIRST", encoding="utf-8")
+            (root / "second.txt").write_text("SECOND", encoding="utf-8")
+            convert(root / "first.txt", first)
+            convert(root / "second.txt", second)
+            merged = root / "merged.pdf"
+            pdf_merge([first, second], merged)
+            self.assertEqual(len(PdfReader(str(merged)).pages), 2)
+            (root / "merged-2.png").write_bytes(b"existing page image")
+            self.assertEqual(numbered_target(root, "merged", ".png", set(), pages=2).name, "merged (2).png")
+            reordered = root / "reordered.pdf"
+            pdf_reorder(merged, reordered, [2, 1])
+            self.assertIn("SECOND", PdfReader(str(reordered)).pages[0].extract_text())
+            rotated = root / "rotated.pdf"
+            pdf_rotate(first, rotated, 90)
+            self.assertEqual(PdfReader(str(rotated)).pages[0].rotation, 90)
+            pages = root / "pages"
+            pdf_split(merged, pages)
+            self.assertEqual(sorted(path.name for path in pages.iterdir()), ["page-1.pdf", "page-2.pdf"])
+            with self.assertRaises(ValueError):
+                pdf_reorder(merged, root / "bad.pdf", [1, 1])
+            self.assertIn("FIRST", PdfReader(str(first)).pages[0].extract_text())
+
+    def test_image_tools_resize_crop_and_strip_metadata(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "photo.png"
+            Image.new("RGB", (60, 40), "blue").save(source, pnginfo=self._comment())
+            resized = root / "resized.png"
+            edit_image(source, resized, "resize", (30, 30))
+            with Image.open(resized) as image:
+                self.assertEqual(image.size, (30, 20))
+            cropped = root / "cropped.png"
+            edit_image(source, cropped, "crop", (10, 5, 20, 15))
+            with Image.open(cropped) as image:
+                self.assertEqual(image.size, (20, 15))
+            stripped = root / "stripped.png"
+            edit_image(source, stripped, "strip_metadata")
+            with Image.open(stripped) as image:
+                self.assertNotIn("Comment", image.info)
+            with self.assertRaises(ValueError):
+                edit_image(source, root / "bad.png", "crop", (50, 0, 20, 20))
+
+    @staticmethod
+    def _comment():
+        from PIL.PngImagePlugin import PngInfo
+        metadata = PngInfo()
+        metadata.add_text("Comment", "private")
+        return metadata
 
 
 if __name__ == "__main__":

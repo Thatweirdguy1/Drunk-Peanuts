@@ -3,23 +3,48 @@
 from __future__ import annotations
 
 import sys
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Callable
 
 import pypdfium2 as pdfium
 from PIL import Image
+from pypdf import PdfReader
 from PySide6.QtCore import QPoint, QSettings, Qt, QThread, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QComboBox, QFileDialog, QFrame,
     QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow,
-    QDoubleSpinBox, QMenu, QMessageBox, QProgressBar, QPushButton, QSizePolicy,
+    QDoubleSpinBox, QInputDialog, QMenu, QMessageBox, QProgressBar, QPushButton, QSizePolicy,
     QSplitter, QVBoxLayout, QWidget,
 )
 
-from converter import available_formats, compress, convert, kind, reduce_size, reduced_extension
+from converter import (available_formats, compress, convert, edit_image, kind, pdf_merge,
+                       pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension)
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
+
+
+def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
+    """Reserve a fresh output name, including numbered PDF page images."""
+    number = 1
+    while True:
+        name = stem if number == 1 else f"{stem} ({number})"
+        target = folder / f"{name}{suffix}"
+        outputs = [target] + [folder / f"{name}-{page}{suffix}" for page in range(2, pages + 1)]
+        keys = {str(path.resolve()).casefold() for path in outputs}
+        if all(not path.exists() for path in outputs) and not keys & reserved:
+            reserved.update(keys)
+            return target
+        number += 1
+
+
+def preferred_format(path: Path) -> str:
+    choices = available_formats(path)
+    preferred = {"Image": "webp", "PDF": "png", "Video": "mp4", "Audio": "mp3",
+                 "Document": "pdf", "Spreadsheet": "xlsx", "Text": "pdf"}.get(kind(path))
+    return preferred if preferred in choices else choices[0]
 
 
 def image_preview(path: Path) -> QPixmap | None:
@@ -88,35 +113,41 @@ class Worker(QThread):
     update = Signal(int, str, str)
     finished_batch = Signal(int, int)
 
-    def __init__(self, jobs: list[tuple[Path, Path]], archive: Path | None = None, target_mb: float | None = None):
+    def __init__(self, jobs: list[tuple[Path, Path]], archive: Path | None = None, target_mb: float | None = None,
+                 operation: Callable[[Path, Path], None] | None = None, rows: list[int] | None = None):
         super().__init__()
         self.jobs = jobs
         self.archive = archive
         self.target_mb = target_mb
+        self.operation = operation
+        self.rows = rows or list(range(len(jobs)))
 
     def run(self):
         done = failed = 0
         if self.archive:
             try:
                 compress([source for source, _ in self.jobs], self.archive,
-                         lambda index, name: self.update.emit(index, "Compressed", name))
+                         lambda index, name: self.update.emit(self.rows[index], "Compressed", name))
                 done = len(self.jobs)
             except Exception as error:
                 failed = len(self.jobs)
-                self.update.emit(0, "Failed", str(error))
+                self.update.emit(self.rows[0], "Failed", str(error))
             self.finished_batch.emit(done, failed)
             return
         def perform(index: int, source: Path, target: Path):
-            self.update.emit(index, "Reducing size" if self.target_mb else "Converting", source.name)
+            row = self.rows[index]
+            self.update.emit(row, "Processing" if self.operation else "Reducing size" if self.target_mb else "Converting", source.name)
             try:
-                if self.target_mb:
+                if self.operation:
+                    self.operation(source, target)
+                elif self.target_mb:
                     reduce_size(source, target, self.target_mb)
                 else:
                     convert(source, target)
-                self.update.emit(index, "Done", target.name)
+                self.update.emit(row, "Done", target.name)
                 return True
             except Exception as error:
-                self.update.emit(index, "Failed", str(error))
+                self.update.emit(row, "Failed", str(error))
                 return False
 
         # ponytail: two workers cap CPU and disk contention; raise only if benchmarks justify it.
@@ -137,6 +168,7 @@ class Window(QMainWindow):
         self.resize(1080, 830)
         self.setMinimumSize(780, 700)
         self.paths: list[Path] = []
+        self.formats: dict[Path, str] = {}
         self.worker: Worker | None = None
         self.last_error = ""
         self.settings = QSettings("Local File Converter", "Local File Converter")
@@ -235,7 +267,7 @@ class Window(QMainWindow):
         controls_top.addWidget(format_label)
         self.format = QComboBox()
         self.format.setMinimumWidth(140)
-        self.format.currentTextChanged.connect(self._refresh_details)
+        self.format.currentTextChanged.connect(self._set_format)
         controls_top.addWidget(self.format)
         controls_top.addSpacing(15)
         destination_label = QLabel("Save in")
@@ -272,6 +304,17 @@ class Window(QMainWindow):
         self.reduce_button.clicked.connect(self._reduce)
         reduce_row.addWidget(self.reduce_button)
         controls_layout.addLayout(reduce_row)
+        tools_row = QHBoxLayout()
+        self.pdf_button = QPushButton("PDF tools")
+        self.pdf_button.setObjectName("secondaryButton")
+        self.pdf_button.clicked.connect(self._pdf_tools)
+        tools_row.addWidget(self.pdf_button)
+        self.image_button = QPushButton("Image tools")
+        self.image_button.setObjectName("secondaryButton")
+        self.image_button.clicked.connect(self._image_tools)
+        tools_row.addWidget(self.image_button)
+        tools_row.addStretch()
+        controls_layout.addLayout(tools_row)
         self.progress = QProgressBar()
         self.progress.setValue(0)
         self.progress.setTextVisible(False)
@@ -332,10 +375,12 @@ class Window(QMainWindow):
             if not path.is_file() or not available_formats(path):
                 rejected += 1
                 continue
-            if path.resolve() in self.paths:
+            path = path.resolve()
+            if path in self.paths:
                 continue
-            self.paths.append(path.resolve())
-            label = f"{path.name}\n{kind(path).upper()}  ·  {path.stat().st_size / 1024 / 1024:.1f} MB  ·  Waiting"
+            self.paths.append(path)
+            self.formats[path] = preferred_format(path)
+            label = f"{path.name}\n{kind(path).upper()} → {self.formats[path].upper()}  ·  {path.stat().st_size / 1024 / 1024:.1f} MB  ·  Waiting"
             self.list.addItem(QListWidgetItem(label))
         self.count.setText(f"{len(self.paths)} file{'s' if len(self.paths) != 1 else ''}")
         if self.paths and self.list.currentRow() < 0:
@@ -348,6 +393,7 @@ class Window(QMainWindow):
         if self.worker and self.worker.isRunning():
             return
         self.paths.clear()
+        self.formats.clear()
         self.list.clear()
         self.format.clear()
         self.preview.setPixmap(QPixmap())
@@ -367,36 +413,41 @@ class Window(QMainWindow):
         else:
             self.preview.setPixmap(QPixmap())
             self.preview.setText(f"{path.suffix.upper().lstrip('.')}  ·  {kind(path)}")
+        self._refresh_formats()
+        self._refresh_details()
+
+    def _set_format(self, fmt: str):
+        row = self.list.currentRow()
+        if 0 <= row < len(self.paths) and fmt:
+            self.formats[self.paths[row]] = fmt
+            item = self.list.item(row)
+            item.setText(f"{self.paths[row].name}\n{kind(self.paths[row]).upper()} → {fmt.upper()}  ·  Waiting")
         self._refresh_details()
 
     def _refresh_details(self):
         row = self.list.currentRow()
         if 0 <= row < len(self.paths):
             path = self.paths[row]
-            target = self.format.currentText().upper() or "—"
+            target = self.formats.get(path, "—").upper()
             note = "\nSelectable text only; PDF layout and images are not preserved." if path.suffix.lower() == ".pdf" and target == "DOCX" else ""
             self.details.setText(f"{path.name}\n{kind(path)} input  →  {target} output{note}")
 
     def _refresh_formats(self):
-        previous = self.format.currentText()
-        common = set(available_formats(self.paths[0])) if self.paths else set()
-        for path in self.paths[1:]:
-            common.intersection_update(available_formats(path))
+        row = self.list.currentRow()
+        path = self.paths[row] if 0 <= row < len(self.paths) else None
+        choices = available_formats(path) if path else []
         self.format.blockSignals(True)
         self.format.clear()
-        self.format.addItems(sorted(common))
-        if previous in common:
-            self.format.setCurrentText(previous)
-        elif common:
-            preferred = {"Image": "webp", "PDF": "png", "Video": "mp4", "Audio": "mp3", "Document": "pdf", "Spreadsheet": "xlsx"}.get(kind(self.paths[0]), "pdf")
-            if preferred in common:
-                self.format.setCurrentText(preferred)
+        self.format.addItems(choices)
+        if path:
+            self.format.setCurrentText(self.formats[path])
         self.format.blockSignals(False)
-        self.convert_button.setEnabled(bool(common) and not (self.worker and self.worker.isRunning()))
-        self.compress_button.setEnabled(bool(self.paths) and not (self.worker and self.worker.isRunning()))
-        self.reduce_button.setEnabled(bool(self.paths) and all(reduced_extension(path) for path in self.paths) and not (self.worker and self.worker.isRunning()))
-        if self.paths and not common:
-            self.status.setText("These files have no shared output format. Convert them in separate batches.")
+        idle = not (self.worker and self.worker.isRunning())
+        self.convert_button.setEnabled(bool(self.paths) and idle)
+        self.compress_button.setEnabled(bool(self.paths) and idle)
+        self.reduce_button.setEnabled(bool(self.paths) and all(reduced_extension(path) for path in self.paths) and idle)
+        self.pdf_button.setEnabled(any(path.suffix.lower() == ".pdf" for path in self.paths) and idle)
+        self.image_button.setEnabled(any(kind(path) == "Image" for path in self.paths) and idle)
         self._refresh_details()
 
     def _choose_directory(self):
@@ -423,34 +474,130 @@ class Window(QMainWindow):
         chosen = menu.exec(position)
         if chosen:
             self._add_files(files)
-            self.format.setCurrentText(choices[chosen])
+            for row, path in enumerate(self.paths):
+                self.formats[path] = choices[chosen]
+                self.list.item(row).setText(f"{path.name}\n{kind(path).upper()} → {choices[chosen].upper()}  ·  Waiting")
+            self._refresh_formats()
             self._convert()
 
     def _convert(self):
-        fmt = self.format.currentText()
-        if not fmt:
+        if not self.paths:
             return
         jobs = []
-        for source in self.paths:
-            target = self.output_dir / f"{source.stem}.{fmt}"
-            if target.resolve() == source or target.exists():
-                QMessageBox.warning(self, "Output exists", f"Choose another folder or move the existing output:\n{target}")
-                return
-            jobs.append((source, target))
-        if len({target.name.casefold() for _, target in jobs}) != len(jobs):
-            QMessageBox.warning(self, "Duplicate output names", "Two files would produce the same output name. Convert them in separate batches.")
+        reserved = {str(path).casefold() for path in self.paths}
+        try:
+            for source in self.paths:
+                fmt = self.formats[source]
+                pages = len(PdfReader(str(source)).pages) if source.suffix.lower() == ".pdf" and fmt in {"png", "jpg", "webp"} else 1
+                target = numbered_target(self.output_dir, source.stem, f".{fmt}", reserved, pages)
+                jobs.append((source, target))
+        except Exception as error:
+            QMessageBox.warning(self, "Could not plan conversion", str(error))
             return
-        self.progress.setMaximum(len(jobs))
-        self.last_error = ""
+        self._start_worker(Worker(jobs))
+
+    def _start_worker(self, worker: Worker):
+        try:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            QMessageBox.warning(self, "Save folder unavailable", str(error))
+            return
+        self.progress.setMaximum(len(worker.jobs))
         self.progress.setValue(0)
-        self.convert_button.setEnabled(False)
-        self.compress_button.setEnabled(False)
-        self.reduce_button.setEnabled(False)
-        self.add_button.setEnabled(False)
-        self.worker = Worker(jobs)
-        self.worker.update.connect(self._job_update)
-        self.worker.finished_batch.connect(self._done)
-        self.worker.start()
+        self.last_error = ""
+        for button in (self.convert_button, self.compress_button, self.reduce_button,
+                       self.pdf_button, self.image_button, self.add_button):
+            button.setEnabled(False)
+        self.worker = worker
+        worker.update.connect(self._job_update)
+        worker.finished_batch.connect(self._done)
+        worker.start()
+
+    def _pdf_tools(self):
+        pdfs = [path for path in self.paths if path.suffix.lower() == ".pdf"]
+        row = self.list.currentRow()
+        selected = self.paths[row] if 0 <= row < len(self.paths) else None
+        menu = QMenu(self)
+        merge = menu.addAction("Merge queued PDFs")
+        split = menu.addAction("Split selected PDF into pages")
+        reorder = menu.addAction("Reorder selected PDF pages")
+        rotate = menu.addAction("Rotate selected PDF pages")
+        chosen = menu.exec(self.pdf_button.mapToGlobal(self.pdf_button.rect().bottomLeft()))
+        if not chosen:
+            return
+        if chosen == merge:
+            if len(pdfs) < 2:
+                QMessageBox.warning(self, "PDF tools", "Add at least two PDFs to merge.")
+                return
+            target = numbered_target(self.output_dir, "Merged", ".pdf", {str(path).casefold() for path in self.paths})
+            self._start_worker(Worker([(pdfs[0], target)], operation=lambda _, output: pdf_merge(pdfs, output), rows=[self.paths.index(pdfs[0])]))
+            return
+        if selected not in pdfs:
+            QMessageBox.warning(self, "PDF tools", "Select a PDF in the queue first.")
+            return
+        if chosen == split:
+            target = numbered_target(self.output_dir, f"{selected.stem}-pages", "", {str(path).casefold() for path in self.paths})
+            operation = pdf_split
+        elif chosen == reorder:
+            count = len(PdfReader(str(selected)).pages)
+            value, ok = QInputDialog.getText(self, "Reorder PDF", "Page order, comma-separated:", text=",".join(str(i) for i in range(1, count + 1)))
+            if not ok:
+                return
+            try:
+                order = [int(part.strip()) for part in value.split(",")]
+            except ValueError:
+                QMessageBox.warning(self, "Invalid page order", "Enter page numbers separated by commas.")
+                return
+            if sorted(order) != list(range(1, count + 1)):
+                QMessageBox.warning(self, "Invalid page order", f"Enter every page once, from 1 to {count}.")
+                return
+            target = numbered_target(self.output_dir, f"{selected.stem}-reordered", ".pdf", {str(path).casefold() for path in self.paths})
+            operation = lambda source, output: pdf_reorder(source, output, order)
+        else:
+            value, ok = QInputDialog.getItem(self, "Rotate PDF", "Clockwise:", ["90°", "180°", "270°"], 0, False)
+            if not ok:
+                return
+            degrees = int(value[:-1])
+            target = numbered_target(self.output_dir, f"{selected.stem}-rotated", ".pdf", {str(path).casefold() for path in self.paths})
+            operation = lambda source, output: pdf_rotate(source, output, degrees)
+        self._start_worker(Worker([(selected, target)], operation=operation, rows=[row]))
+
+    def _image_tools(self):
+        row = self.list.currentRow()
+        selected = self.paths[row] if 0 <= row < len(self.paths) else None
+        if not selected or kind(selected) != "Image":
+            QMessageBox.warning(self, "Image tools", "Select an image in the queue first.")
+            return
+        menu = QMenu(self)
+        resize = menu.addAction("Resize (fit within width × height)")
+        crop = menu.addAction("Crop")
+        clockwise = menu.addAction("Rotate 90° clockwise")
+        counterclockwise = menu.addAction("Rotate 90° counterclockwise")
+        strip = menu.addAction("Remove metadata")
+        chosen = menu.exec(self.image_button.mapToGlobal(self.image_button.rect().bottomLeft()))
+        if not chosen:
+            return
+        if chosen in {resize, crop}:
+            prompt = "Maximum width × height:" if chosen == resize else "Left, top, width, height:"
+            value, ok = QInputDialog.getText(self, "Image tools", prompt)
+            if not ok:
+                return
+            parts = re.split(r"[x×,\s]+", value.strip())
+            try:
+                values = tuple(int(part) for part in parts)
+            except ValueError:
+                values = ()
+            if len(values) != (2 if chosen == resize else 4):
+                QMessageBox.warning(self, "Invalid dimensions", "Enter positive whole-number dimensions.")
+                return
+            action = "resize" if chosen == resize else "crop"
+        elif chosen == strip:
+            action, values = "strip_metadata", ()
+        else:
+            action, values = "rotate", (90 if chosen == clockwise else 270,)
+        ext = selected.suffix.lower() if selected.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp"} else ".png"
+        target = numbered_target(self.output_dir, f"{selected.stem}-{action}", ext, {str(path).casefold() for path in self.paths})
+        self._start_worker(Worker([(selected, target)], operation=lambda source, output: edit_image(source, output, action, values), rows=[row]))
 
     def _compress(self):
         if not self.paths:
@@ -465,50 +612,25 @@ class Window(QMainWindow):
         if target.exists():
             QMessageBox.warning(self, "Output exists", f"The archive already exists:\n{target}")
             return
-        self.progress.setMaximum(len(self.paths))
-        self.last_error = ""
-        self.progress.setValue(0)
-        self.convert_button.setEnabled(False)
-        self.compress_button.setEnabled(False)
-        self.reduce_button.setEnabled(False)
-        self.add_button.setEnabled(False)
-        self.worker = Worker([(path, target) for path in self.paths], archive=target)
-        self.worker.update.connect(self._job_update)
-        self.worker.finished_batch.connect(self._done)
-        self.worker.start()
+        self._start_worker(Worker([(path, target) for path in self.paths], archive=target))
 
     def _reduce(self):
         target_mb = self.target_size.value()
         jobs = []
+        reserved = {str(path).casefold() for path in self.paths}
         for source in self.paths:
             extension = reduced_extension(source)
             if not extension:
                 QMessageBox.warning(self, "Unsupported file", f"Target-size compression is not available for {source.name}.")
                 return
-            target = self.output_dir / f"{source.stem}-smaller.{extension}"
-            if target.exists() or target.resolve() == source:
-                QMessageBox.warning(self, "Output exists", f"Choose another folder or move the existing output:\n{target}")
-                return
+            target = numbered_target(self.output_dir, f"{source.stem}-smaller", f".{extension}", reserved)
             jobs.append((source, target))
-        if len({target.name.casefold() for _, target in jobs}) != len(jobs):
-            QMessageBox.warning(self, "Duplicate output names", "Two files would produce the same output name. Reduce them in separate batches.")
-            return
-        self.progress.setMaximum(len(jobs))
-        self.last_error = ""
-        self.progress.setValue(0)
-        self.convert_button.setEnabled(False)
-        self.compress_button.setEnabled(False)
-        self.reduce_button.setEnabled(False)
-        self.add_button.setEnabled(False)
-        self.worker = Worker(jobs, target_mb=target_mb)
-        self.worker.update.connect(self._job_update)
-        self.worker.finished_batch.connect(self._done)
-        self.worker.start()
+        self._start_worker(Worker(jobs, target_mb=target_mb))
 
     def _job_update(self, index: int, stage: str, detail: str):
         item = self.list.item(index)
         if item:
-            item.setText(f"{self.paths[index].name}\n{kind(self.paths[index]).upper()}  ·  {stage}")
+            item.setText(f"{self.paths[index].name}\n{kind(self.paths[index]).upper()} → {self.formats[self.paths[index]].upper()}  ·  {stage}")
             item.setToolTip(detail)
         self.status.setText(f"{stage}: {detail}")
         if stage == "Failed":

@@ -6,7 +6,7 @@ A free, local desktop file converter and compressor for Windows and macOS. Drop 
 
 ## Download
 
-Download the zip for your system from the [latest release](https://github.com/Thatweirdguy1/local-file-converter/releases/latest). Extract it, then open `LocalFileConverter.exe` on Windows or `LocalFileConverter.app` on macOS. The macOS builds are unsigned; your system may require **Open Anyway** in Privacy & Security after the first launch. The app is free and needs no account.
+Download the zip for your system from the [latest release](https://github.com/Thatweirdguy1/FreeConvert/releases/latest). Extract it, then open `LocalFileConverter.exe` on Windows or `LocalFileConverter.app` on macOS. The macOS builds are unsigned; your system may require **Open Anyway** in Privacy & Security after the first launch. The app is free and needs no account.
 
 **For Office document, presentation, and spreadsheet conversions, install [LibreOffice](https://www.libreoffice.org/download/download-libreoffice/) separately.** It is not bundled with the app. The app detects standard Windows installations automatically; on macOS, make `soffice` available on `PATH`. Without LibreOffice, only the basic conversions listed below are available.
 
@@ -23,21 +23,23 @@ Download the zip for your system from the [latest release](https://github.com/Th
 | DOCX | TXT (paragraph text) |
 | TXT | PDF, DOCX |
 
-With LibreOffice detected, the app also exposes conversions within document (DOC, DOCX, ODT, RTF, TXT), presentation (PPT, PPTX, ODP), and spreadsheet (XLS, XLSX, ODS, CSV) families, plus PDF output. Output options vary by input and installed tools. The picker only shows formats common to all queued files.
+With LibreOffice detected, the app also exposes conversions within document (DOC, DOCX, ODT, RTF, TXT), presentation (PPT, PPTX, ODP), and spreadsheet (XLS, XLSX, ODS, CSV) families, plus PDF output. Output options vary by input and installed tools.
 
 ## Use
 
 1. Drag files into the window or select **Add files**.
-2. Select a file for a visual image/PDF preview, then choose an output format.
+2. Select each file for a visual image/PDF preview and choose its output format. Mixed formats can share one batch.
 3. Choose a save folder and select **Convert files**.
 
-For a shortcut, hold **Shift** while dropping files into the app's drop area. A menu at the pointer shows formats shared by those files and anything already queued. Choose one to start conversion immediately into the selected save folder; dismiss the menu to cancel. The shortcut works inside the app window on Windows and macOS.
+For a shortcut, hold **Shift** while dropping files into the app's drop area. A menu at the pointer shows formats shared by those files and anything already queued. Choose one to apply that format to the queue and start conversion immediately into the selected save folder; dismiss the menu to cancel. The shortcut works inside the app window on Windows and macOS.
+
+**PDF tools** merge queued PDFs in queue order, or split, reorder, and rotate the selected PDF. **Image tools** resize to fit within a width and height, crop by coordinates, rotate, or remove metadata from the selected image. Each tool saves a new file in the chosen folder. Animated images must be converted to a still image before editing.
 
 Select **Compress to ZIP** to save the queued files in one lossless archive. Files with duplicate names cannot share an archive.
 
 For upload limits, enter a per-file size in MB and select **Reduce file size**. This creates WebP images, MP4 videos, MP3 audio, or a smaller PDF. The app checks the completed output and reports a failure if it cannot meet the limit. This mode may reduce image quality or dimensions; PDFs are rasterized, so their text will no longer be selectable. Animated images and Office documents are excluded from this mode.
 
-Inputs are never overwritten. Existing outputs stop the batch before it starts. Conversion runs in the background so the interface stays responsive; each item reports its stage and result.
+Inputs are never overwritten. Existing output names and collisions within a batch get numbered copies, such as `photo (2).webp`. Multi-page PDF image outputs reserve all page names before the batch starts. Conversion and tools run in the background so the interface stays responsive; each item reports its stage and result.
 
 ## Run from source
 
