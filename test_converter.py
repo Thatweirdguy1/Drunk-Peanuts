@@ -138,6 +138,7 @@ class ConversionTest(unittest.TestCase):
             Image.new("RGB", (20, 20), "red").save(image)
             text = root / "same.txt"
             text.write_text("hello", encoding="utf-8")
+            image, text = image.resolve(), text.resolve()
             (root / "same.pdf").write_bytes(b"existing")
             (root / "same.docx").write_bytes(b"existing word file")
             window = Window()

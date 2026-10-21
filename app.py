@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 from converter import (available_formats, compress, convert, edit_image, kind, pdf_merge,
                        pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension)
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
