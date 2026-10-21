@@ -56,4 +56,4 @@ jobs:
       - name: Publish downloads
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "Local File Converter ${GITHUB_REF_NAME}" --verify-tag --notes "Office document, presentation, and spreadsheet conversions require a separate LibreOffice installation. See the README for setup and format details." --generate-notes
+        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "Local File Converter ${GITHUB_REF_NAME}" --verify-tag --notes "Adds media trimming, safe ZIP preview and extraction, and optional OCR. Office conversions require a separate LibreOffice installation. OCR requires a separate Tesseract OCR installation. See the README for setup and format details." --generate-notes

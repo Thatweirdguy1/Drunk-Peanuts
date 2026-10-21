@@ -20,10 +20,11 @@ from PySide6.QtWidgets import (
     QSplitter, QVBoxLayout, QWidget,
 )
 
-from converter import (available_formats, compress, convert, edit_image, kind, pdf_merge,
-                       pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension)
+from converter import (available_formats, compress, convert, edit_image, extract_zip, kind, ocr_to_text,
+                       pdf_merge, pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension,
+                       tesseract_binary, trim_media, zip_entries)
 
-VERSION = "0.4.1"
+VERSION = "0.5.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -313,6 +314,18 @@ class Window(QMainWindow):
         self.image_button.setObjectName("secondaryButton")
         self.image_button.clicked.connect(self._image_tools)
         tools_row.addWidget(self.image_button)
+        self.media_button = QPushButton("Media trim")
+        self.media_button.setObjectName("secondaryButton")
+        self.media_button.clicked.connect(self._media_tools)
+        tools_row.addWidget(self.media_button)
+        self.zip_button = QPushButton("Open ZIP")
+        self.zip_button.setObjectName("secondaryButton")
+        self.zip_button.clicked.connect(self._zip_tools)
+        tools_row.addWidget(self.zip_button)
+        self.ocr_button = QPushButton("OCR to text")
+        self.ocr_button.setObjectName("secondaryButton")
+        self.ocr_button.clicked.connect(self._ocr_tools)
+        tools_row.addWidget(self.ocr_button)
         tools_row.addStretch()
         controls_layout.addLayout(tools_row)
         self.progress = QProgressBar()
@@ -372,15 +385,15 @@ class Window(QMainWindow):
             return
         rejected = 0
         for path in files:
-            if not path.is_file() or not available_formats(path):
+            if not path.is_file() or not (available_formats(path) or path.suffix.lower() == ".zip"):
                 rejected += 1
                 continue
             path = path.resolve()
             if path in self.paths:
                 continue
             self.paths.append(path)
-            self.formats[path] = preferred_format(path)
-            label = f"{path.name}\n{kind(path).upper()} → {self.formats[path].upper()}  ·  {path.stat().st_size / 1024 / 1024:.1f} MB  ·  Waiting"
+            self.formats[path] = preferred_format(path) if path.suffix.lower() != ".zip" else ""
+            label = f"{path.name}\n{kind(path).upper() if path.suffix.lower() != '.zip' else 'ZIP'} → {self.formats[path].upper() if self.formats[path] else 'EXTRACT'}  ·  {path.stat().st_size / 1024 / 1024:.1f} MB  ·  Waiting"
             self.list.addItem(QListWidgetItem(label))
         self.count.setText(f"{len(self.paths)} file{'s' if len(self.paths) != 1 else ''}")
         if self.paths and self.list.currentRow() < 0:
@@ -443,11 +456,14 @@ class Window(QMainWindow):
             self.format.setCurrentText(self.formats[path])
         self.format.blockSignals(False)
         idle = not (self.worker and self.worker.isRunning())
-        self.convert_button.setEnabled(bool(self.paths) and idle)
+        self.convert_button.setEnabled(bool(self.paths) and all(self.formats.values()) and idle)
         self.compress_button.setEnabled(bool(self.paths) and idle)
         self.reduce_button.setEnabled(bool(self.paths) and all(reduced_extension(path) for path in self.paths) and idle)
         self.pdf_button.setEnabled(any(path.suffix.lower() == ".pdf" for path in self.paths) and idle)
         self.image_button.setEnabled(any(kind(path) == "Image" for path in self.paths) and idle)
+        self.media_button.setEnabled(any(kind(path) in {"Video", "Audio"} for path in self.paths) and idle)
+        self.zip_button.setEnabled(any(path.suffix.lower() == ".zip" for path in self.paths) and idle)
+        self.ocr_button.setEnabled(any(kind(path) in {"Image", "PDF"} for path in self.paths) and idle)
         self._refresh_details()
 
     def _choose_directory(self):
@@ -481,7 +497,7 @@ class Window(QMainWindow):
             self._convert()
 
     def _convert(self):
-        if not self.paths:
+        if not self.paths or not all(self.formats.values()):
             return
         jobs = []
         reserved = {str(path).casefold() for path in self.paths}
@@ -506,7 +522,8 @@ class Window(QMainWindow):
         self.progress.setValue(0)
         self.last_error = ""
         for button in (self.convert_button, self.compress_button, self.reduce_button,
-                       self.pdf_button, self.image_button, self.add_button):
+                       self.pdf_button, self.image_button, self.media_button, self.zip_button,
+                       self.ocr_button, self.add_button):
             button.setEnabled(False)
         self.worker = worker
         worker.update.connect(self._job_update)
@@ -599,6 +616,64 @@ class Window(QMainWindow):
         target = numbered_target(self.output_dir, f"{selected.stem}-{action}", ext, {str(path).casefold() for path in self.paths})
         self._start_worker(Worker([(selected, target)], operation=lambda source, output: edit_image(source, output, action, values), rows=[row]))
 
+    def _media_tools(self):
+        row = self.list.currentRow()
+        selected = self.paths[row] if 0 <= row < len(self.paths) else None
+        if not selected or kind(selected) not in {"Video", "Audio"}:
+            QMessageBox.warning(self, "Media trim", "Select an audio or video file first.")
+            return
+        value, ok = QInputDialog.getText(self, "Trim media", "Start and end in seconds (for example 12.5, 38):")
+        if not ok:
+            return
+        try:
+            start, end = (float(part.strip()) for part in value.split(","))
+        except ValueError:
+            QMessageBox.warning(self, "Invalid times", "Enter start and end seconds separated by a comma.")
+            return
+        menu = QMenu(self)
+        precise = menu.addAction("Precise trim (re-encode)")
+        fast = menu.addAction("Fast trim (keyframes)")
+        chosen = menu.exec(self.media_button.mapToGlobal(self.media_button.rect().bottomLeft()))
+        if chosen not in {precise, fast}:
+            return
+        target = numbered_target(self.output_dir, f"{selected.stem}-trimmed", selected.suffix,
+                                 {str(path).casefold() for path in self.paths})
+        self._start_worker(Worker([(selected, target)], operation=lambda source, output: trim_media(source, output, start, end, chosen == precise), rows=[row]))
+
+    def _zip_tools(self):
+        row = self.list.currentRow()
+        selected = self.paths[row] if 0 <= row < len(self.paths) else None
+        if not selected or selected.suffix.lower() != ".zip":
+            QMessageBox.warning(self, "Open ZIP", "Select a ZIP archive in the queue first.")
+            return
+        try:
+            entries = zip_entries(selected)
+        except Exception as error:
+            QMessageBox.warning(self, "Cannot open ZIP", str(error))
+            return
+        listing = "\n".join(f"{name}  ({size:,} bytes)" for name, size, _ in entries[:30])
+        if len(entries) > 30:
+            listing += f"\n… and {len(entries) - 30} more"
+        answer = QMessageBox.question(self, "ZIP preview", f"{len(entries)} entries, {sum(size for _, size, _ in entries):,} bytes unpacked.\n\n{listing}\n\nExtract to the save folder?")
+        if answer != QMessageBox.Yes:
+            return
+        target = numbered_target(self.output_dir, f"{selected.stem}-extracted", "",
+                                 {str(path).casefold() for path in self.paths})
+        self._start_worker(Worker([(selected, target)], operation=extract_zip, rows=[row]))
+
+    def _ocr_tools(self):
+        row = self.list.currentRow()
+        selected = self.paths[row] if 0 <= row < len(self.paths) else None
+        if not selected or kind(selected) not in {"Image", "PDF"}:
+            QMessageBox.warning(self, "OCR", "Select an image or PDF first.")
+            return
+        if not tesseract_binary():
+            QMessageBox.information(self, "OCR needs Tesseract", "Install the free Tesseract OCR program, then restart this app. See the README for setup.")
+            return
+        target = numbered_target(self.output_dir, f"{selected.stem}-ocr", ".txt",
+                                 {str(path).casefold() for path in self.paths})
+        self._start_worker(Worker([(selected, target)], operation=ocr_to_text, rows=[row]))
+
     def _compress(self):
         if not self.paths:
             return
@@ -630,7 +705,8 @@ class Window(QMainWindow):
     def _job_update(self, index: int, stage: str, detail: str):
         item = self.list.item(index)
         if item:
-            item.setText(f"{self.paths[index].name}\n{kind(self.paths[index]).upper()} → {self.formats[self.paths[index]].upper()}  ·  {stage}")
+            output = self.formats[self.paths[index]].upper() or "EXTRACT"
+            item.setText(f"{self.paths[index].name}\n{kind(self.paths[index]).upper()} → {output}  ·  {stage}")
             item.setToolTip(detail)
         self.status.setText(f"{stage}: {detail}")
         if stage == "Failed":

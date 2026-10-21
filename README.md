@@ -1,6 +1,6 @@
 # Local File Converter
 
-A free, local desktop file converter and compressor for Windows and macOS. Drop files into the queue, convert them to a shared output format, or package them in a lossless ZIP archive.
+A free, local desktop file converter and compressor for Windows and macOS. Drop files into the queue, choose an output for each file, or use the PDF, image, media, ZIP, and OCR tools.
 
 ![Local File Converter desktop app](docs/screenshot.png)
 
@@ -9,6 +9,8 @@ A free, local desktop file converter and compressor for Windows and macOS. Drop 
 Download the zip for your system from the [latest release](https://github.com/Thatweirdguy1/FreeConvert/releases/latest). Extract it, then open `LocalFileConverter.exe` on Windows or `LocalFileConverter.app` on macOS. The macOS builds are unsigned; your system may require **Open Anyway** in Privacy & Security after the first launch. The app is free and needs no account.
 
 **For Office document, presentation, and spreadsheet conversions, install [LibreOffice](https://www.libreoffice.org/download/download-libreoffice/) separately.** It is not bundled with the app. The app detects standard Windows installations automatically; on macOS, make `soffice` available on `PATH`. Without LibreOffice, only the basic conversions listed below are available.
+
+**For OCR on scanned images or PDFs, install [Tesseract OCR](https://tesseract-ocr.github.io/tessdoc/Installation.html) separately.** The app detects standard Windows `Program Files` installations and Homebrew locations on macOS, or `tesseract` on `PATH`. Restart the app after installing it. English language data is required. OCR is optional for all other tools.
 
 ## What it converts
 
@@ -34,6 +36,10 @@ With LibreOffice detected, the app also exposes conversions within document (DOC
 For a shortcut, hold **Shift** while dropping files into the app's drop area. A menu at the pointer shows formats shared by those files and anything already queued. Choose one to apply that format to the queue and start conversion immediately into the selected save folder; dismiss the menu to cancel. The shortcut works inside the app window on Windows and macOS.
 
 **PDF tools** merge queued PDFs in queue order, or split, reorder, and rotate the selected PDF. **Image tools** resize to fit within a width and height, crop by coordinates, rotate, or remove metadata from the selected image. Each tool saves a new file in the chosen folder. Animated images must be converted to a still image before editing.
+
+**Media trim** takes start and end times in seconds. Precise trim re-encodes for accurate cuts; fast trim copies streams and may start at a nearby keyframe. It saves a new file alongside other outputs. FFmpeg is bundled with the app.
+
+**Open ZIP** previews the selected archive's entries and unpacked size, then extracts it to a new numbered folder. Extraction rejects unsafe paths, duplicate names, symlinks, encrypted entries, and archives over 10,000 entries or 2 GB unpacked. Very high compression ratios are also rejected. **OCR to text** reads the selected image or each page of a scanned PDF and saves a UTF-8 text file. Recognition quality depends on the scan and installed Tesseract language data.
 
 Select **Compress to ZIP** to save the queued files in one lossless archive. Files with duplicate names cannot share an archive.
 
@@ -61,11 +67,12 @@ Files stay on your computer. The app has no upload service, analytics, or accoun
 
 ## Limitations
 
-- PDF to text extracts embedded/selectable text; it does not perform OCR.
+- Regular PDF to text extracts embedded/selectable text. Use **OCR to text** for scanned PDFs; it requires Tesseract.
 - PDF to DOCX uses extracted text and does not preserve the PDF layout, images, or tables.
 - Animated GIF input becomes a multi-page PDF or an animated GIF. Other raster outputs use the first frame.
 - CSV to XLSX stores values as text; XLSX to CSV exports the active worksheet's displayed values.
 - LibreOffice is a separate free installation and is required for full Office conversions.
+- Tesseract OCR is a separate free installation and is required only for OCR.
 - macOS builds are unnotarized and Windows builds are unsigned.
 
 MIT licensed. See [LICENSE](LICENSE).

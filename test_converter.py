@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from zipfile import ZipFile
+import wave
 
 from PIL import Image
 from pypdf import PdfReader
@@ -18,7 +19,7 @@ from PySide6.QtWidgets import QApplication
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from converter import available_formats, compress, convert, reduce_size
 from app import Window, Worker, numbered_target
-from converter import edit_image, pdf_merge, pdf_reorder, pdf_rotate, pdf_split
+from converter import edit_image, extract_zip, ocr_to_text, pdf_merge, pdf_reorder, pdf_rotate, pdf_split, trim_media, zip_entries
 
 
 class ConversionTest(unittest.TestCase):
@@ -207,6 +208,57 @@ class ConversionTest(unittest.TestCase):
                 self.assertNotIn("Comment", image.info)
             with self.assertRaises(ValueError):
                 edit_image(source, root / "bad.png", "crop", (50, 0, 20, 20))
+
+    def test_media_trim_keeps_source(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "tone.wav"
+            with wave.open(str(source), "wb") as output:
+                output.setparams((1, 2, 8000, 0, "NONE", "not compressed"))
+                output.writeframes(b"\x00\x00" * 16000)
+            trimmed = root / "tone-trimmed.wav"
+            trim_media(source, trimmed, 0.5, 1.5)
+            with wave.open(str(trimmed), "rb") as result:
+                self.assertAlmostEqual(result.getnframes() / result.getframerate(), 1, delta=0.1)
+            with self.assertRaises(FileExistsError):
+                trim_media(source, trimmed, 0.5, 1.5)
+            self.assertTrue(source.exists())
+
+    def test_zip_preview_and_safe_extraction(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            archive = root / "files.zip"
+            with ZipFile(archive, "w") as output:
+                output.writestr("inside/note.txt", "hello")
+            self.assertEqual(zip_entries(archive)[0][0], "inside/note.txt")
+            target = root / "extracted"
+            extract_zip(archive, target)
+            self.assertEqual((target / "inside" / "note.txt").read_text(), "hello")
+            with self.assertRaises(FileExistsError):
+                extract_zip(archive, target)
+            bad = root / "bad.zip"
+            with ZipFile(bad, "w") as output:
+                output.writestr("../escape.txt", "no")
+            with self.assertRaises(ValueError):
+                extract_zip(bad, root / "unsafe")
+            self.assertFalse((root / "escape.txt").exists())
+
+    def test_ocr_image_and_pdf_pages(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            image = root / "scan.png"
+            Image.new("RGB", (20, 20), "white").save(image)
+            with patch("converter.tesseract_binary", return_value="tesseract"), patch("converter.subprocess.run") as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = "recognized text\n"
+                ocr_to_text(image, root / "image.txt")
+                self.assertEqual((root / "image.txt").read_text(), "recognized text\n")
+                run.assert_called_once()
+                self.assertEqual(run.call_args.args[0][-3:], ["stdout", "-l", "eng"])
+                pdf = root / "pages.pdf"
+                convert(image, pdf)
+                ocr_to_text(pdf, root / "pages.txt")
+                self.assertIn("recognized text", (root / "pages.txt").read_text())
 
     @staticmethod
     def _comment():

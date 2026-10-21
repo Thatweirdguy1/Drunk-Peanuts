@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
@@ -106,6 +108,23 @@ def office_binary() -> str | None:
 
 def ffmpeg_binary() -> str:
     return imageio_ffmpeg.get_ffmpeg_exe()
+
+
+def tesseract_binary() -> str | None:
+    found = shutil.which("tesseract")
+    if found:
+        return found
+    if os.name == "nt":
+        for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
+            if base:
+                candidate = Path(base) / "Tesseract-OCR" / "tesseract.exe"
+                if candidate.is_file():
+                    return str(candidate)
+    else:
+        for candidate in (Path("/opt/homebrew/bin/tesseract"), Path("/usr/local/bin/tesseract")):
+            if candidate.is_file():
+                return str(candidate)
+    return None
 
 
 def _run(command: list[str], timeout: int = 900) -> None:
@@ -458,6 +477,123 @@ def _media_duration(source: Path) -> float:
     if duration <= 0:
         raise ValueError("Media duration must be greater than zero.")
     return duration
+
+
+def trim_media(source: Path, target: Path, start: float, end: float, precise: bool = True) -> None:
+    source, target = Path(source).resolve(strict=True), Path(target).resolve()
+    if kind(source) not in {"Video", "Audio"} or target.suffix.lower() != source.suffix.lower():
+        raise ValueError("Choose audio or video and keep its file type.")
+    if not all(math.isfinite(value) for value in (start, end)) or start < 0 or end <= start:
+        raise ValueError("End time must be after start time.")
+    if end > _media_duration(source) + 0.1:
+        raise ValueError("End time is past the end of the file.")
+    if target.exists() or target == source:
+        raise FileExistsError(f"Output already exists: {target.name}")
+    command = [ffmpeg_binary(), "-hide_banner", "-loglevel", "error", "-nostdin", "-ss", str(start), "-i", str(source), "-t", str(end - start)]
+    if not precise:
+        command += ["-c", "copy"]
+    with tempfile.NamedTemporaryFile(prefix=".trim-", suffix=target.suffix, dir=target.parent, delete=False) as temporary:
+        pending = Path(temporary.name)
+    pending.unlink()
+    try:
+        _run(command + ["-n", str(pending)])
+        os.link(pending, target)
+    finally:
+        pending.unlink(missing_ok=True)
+
+
+def zip_entries(source: Path) -> list[tuple[str, int, int]]:
+    """Read the archive listing and reject entries unsafe to extract."""
+    if source.suffix.lower() != ".zip":
+        raise ValueError("Choose a ZIP archive.")
+    entries = []
+    names = set()
+    total = 0
+    with ZipFile(source) as archive:
+        for info in archive.infolist():
+            name = info.filename.replace("\\", "/")
+            parts = name.rstrip("/").split("/")
+            mode = info.external_attr >> 16
+            if (not name or name.startswith("/") or any(part in {"", ".", ".."} or ":" in part
+                    or part.endswith((" ", ".")) or part.split(".")[0].upper() in
+                    {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
+                    for part in parts) or stat.S_ISLNK(mode) or info.flag_bits & 1):
+                raise ValueError(f"Unsafe ZIP entry: {info.filename}")
+            key = name.rstrip("/").casefold()
+            if key in names:
+                raise ValueError(f"Duplicate ZIP entry: {info.filename}")
+            names.add(key)
+            total += info.file_size
+            # ponytail: fixed archive limits; raise them if large trusted archives become a user need.
+            if len(names) > 10000 or total > 2 * 1024**3 or info.file_size > 1000 * max(info.compress_size, 1):
+                raise ValueError("ZIP archive exceeds safe extraction limits.")
+            entries.append((name, info.file_size, info.compress_size))
+    return entries
+
+
+def extract_zip(source: Path, folder: Path) -> None:
+    source, folder = Path(source).resolve(strict=True), Path(folder).resolve()
+    zip_entries(source)
+    folder.mkdir(parents=True, exist_ok=False)
+    total = 0
+    try:
+        with ZipFile(source) as archive:
+            for info in archive.infolist():
+                name = info.filename.replace("\\", "/")
+                output = folder.joinpath(*name.rstrip("/").split("/"))
+                if not output.resolve().is_relative_to(folder):
+                    raise ValueError(f"Unsafe ZIP entry: {name}")
+                if info.is_dir():
+                    output.mkdir(parents=True, exist_ok=True)
+                    continue
+                output.parent.mkdir(parents=True, exist_ok=True)
+                with archive.open(info) as stream, output.open("xb") as target:
+                    while block := stream.read(1024 * 1024):
+                        total += len(block)
+                        if total > 2 * 1024**3:
+                            raise ValueError("ZIP archive exceeds safe extraction limits.")
+                        target.write(block)
+    except Exception:
+        shutil.rmtree(folder)
+        raise
+
+
+def ocr_to_text(source: Path, target: Path) -> None:
+    source, target = Path(source).resolve(strict=True), Path(target).resolve()
+    if kind(source) not in {"Image", "PDF"}:
+        raise ValueError("OCR supports images and PDFs.")
+    binary = tesseract_binary()
+    if not binary:
+        raise RuntimeError("Install Tesseract OCR to read scanned images and PDFs.")
+    if target.exists() or target == source:
+        raise FileExistsError(f"Output already exists: {target.name}")
+    pages = []
+    with tempfile.TemporaryDirectory(prefix="local-converter-ocr-") as tmp:
+        if kind(source) == "PDF":
+            pdf = pdfium.PdfDocument(str(source))
+            try:
+                for index in range(len(pdf)):
+                    page = pdf[index]
+                    image = page.render(scale=2).to_pil()
+                    page.close()
+                    file = Path(tmp) / f"page-{index + 1}.png"
+                    image.save(file)
+                    pages.append(file)
+            finally:
+                pdf.close()
+        else:
+            with _image(source) as opened:
+                file = Path(tmp) / "image.png"
+                ImageOps.exif_transpose(opened).save(file)
+                pages.append(file)
+        text = []
+        for page in pages:
+            result = subprocess.run([binary, str(page), "stdout", "-l", "eng"], capture_output=True, text=True, timeout=300, shell=False)
+            if result.returncode:
+                raise RuntimeError((result.stderr or "Tesseract OCR failed.")[-700:].strip())
+            text.append(result.stdout.strip())
+    with target.open("x", encoding="utf-8") as output:
+        output.write("\n\n".join(text) + "\n")
 
 
 def reduce_size(source: Path, target: Path, target_mb: float) -> None:
