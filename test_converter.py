@@ -1,5 +1,6 @@
 """Small end-to-end checks using only temporary files."""
 
+import os
 import tempfile
 import threading
 import unittest
@@ -10,9 +11,13 @@ from zipfile import ZipFile
 from PIL import Image
 from pypdf import PdfReader
 from docx import Document
+from PySide6.QtCore import QMimeData, QPointF, Qt, QUrl
+from PySide6.QtGui import QDropEvent
+from PySide6.QtWidgets import QApplication
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from converter import available_formats, compress, convert, reduce_size
-from app import Worker
+from app import Window, Worker
 
 
 class ConversionTest(unittest.TestCase):
@@ -96,6 +101,33 @@ class ConversionTest(unittest.TestCase):
         with patch("app.convert", side_effect=lambda *_: barrier.wait()):
             worker.run()
         self.assertEqual(result, [(2, 0)])
+
+    def test_shift_drop_chooses_format_and_converts(self):
+        app = QApplication.instance() or QApplication([])
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "note.txt"
+            source.write_text("hello", encoding="utf-8")
+            window = Window()
+
+            class Menu:
+                def __init__(self, *_):
+                    self.actions = []
+
+                def addAction(self, label):
+                    self.actions.append(label)
+                    return label
+
+                def exec(self, _):
+                    return "DOCX"
+
+            with patch("app.QMenu", Menu), patch.object(window, "_convert") as start:
+                data = QMimeData()
+                data.setUrls([QUrl.fromLocalFile(str(source))])
+                drop = QDropEvent(QPointF(5, 5), Qt.CopyAction, data, Qt.LeftButton, Qt.ShiftModifier)
+                window.drop.dropEvent(drop)
+                self.assertEqual(window.format.currentText(), "docx")
+                start.assert_called_once()
+            window.close()
 
 
 if __name__ == "__main__":

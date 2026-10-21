@@ -31,6 +31,8 @@ With LibreOffice detected, the app also exposes conversions within document (DOC
 2. Select a file for a visual image/PDF preview, then choose an output format.
 3. Choose a save folder and select **Convert files**.
 
+For a shortcut, hold **Shift** while dropping files into the app's drop area. A menu at the pointer shows formats shared by those files and anything already queued. Choose one to start conversion immediately into the selected save folder; dismiss the menu to cancel. The shortcut works inside the app window on Windows and macOS.
+
 Select **Compress to ZIP** to save the queued files in one lossless archive. Files with duplicate names cannot share an archive.
 
 For upload limits, enter a per-file size in MB and select **Reduce file size**. This creates WebP images, MP4 videos, MP3 audio, or a smaller PDF. The app checks the completed output and reports a failure if it cannot meet the limit. This mode may reduce image quality or dimensions; PDFs are rasterized, so their text will no longer be selectable. Animated images and Office documents are excluded from this mode.

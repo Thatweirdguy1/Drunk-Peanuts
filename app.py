@@ -8,18 +8,18 @@ from pathlib import Path
 
 import pypdfium2 as pdfium
 from PIL import Image
-from PySide6.QtCore import QSettings, Qt, QThread, Signal
+from PySide6.QtCore import QPoint, QSettings, Qt, QThread, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QComboBox, QFileDialog, QFrame,
     QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow,
-    QDoubleSpinBox, QMessageBox, QProgressBar, QPushButton, QSizePolicy,
+    QDoubleSpinBox, QMenu, QMessageBox, QProgressBar, QPushButton, QSizePolicy,
     QSplitter, QVBoxLayout, QWidget,
 )
 
 from converter import available_formats, compress, convert, kind, reduce_size, reduced_extension
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 
 def image_preview(path: Path) -> QPixmap | None:
@@ -49,6 +49,7 @@ def image_preview(path: Path) -> QPixmap | None:
 
 class DropArea(QFrame):
     files_dropped = Signal(list)
+    quick_files_dropped = Signal(list, QPoint)
 
     def __init__(self):
         super().__init__()
@@ -63,7 +64,7 @@ class DropArea(QFrame):
         title = QLabel("Drop files here")
         title.setObjectName("dropTitle")
         title.setAlignment(Qt.AlignCenter)
-        detail = QLabel("or choose files from your computer")
+        detail = QLabel("or choose files · Shift-drop for quick conversion")
         detail.setObjectName("muted")
         detail.setAlignment(Qt.AlignCenter)
         layout.addWidget(mark)
@@ -75,7 +76,11 @@ class DropArea(QFrame):
             event.acceptProposedAction()
 
     def dropEvent(self, event):
-        self.files_dropped.emit([Path(url.toLocalFile()) for url in event.mimeData().urls() if url.isLocalFile()])
+        files = [Path(url.toLocalFile()) for url in event.mimeData().urls() if url.isLocalFile()]
+        if event.modifiers() & Qt.ShiftModifier:
+            self.quick_files_dropped.emit(files, self.mapToGlobal(event.position().toPoint()))
+        else:
+            self.files_dropped.emit(files)
         event.acceptProposedAction()
 
 
@@ -170,6 +175,7 @@ class Window(QMainWindow):
         self.drop = DropArea()
         self.drop.setFixedHeight(115)
         self.drop.files_dropped.connect(self._add_files)
+        self.drop.quick_files_dropped.connect(self._quick_drop)
         self.drop.mousePressEvent = lambda event: self._choose_files()
         page.addWidget(self.drop)
 
@@ -399,6 +405,26 @@ class Window(QMainWindow):
             self.output_dir = Path(directory)
             self.settings.setValue("output_dir", directory)
             self.destination.setText(directory)
+
+    def _quick_drop(self, files: list[Path], position: QPoint):
+        if self.worker and self.worker.isRunning():
+            return
+        paths = self.paths + [path.resolve() for path in files if path.is_file() and available_formats(path) and path.resolve() not in self.paths]
+        if not paths:
+            return
+        common = set(available_formats(paths[0]))
+        for path in paths[1:]:
+            common.intersection_update(available_formats(path))
+        if not common:
+            self.status.setText("These files have no shared output format. Convert them in separate batches.")
+            return
+        menu = QMenu(self)
+        choices = {menu.addAction(fmt.upper()): fmt for fmt in sorted(common)}
+        chosen = menu.exec(position)
+        if chosen:
+            self._add_files(files)
+            self.format.setCurrentText(choices[chosen])
+            self._convert()
 
     def _convert(self):
         fmt = self.format.currentText()
