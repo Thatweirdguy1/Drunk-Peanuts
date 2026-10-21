@@ -1,0 +1,59 @@
+name: Build desktop downloads
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            name: Windows-x64
+          - os: macos-15-intel
+            name: macOS-Intel
+          - os: macos-15
+            name: macOS-Apple-Silicon
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt pyinstaller
+      - name: Run checks
+        run: python -m unittest -q
+      - name: Package app
+        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name LocalFileConverter --collect-all imageio_ffmpeg app.py
+      - name: Archive Windows app
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -LiteralPath dist/LocalFileConverter -DestinationPath "LocalFileConverter-${{ matrix.name }}.zip"
+      - name: Archive macOS app
+        if: runner.os == 'macOS'
+        run: ditto -c -k --sequesterRsrc --keepParent dist/LocalFileConverter.app "LocalFileConverter-${{ matrix.name }}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: LocalFileConverter-${{ matrix.name }}.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*'
+          merge-multiple: true
+      - name: Publish downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "Local File Converter ${GITHUB_REF_NAME}" --generate-notes
