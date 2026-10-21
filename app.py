@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
 
 from converter import available_formats, compress, convert, kind, reduce_size, reduced_extension
 
+VERSION = "0.2.0"
+
 
 def image_preview(path: Path) -> QPixmap | None:
     try:
@@ -126,7 +128,7 @@ class Worker(QThread):
 class Window(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Local File Converter")
+        self.setWindowTitle(f"Local File Converter {VERSION}")
         self.resize(1080, 830)
         self.setMinimumSize(780, 700)
         self.paths: list[Path] = []
@@ -501,6 +503,7 @@ class Window(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Local File Converter")
+    app.setApplicationVersion(VERSION)
     app.setOrganizationName("Local File Converter")
     window = Window()
     window.show()

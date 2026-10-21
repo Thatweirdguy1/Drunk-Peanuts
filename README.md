@@ -6,7 +6,7 @@ A free, local desktop file converter and compressor for Windows and macOS. Drop 
 
 ## Download
 
-Download the zip for your system from [Releases](https://github.com/Thatweirdguy1/local-file-converter/releases). Extract it, then open `LocalFileConverter.exe` on Windows or `LocalFileConverter.app` on macOS. The macOS builds are unsigned; your system may require **Open Anyway** in Privacy & Security after the first launch. The app is free and needs no account.
+Download the zip for your system from the [latest release](https://github.com/Thatweirdguy1/local-file-converter/releases/latest). Extract it, then open `LocalFileConverter.exe` on Windows or `LocalFileConverter.app` on macOS. The macOS builds are unsigned; your system may require **Open Anyway** in Privacy & Security after the first launch. The app is free and needs no account.
 
 **For Office document, presentation, and spreadsheet conversions, install [LibreOffice](https://www.libreoffice.org/download/download-libreoffice/) separately.** It is not bundled with the app. The app detects standard Windows installations automatically; on macOS, make `soffice` available on `PATH`. Without LibreOffice, only the basic conversions listed below are available.
 
