@@ -106,6 +106,32 @@ class ConversionTest(unittest.TestCase):
             convert(odp, converted)
             self.assertIn("Opening slide", [shape.text for shape in Presentation(converted).slides[0].shapes if shape.has_text_frame])
 
+    def test_advanced_office_conversion_refuses_loss(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            book = __import__("openpyxl").Workbook()
+            book.active["A1"] = "=2+2"
+            source = root / "formula.xlsx"
+            book.save(source)
+            with self.assertRaisesRegex(ValueError, "formulas"):
+                convert(source, root / "formula.ods")
+            self.assertFalse((root / "formula.ods").exists())
+            doc = Document()
+            image = root / "image.png"
+            Image.new("RGB", (8, 8), "red").save(image)
+            doc.add_picture(str(image))
+            rich = root / "document.docx"
+            doc.save(rich)
+            with self.assertRaisesRegex(ValueError, "word/media"):
+                convert(rich, root / "document.odt")
+            deck = Presentation()
+            slide = deck.slides.add_slide(deck.slide_layouts[6])
+            slide.shapes.add_shape(1, 0, 0, 914400, 914400)
+            pptx = root / "shapes.pptx"
+            deck.save(pptx)
+            with self.assertRaisesRegex(ValueError, "nontext slide shapes"):
+                convert(pptx, root / "shapes.odp")
+
     def test_zip_compression(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

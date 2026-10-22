@@ -91,4 +91,4 @@ jobs:
       - name: Publish downloads
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "FreeConvert ${GITHUB_REF_NAME}" --verify-tag --notes "Removes the bundled LibreOffice runtime. Basic DOCX, ODT, RTF, TXT, XLSX, ODS, CSV, PPTX, and ODP conversions now run within FreeConvert. Legacy DOC, XLS, and PPT conversion is not supported. Complex formatting, formulas, objects, and metadata may change; see README before converting important files." --generate-notes
+        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "FreeConvert ${GITHUB_REF_NAME}" --verify-tag --notes "Adds Formulaic for local formula editing and MathML, OpenDocument Formula, PDF, and PNG output. Pages, Tables, and Dazzle now copy unchanged Office imports exactly. Rich-format conversion refuses many advanced files that would lose content; this is not full Microsoft Office or LibreOffice compatibility. See README for supported syntax and fidelity limits." --generate-notes

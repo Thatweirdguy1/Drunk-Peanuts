@@ -24,7 +24,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        pdf_merge, pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension,
                        trim_media, zip_entries)
 
-VERSION = "0.10.0"
+VERSION = "0.11.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -203,7 +203,7 @@ class Window(QMainWindow):
         header.addWidget(self.add_button)
         page.addLayout(header)
 
-        subtitle = QLabel("Convert files and create documents, tables, slides, drawings, databases, and scripts on your computer.")
+        subtitle = QLabel("Convert files and create documents, tables, slides, formulas, drawings, databases, and scripts on your computer.")
         subtitle.setObjectName("muted")
         page.addWidget(subtitle)
 
@@ -212,7 +212,7 @@ class Window(QMainWindow):
         spaces_layout = QHBoxLayout(spaces)
         spaces_layout.setContentsMargins(8, 8, 8, 8)
         spaces_layout.setSpacing(5)
-        for name in ("Pages", "Tables", "Dazzle", "Sketch", "Organize"):
+        for name in ("Pages", "Tables", "Dazzle", "Sketch", "Organize", "Formulaic"):
             control = QPushButton(name)
             control.setObjectName("workspaceButton")
             control.clicked.connect(lambda checked=False, workspace=name: self._open_workspace(workspace))
@@ -768,8 +768,11 @@ def main():
         return
     if sys.argv[1:] == ["--office-self-check"]:
         from office_suite import WORKSPACES
-        if set(WORKSPACES) != {"Pages", "Tables", "Dazzle", "Sketch", "Organize"}:
+        from formulaic import mathml
+        if set(WORKSPACES) != {"Pages", "Tables", "Dazzle", "Sketch", "Organize", "Formulaic"}:
             raise RuntimeError("Office workspaces are missing")
+        if b"mfrac" not in mathml("{a} over {b}"):
+            raise RuntimeError("Formulaic is unavailable")
         return
     app = QApplication(sys.argv)
     app.setApplicationName("FreeConvert")

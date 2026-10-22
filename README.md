@@ -1,6 +1,6 @@
 # FreeConvert
 
-A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, drawings, databases, and screenplays.
+A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, and screenplays.
 
 ![FreeConvert desktop app](docs/screenshot.png)
 
@@ -38,11 +38,12 @@ The workspace bar opens these built-in, offline editors:
 | **Pages** | Rich text, bold, italic, underline, bullets, word count | DOCX, HTML, TXT; PDF export |
 | **Tables** | Editable spreadsheet grid | XLSX, CSV |
 | **Dazzle** | Slide titles and body text, add/delete slides | PPTX, Dazzle project; PDF export |
+| **Formulaic** | Local equation source and preview: fractions, roots, scripts, Greek names | Formulaic source, MathML, OpenDocument Formula; PDF and PNG export |
 | **Sketch** | Freehand pen, color, eraser | PNG, JPEG, BMP |
 | **Organize** | SQLite tables and records; CSV import/export | SQLite, CSV |
 | **Writer's Drafts** | Screenplay writing and preview | Fountain, FDX, PDF, TXT, HTML, Markdown |
 
-These are focused editors, not copies of Microsoft Office or LibreOffice. Pages opens DOCX text but does not preserve all formatting, embedded objects, or comments. Tables edits one visible sheet and keeps other XLSX sheets when saving another XLSX; it does not calculate formulas or guarantee preservation of every Excel feature. Dazzle keeps nontext slide shapes when editing text in an imported PPTX without adding or deleting slides. Structural slide edits create a new simple layout, and advanced themes, animations, and notes are not guaranteed. Organize can browse external SQLite databases read-only; it edits databases created by Organize. Back up important originals before importing them.
+These are focused editors, not copies of Microsoft Office or LibreOffice. Pages, Tables, and Dazzle copy unchanged imported DOCX, XLSX, and PPTX files byte-for-byte when saved to a new file. Pages can edit text in existing paragraphs while keeping other document parts, but inline styling in changed paragraphs and unsupported Word features are not guaranteed. Tables edits one visible sheet and keeps other XLSX sheets when saving another XLSX; it does not calculate formulas or guarantee preservation of every Excel feature. Dazzle keeps nontext slide shapes when editing text in an imported PPTX without adding or deleting slides. Structural slide edits in complex imported decks are refused; advanced themes, animations, and notes are not guaranteed. Formulaic offers a small formula language with `over`, `sqrt`, `^`, `_`, and common Greek names; it is not a full StarMath parser. It opens supported MathML and OpenDocument Formula files and refuses elements it cannot edit. Organize can browse external SQLite databases read-only; it edits databases created by Organize. Back up important originals before importing them.
 
 ### Writer's Drafts
 
@@ -100,7 +101,7 @@ Files stay on your computer. The app has no upload service, analytics, or accoun
 - PDF to DOCX uses extracted text and does not preserve the PDF layout, images, or tables.
 - Animated GIF input becomes a multi-page PDF or an animated GIF. Other raster outputs use the first frame.
 - CSV to XLSX stores values as text; XLSX to CSV exports the active worksheet's displayed values.
-- The native Office conversion handles basic content. It can omit styles, charts, formulas, notes, macros, embedded media, metadata, or additional worksheets. PDF output is a simple rendering of extracted content, not an exact printout. Check important documents after conversion.
+- The native Office conversion handles basic content. For rich-format output, it refuses many advanced DOCX, XLSX, and PPTX files when it detects content it would discard, such as media, charts, formulas, or extra worksheets. Detection is not exhaustive; styling, metadata, or other unsupported parts may still change. TXT and CSV are deliberate text/value extraction. PDF output is a simple rendering of extracted content, not an exact printout. Check important documents after conversion.
 - The native engine does not parse Final Draft metadata or reproduce Final Draft's pagination.
 - Bundled OCR currently recognizes English text. RapidOCR and its converted PaddleOCR models are distributed under Apache 2.0; see [third-party notices](THIRD_PARTY_NOTICES.md).
 - macOS builds are unnotarized and Windows builds are unsigned.

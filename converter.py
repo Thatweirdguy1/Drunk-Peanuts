@@ -17,7 +17,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from pathlib import Path
 
 import imageio_ffmpeg
-from native_office import DOCUMENTS, PRESENTATIONS, SPREADSHEETS, convert_office, targets
+from native_office import DOCUMENTS, PRESENTATIONS, SPREADSHEETS, advanced_content, convert_office, targets
 import pillow_heif
 import pypdfium2 as pdfium
 import rawpy
@@ -335,6 +335,11 @@ def convert(source: Path, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists():
         raise FileExistsError(f"Output already exists: {target.name}")
+    if fmt not in {"txt", "csv"}:
+        unsupported = advanced_content(source)
+        if unsupported:
+            raise ValueError("This file contains advanced Office content that native conversion would lose: "
+                             + ", ".join(unsupported[:3]) + ". Use its original editor for an exact export.")
     group = kind(source)
     if group == "Image":
         _save_image(source, target, fmt)

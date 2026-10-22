@@ -112,6 +112,46 @@ class OfficeSuiteTest(unittest.TestCase):
             self.assertEqual(saved.slides[0].shapes.title.text, "After")
             self.assertEqual(len(saved.slides[0].shapes), len(slide.shapes))
 
+    def test_unchanged_office_imports_copy_exact_bytes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            document = __import__("docx").Document()
+            document.add_paragraph("Original")
+            docx = root / "source.docx"
+            document.save(docx)
+            pages = Pages()
+            pages.imported_docx = docx
+            pages.original_paragraphs = ["Original"]
+            pages.editor.setPlainText("Original")
+            pages_copy = root / "copy.docx"
+            pages._write(pages_copy)
+            self.assertEqual(docx.read_bytes(), pages_copy.read_bytes())
+
+            book = Workbook()
+            book.active["A1"] = "Original"
+            book.create_sheet("Extra")["A1"] = "Keep"
+            xlsx = root / "source.xlsx"
+            book.save(xlsx)
+            tables = Tables()
+            tables._read(xlsx)
+            tables_copy = root / "copy.xlsx"
+            tables._write(tables_copy)
+            self.assertEqual(xlsx.read_bytes(), tables_copy.read_bytes())
+
+            deck = Presentation()
+            slide = deck.slides.add_slide(deck.slide_layouts[5])
+            slide.shapes.title.text = "Original"
+            pptx = root / "source.pptx"
+            deck.save(pptx)
+            dazzle = Dazzle()
+            dazzle.imported_pptx = pptx
+            dazzle.original_slides = [("Original", "")]
+            dazzle.slides = [("Original", "")]
+            dazzle.title.setPlainText("Original")
+            dazzle_copy = root / "copy.pptx"
+            dazzle._write(dazzle_copy)
+            self.assertEqual(pptx.read_bytes(), dazzle_copy.read_bytes())
+
 
 if __name__ == "__main__":
     unittest.main()

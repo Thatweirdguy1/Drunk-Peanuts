@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 from html import escape
 from pathlib import Path
+from zipfile import ZipFile
 
 from docx import Document
 from docx.oxml.ns import qn
@@ -29,6 +30,40 @@ from striprtf.striprtf import rtf_to_text
 DOCUMENTS = {"txt", "docx", "odt", "rtf"}
 SPREADSHEETS = {"csv", "xlsx", "ods"}
 PRESENTATIONS = {"pptx", "odp"}
+
+
+def advanced_content(source: Path) -> list[str]:
+    """Flag OOXML parts the extraction converter cannot retain."""
+    ext = source.suffix.lower()
+    if ext not in {".docx", ".xlsx", ".pptx"}:
+        return []
+    with ZipFile(source) as archive:
+        names = archive.namelist()
+        if ext == ".docx":
+            prefixes = ("word/media/", "word/charts/", "word/embeddings/", "word/comments", "word/footnotes", "word/endnotes", "word/header", "word/footer")
+            found = [name for name in names if name.startswith(prefixes)]
+            body = archive.read("word/document.xml")
+            if any(mark in body for mark in (b"<w:drawing", b"<w:hyperlink", b"<m:oMath", b"<w:fldChar", b"<w:ins", b"<w:del", b"<w:numPr")):
+                found.append("document structure")
+            return found
+        if ext == ".xlsx":
+            prefixes = ("xl/charts/", "xl/drawings/", "xl/media/", "xl/pivot", "xl/embeddings/", "xl/tables/", "xl/vba", "xl/externalLinks/", "xl/connections", "xl/slicers/")
+            found = [name for name in names if name.startswith(prefixes)]
+            sheets = [name for name in names if name.startswith("xl/worksheets/sheet") and name.endswith(".xml")]
+            if len(sheets) > 1:
+                found.append("additional worksheets")
+            if any(b"<f>" in archive.read(name) or b"<f " in archive.read(name) for name in sheets):
+                found.append("formulas")
+            return found
+        prefixes = ("ppt/media/", "ppt/charts/", "ppt/notesSlides/", "ppt/embeddings/", "ppt/diagrams/", "ppt/comments/", "ppt/persons/")
+        found = [name for name in names if name.startswith(prefixes)]
+        deck = Presentation(source)
+        if any(not shape.has_text_frame or not shape.text.strip() for slide in deck.slides for shape in slide.shapes):
+            found.append("nontext slide shapes")
+        if any(b"<p:timing" in archive.read(name) or b"<p:transition" in archive.read(name)
+               for name in names if name.startswith("ppt/slides/slide") and name.endswith(".xml")):
+            found.append("animations or transitions")
+        return found
 
 
 def targets(extension: str) -> set[str]:

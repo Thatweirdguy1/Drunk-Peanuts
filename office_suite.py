@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import shutil
 import sqlite3
 from contextlib import closing, contextmanager
 from pathlib import Path
@@ -10,6 +11,7 @@ from pathlib import Path
 from docx import Document
 from openpyxl import Workbook, load_workbook
 from pptx import Presentation
+from native_office import advanced_content
 from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFont, QImage, QPainter, QPen, QTextListFormat
 from PySide6.QtPrintSupport import QPrinter
@@ -81,6 +83,8 @@ class Pages(Workspace):
 
     def __init__(self):
         super().__init__("Pages")
+        self.imported_docx = None
+        self.original_paragraphs = []
         self.editor = QTextEdit()
         self.editor.setAcceptRichText(True)
         self.editor.setPlaceholderText("Start writing…")
@@ -105,6 +109,8 @@ class Pages(Workspace):
         if not self._can_close():
             return
         self.path = None
+        self.imported_docx = None
+        self.original_paragraphs = []
         self.editor.clear()
         self.editor.document().setModified(False)
 
@@ -124,11 +130,15 @@ class Pages(Workspace):
         def read():
             if path.suffix.lower() == ".docx":
                 doc = Document(path)
-                self.editor.setPlainText("\n".join(p.text for p in doc.paragraphs))
+                self.original_paragraphs = [p.text for p in doc.paragraphs]
+                self.editor.setPlainText("\n".join(self.original_paragraphs))
+                self.imported_docx = path
             elif path.suffix.lower() in {".html", ".htm"}:
                 self.editor.setHtml(path.read_text(encoding="utf-8"))
+                self.imported_docx = None
             else:
                 self.editor.setPlainText(path.read_text(encoding="utf-8"))
+                self.imported_docx = None
             # Imported DOCX may contain structures this editor cannot retain.
             self.path = None if path.suffix.lower() == ".docx" else path
             self.editor.document().setModified(False)
@@ -147,10 +157,34 @@ class Pages(Workspace):
 
     def _write(self, path):
         if path.suffix.lower() == ".docx":
-            doc = Document()
-            for line in self.editor.toPlainText().split("\n"):
-                doc.add_paragraph(line)
-            doc.save(path)
+            lines = self.editor.toPlainText().split("\n")
+            if self.imported_docx and path.resolve() == self.imported_docx.resolve() and self.path is None:
+                raise ValueError("Save an imported Word document to a new file")
+            if self.imported_docx and lines == self.original_paragraphs:
+                if path.resolve() != self.imported_docx.resolve():
+                    shutil.copyfile(self.imported_docx, path)
+            elif self.imported_docx and len(lines) == len(self.original_paragraphs):
+                doc = Document(self.imported_docx)
+                for paragraph, old, new in zip(doc.paragraphs, self.original_paragraphs, lines):
+                    if new != old:
+                        if paragraph.runs:
+                            paragraph.runs[0].text = new
+                            for run in paragraph.runs[1:]:
+                                run.text = ""
+                        else:
+                            paragraph.add_run(new)
+                doc.save(path)
+            else:
+                if self.imported_docx:
+                    doc = Document(self.imported_docx)
+                    if doc.tables or advanced_content(self.imported_docx):
+                        raise ValueError("Paragraph count changed in a complex Word file; save as HTML or TXT to avoid dropping content")
+                doc = Document()
+                for line in lines:
+                    doc.add_paragraph(line)
+                doc.save(path)
+            self.imported_docx = path
+            self.original_paragraphs = lines
         elif path.suffix.lower() in {".html", ".htm"}:
             path.write_text(self.editor.toHtml(), encoding="utf-8")
         elif path.suffix.lower() == ".txt":
@@ -249,6 +283,15 @@ class Tables(Workspace):
     def _write(self, path):
         rows = self._rows()
         if path.suffix.lower() == ".xlsx":
+            if self.imported_xlsx and path.resolve() == self.imported_xlsx.resolve() and self.path is None:
+                raise ValueError("Save an imported workbook to a new file")
+            if self.imported_xlsx and rows == self.original_rows:
+                if path.resolve() != self.imported_xlsx.resolve():
+                    shutil.copyfile(self.imported_xlsx, path)
+                self.imported_xlsx = path
+                self.path = path
+                self.dirty = False
+                return
             book = load_workbook(self.imported_xlsx) if self.imported_xlsx else Workbook()
             try:
                 sheet = book.active
@@ -391,6 +434,15 @@ class Dazzle(Workspace):
         import json
         self._store()
         if path.suffix.lower() == ".pptx":
+            if self.imported_pptx and path.resolve() == self.imported_pptx.resolve() and self.path is None:
+                raise ValueError("Save an imported presentation to a new file")
+            if self.imported_pptx and self.slides == self.original_slides:
+                if path.resolve() != self.imported_pptx.resolve():
+                    shutil.copyfile(self.imported_pptx, path)
+                self.imported_pptx = path
+                self.path = path
+                self.dirty = False
+                return
             if self.imported_pptx and len(self.slides) == len(self.original_slides):
                 prs = Presentation(self.imported_pptx)
                 for slide, (title, body), original in zip(prs.slides, self.slides, self.original_slides):
@@ -410,6 +462,8 @@ class Dazzle(Workspace):
                         else:
                             slide.shapes.add_textbox(914400, 1828800, prs.slide_width - 1828800, 3657600).text = body
             else:
+                if self.imported_pptx and advanced_content(self.imported_pptx):
+                    raise ValueError("Slide structure changed in a complex presentation; save a Dazzle copy to keep the text")
                 prs = Presentation()
                 for title, body in self.slides:
                     slide = prs.slides.add_slide(prs.slide_layouts[1])
@@ -723,4 +777,6 @@ def quote(identifier):
     return '"' + identifier.replace('"', '""') + '"'
 
 
-WORKSPACES = {"Pages": Pages, "Tables": Tables, "Dazzle": Dazzle, "Sketch": Sketch, "Organize": Organize}
+from formulaic import Formulaic
+
+WORKSPACES = {"Pages": Pages, "Tables": Tables, "Dazzle": Dazzle, "Sketch": Sketch, "Organize": Organize, "Formulaic": Formulaic}
