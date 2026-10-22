@@ -35,7 +35,7 @@ class ConversionTest(unittest.TestCase):
             bundled.parent.mkdir(parents=True)
             bundled.touch()
             with patch("converter.sys.executable", str(executable)):
-                self.assertEqual(office_binary(), str(bundled))
+                self.assertEqual(Path(office_binary()), bundled.resolve())
 
     def test_image_pdf_and_back(self):
         with tempfile.TemporaryDirectory() as folder:
