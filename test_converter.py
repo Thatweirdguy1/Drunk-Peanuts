@@ -12,30 +12,23 @@ import wave
 from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader
 from docx import Document
+from pptx import Presentation
+from openpyxl import load_workbook
 from PySide6.QtCore import QMimeData, QPointF, Qt, QUrl
 from PySide6.QtGui import QDropEvent
 from PySide6.QtWidgets import QApplication
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from converter import available_formats, compress, convert, office_binary, reduce_size
+from converter import available_formats, compress, convert, reduce_size
 from app import Window, Worker, numbered_target
 from converter import edit_image, extract_zip, ocr_to_text, pdf_merge, pdf_reorder, pdf_rotate, pdf_split, trim_media, zip_entries
 
 
 class ConversionTest(unittest.TestCase):
-    def test_packaged_office_is_preferred(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            if os.name == "nt":
-                executable = root / "LocalFileConverter.exe"
-                bundled = root / "LibreOffice" / "program" / "soffice.exe"
-            else:
-                executable = root / "LocalFileConverter.app" / "Contents" / "MacOS" / "LocalFileConverter"
-                bundled = root / "LocalFileConverter.app" / "Contents" / "Resources" / "LibreOffice.app" / "Contents" / "MacOS" / "soffice"
-            bundled.parent.mkdir(parents=True)
-            bundled.touch()
-            with patch("converter.sys.executable", str(executable)):
-                self.assertEqual(Path(office_binary()), bundled.resolve())
+    def test_office_formats_are_native(self):
+        self.assertIn("pdf", available_formats(Path("slides.pptx")))
+        self.assertIn("odt", available_formats(Path("letter.docx")))
+        self.assertEqual(available_formats(Path("old.doc")), [])
 
     def test_image_pdf_and_back(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -79,10 +72,39 @@ class ConversionTest(unittest.TestCase):
             self.assertIn("First line", "\n".join(p.text for p in Document(extracted).paragraphs))
             self.assertIn("docx", available_formats(pdf))
 
-        with patch("converter.office_binary", return_value="soffice"):
-            self.assertIn("pdf", available_formats(Path("slides.pptx")))
-            self.assertNotIn("xlsx", available_formats(Path("slides.pptx")))
-            self.assertIn("rtf", available_formats(Path("letter.docx")))
+        self.assertNotIn("xlsx", available_formats(Path("slides.pptx")))
+        self.assertIn("rtf", available_formats(Path("letter.docx")))
+
+    def test_native_office_roundtrips(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "note.txt"
+            source.write_text("Hello native Office", encoding="utf-8")
+            for fmt in ("docx", "odt", "rtf"):
+                middle = root / f"note.{fmt}"
+                convert(source, middle)
+                output = root / f"from-{fmt}.txt"
+                convert(middle, output)
+                self.assertIn("Hello native Office", output.read_text(encoding="utf-8"))
+            csv_source = root / "sheet.csv"
+            csv_source.write_text("name,value\nitem,12\n", encoding="utf-8")
+            ods = root / "sheet.ods"
+            convert(csv_source, ods)
+            xlsx = root / "sheet.xlsx"
+            convert(ods, xlsx)
+            book = load_workbook(xlsx, read_only=True)
+            self.assertEqual(book.active["A2"].value, "item")
+            book.close()
+            deck = Presentation()
+            slide = deck.slides.add_slide(deck.slide_layouts[5])
+            slide.shapes.title.text = "Opening slide"
+            pptx = root / "slides.pptx"
+            deck.save(pptx)
+            odp = root / "slides.odp"
+            convert(pptx, odp)
+            converted = root / "again.pptx"
+            convert(odp, converted)
+            self.assertIn("Opening slide", [shape.text for shape in Presentation(converted).slides[0].shapes if shape.has_text_frame])
 
     def test_zip_compression(self):
         with tempfile.TemporaryDirectory() as folder:

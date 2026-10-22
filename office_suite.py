@@ -176,6 +176,8 @@ class Tables(Workspace):
 
     def __init__(self):
         super().__init__("Tables")
+        self.imported_xlsx = None
+        self.original_rows = []
         self.grid = QTableWidget(100, 26)
         self.grid.setHorizontalHeaderLabels([chr(65 + i) for i in range(26)])
         self.setCentralWidget(self.grid)
@@ -191,6 +193,8 @@ class Tables(Workspace):
             return
         self.grid.clearContents()
         self.path = None
+        self.imported_xlsx = None
+        self.original_rows = []
         self.dirty = False
 
     def open(self):
@@ -217,7 +221,9 @@ class Tables(Workspace):
             for j, value in enumerate(row):
                 if value is not None:
                     self.grid.setItem(i, j, QTableWidgetItem(str(value)))
-        # XLSX may have additional sheets and styles; require an explicit output path.
+        self.imported_xlsx = path if path.suffix.lower() == ".xlsx" else None
+        self.original_rows = [["" if value is None else str(value) for value in row] for row in rows]
+        # Imported XLSX requires a new path, preserving the original file.
         self.path = None if path.suffix.lower() == ".xlsx" else path
         self.dirty = False
 
@@ -243,11 +249,19 @@ class Tables(Workspace):
     def _write(self, path):
         rows = self._rows()
         if path.suffix.lower() == ".xlsx":
-            book = Workbook()
-            sheet = book.active
-            for row in rows:
-                sheet.append([float(v) if v and v.replace(".", "", 1).replace("-", "", 1).isdigit() else v for v in row])
-            book.save(path)
+            book = load_workbook(self.imported_xlsx) if self.imported_xlsx else Workbook()
+            try:
+                sheet = book.active
+                for i, row in enumerate(rows):
+                    for j, value in enumerate(row):
+                        old = (self.original_rows[i][j] if i < len(self.original_rows) and j < len(self.original_rows[i]) else "")
+                        if not self.imported_xlsx or value != old:
+                            sheet.cell(i + 1, j + 1).value = (float(value) if value and value.replace(".", "", 1).replace("-", "", 1).isdigit() else value)
+                book.save(path)
+            finally:
+                book.close()
+            self.imported_xlsx = path
+            self.original_rows = rows
         elif path.suffix.lower() == ".csv":
             with path.open("w", newline="", encoding="utf-8-sig") as stream:
                 csv.writer(stream).writerows(rows)
@@ -262,6 +276,8 @@ class Dazzle(Workspace):
 
     def __init__(self):
         super().__init__("Dazzle")
+        self.imported_pptx = None
+        self.original_slides = []
         self.slides = []
         self.index = -1
         self.list = QListWidget()
@@ -310,6 +326,8 @@ class Dazzle(Workspace):
         self.list.clear()
         self.index = -1
         self.path = None
+        self.imported_pptx = None
+        self.original_slides = []
         self.add()
         self.dirty = False
 
@@ -351,6 +369,8 @@ class Dazzle(Workspace):
                 for i, slide in enumerate(self.slides):
                     self.list.addItem(slide[0] or f"Slide {i + 1}")
                 self.list.setCurrentRow(0)
+                self.imported_pptx = path if path.suffix.lower() == ".pptx" else None
+                self.original_slides = [tuple(s) for s in slides]
                 # PPTX import keeps text only, so never overwrite the imported deck via Save.
                 self.path = None if path.suffix.lower() == ".pptx" else path
                 self.dirty = False
@@ -371,12 +391,33 @@ class Dazzle(Workspace):
         import json
         self._store()
         if path.suffix.lower() == ".pptx":
-            prs = Presentation()
-            for title, body in self.slides:
-                slide = prs.slides.add_slide(prs.slide_layouts[1])
-                slide.shapes.title.text = title
-                slide.placeholders[1].text = body
+            if self.imported_pptx and len(self.slides) == len(self.original_slides):
+                prs = Presentation(self.imported_pptx)
+                for slide, (title, body), original in zip(prs.slides, self.slides, self.original_slides):
+                    if (title, body) == original:
+                        continue
+                    shapes = [shape for shape in slide.shapes if shape.has_text_frame and shape.text.strip()]
+                    if title != original[0]:
+                        if shapes:
+                            shapes[0].text = title
+                        else:
+                            slide.shapes.add_textbox(914400, 914400, prs.slide_width - 1828800, 685800).text = title
+                    if body != original[1]:
+                        if len(shapes) > 1:
+                            shapes[1].text = body
+                            for shape in shapes[2:]:
+                                shape.text = ""
+                        else:
+                            slide.shapes.add_textbox(914400, 1828800, prs.slide_width - 1828800, 3657600).text = body
+            else:
+                prs = Presentation()
+                for title, body in self.slides:
+                    slide = prs.slides.add_slide(prs.slide_layouts[1])
+                    slide.shapes.title.text = title
+                    slide.placeholders[1].text = body
             prs.save(path)
+            self.imported_pptx = path
+            self.original_slides = list(self.slides)
         elif path.suffix.lower() == ".dazzle":
             path.write_text(json.dumps({"slides": self.slides}, ensure_ascii=False, indent=2), encoding="utf-8")
         else:

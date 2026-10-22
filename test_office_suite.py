@@ -10,6 +10,10 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QTableWidgetItem
+from openpyxl import Workbook, load_workbook
+from pptx import Presentation
+from pptx.dml.color import RGBColor
+from pptx.util import Inches
 from office_suite import Dazzle, Organize, Pages, Sketch, Tables, quote
 
 
@@ -66,6 +70,47 @@ class OfficeSuiteTest(unittest.TestCase):
             organize.path = external
             self.assertFalse(organize._editable())
             self.assertEqual(quote('a"b'), '"a""b"')
+
+    def test_tables_keep_other_worksheets(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "source.xlsx"
+            book = Workbook()
+            book.active["A1"] = "first"
+            book.create_sheet("Other")["B2"] = "keep me"
+            book.save(source)
+            editor = Tables()
+            editor._read(source)
+            editor.grid.setItem(0, 0, QTableWidgetItem("changed"))
+            target = root / "changed.xlsx"
+            editor._write(target)
+            saved = load_workbook(target)
+            self.assertEqual(saved.active["A1"].value, "changed")
+            self.assertEqual(saved["Other"]["B2"].value, "keep me")
+            saved.close()
+            self.assertEqual(load_workbook(source).active["A1"].value, "first")
+
+    def test_dazzle_keeps_nontext_shapes_on_text_edit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "source.pptx"
+            deck = Presentation()
+            slide = deck.slides.add_slide(deck.slide_layouts[5])
+            slide.shapes.title.text = "Before"
+            shape = slide.shapes.add_shape(1, Inches(1), Inches(2), Inches(2), Inches(1))
+            shape.fill.solid()
+            shape.fill.fore_color.rgb = RGBColor(255, 0, 0)
+            deck.save(source)
+            editor = Dazzle()
+            editor.imported_pptx = source
+            editor.original_slides = [("Before", "")]
+            editor.slides = [("Before", "")]
+            editor.title.setPlainText("After")
+            output = root / "edited.pptx"
+            editor._write(output)
+            saved = Presentation(output)
+            self.assertEqual(saved.slides[0].shapes.title.text, "After")
+            self.assertEqual(len(saved.slides[0].shapes), len(slide.shapes))
 
 
 if __name__ == "__main__":

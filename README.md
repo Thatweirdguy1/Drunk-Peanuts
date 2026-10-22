@@ -8,7 +8,7 @@ A free, local desktop converter and creative suite for Windows and macOS. Conver
 
 Download the zip for your system from the [latest release](https://github.com/Thatweirdguy1/FreeConvert/releases/latest). Extract it, then open `LocalFileConverter.exe` on Windows or `LocalFileConverter.app` on macOS. The macOS builds are unsigned; your system may require **Open Anyway** in Privacy & Security after the first launch. The app is free and needs no account.
 
-The desktop downloads include [LibreOffice](https://www.libreoffice.org/) **only as a local conversion engine** for Office formats; no separate installation is needed. The Pages, Tables, Dazzle, Sketch, and Organize editors are FreeConvert windows and work independently of LibreOffice. The downloads are larger because the conversion engine is bundled. When running from source, install LibreOffice or put `soffice` on `PATH` for broader Office conversions; the native editors work without it.
+Office conversions run inside FreeConvert using included Python format libraries. LibreOffice is no longer bundled or required. These conversions handle basic text, tables, and slide text; use the original Office application for files whose layout, formulas, embedded objects, or metadata must remain exact.
 
 OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) and English recognition models. No separate OCR installation, account, or network connection is needed.
 
@@ -20,12 +20,12 @@ OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) a
 | PDF | PNG, JPG, WebP (one image per page), TXT or DOCX (selectable text only) |
 | MP4, MOV, AVI, MPEG/MPG, MKV, WebM | MP4, MOV, AVI, MPEG, MKV, WebM, GIF, MP3, WAV, M4A, AAC, FLAC, OGG |
 | MP3, WAV, AIFF, M4A, AAC, FLAC, OGG | MP3, WAV, AIFF, M4A, AAC, FLAC, OGG |
-| CSV | XLSX, TXT |
-| XLSX | CSV (first worksheet) |
-| DOCX | TXT (paragraph text) |
-| TXT | PDF, DOCX |
+| TXT, DOCX, ODT, RTF | The other document formats and PDF (basic content) |
+| CSV, XLSX, ODS | The other spreadsheet formats and PDF (first sheet) |
+| PPTX, ODP | The other presentation format and PDF (slide text) |
+| CSV | TXT (plain CSV copy) |
 
-The bundled LibreOffice runtime enables conversions within document (DOC, DOCX, ODT, RTF, TXT), presentation (PPT, PPTX, ODP), and spreadsheet (XLS, XLSX, ODS, CSV) families, plus PDF output. Output options vary by input.
+Legacy binary DOC, XLS, and PPT are not supported by the native engine. Convert them to DOCX, XLSX, or PPTX in their original application first.
 
 ## Use
 
@@ -42,7 +42,7 @@ The workspace bar opens these built-in, offline editors:
 | **Organize** | SQLite tables and records; CSV import/export | SQLite, CSV |
 | **Writer's Drafts** | Screenplay writing and preview | Fountain, FDX, PDF, TXT, HTML, Markdown |
 
-These are focused editors, not copies of Microsoft Office or LibreOffice. Pages opens DOCX text but does not preserve all formatting, embedded objects, or comments. Tables handles one visible sheet and does not calculate formulas itself; XLSX formulas are stored for compatible spreadsheet programs. Dazzle opens slide text from PPTX and saves its own simple layout; it does not retain arbitrary PowerPoint themes, images, animations, or notes. Organize can browse external SQLite databases read-only; it edits databases created by Organize. Back up important originals before importing them.
+These are focused editors, not copies of Microsoft Office or LibreOffice. Pages opens DOCX text but does not preserve all formatting, embedded objects, or comments. Tables edits one visible sheet and keeps other XLSX sheets when saving another XLSX; it does not calculate formulas or guarantee preservation of every Excel feature. Dazzle keeps nontext slide shapes when editing text in an imported PPTX without adding or deleting slides. Structural slide edits create a new simple layout, and advanced themes, animations, and notes are not guaranteed. Organize can browse external SQLite databases read-only; it edits databases created by Organize. Back up important originals before importing them.
 
 ### Writer's Drafts
 
@@ -52,7 +52,7 @@ Use **Export** to save a separate **PDF, Fountain, Final Draft (.fdx), plain tex
 
 PDF export from an imported FDX uses supported page size, top/bottom margins, element indents, font size, line spacing, space before, alignment, and start-new-page settings. It keeps scene headings with their following action and character cues with their first dialogue line when they fit. Very long dual dialogue is laid out sequentially to avoid clipping. This is the app's own deterministic layout, not Final Draft's renderer, so matching Final Draft page breaks is not guaranteed. For an exact Final Draft layout, export a PDF from Final Draft and use that PDF as the final copy.
 
-Select an element in the toolbar or press **Ctrl+1–8**. **Tab** and **Shift+Tab** move through element types. Use **Ctrl+B/I/U** for emphasis, **Ctrl+D** to mark a second character cue as dual dialogue, **Ctrl+K** to insert a known character, and **Ctrl+S** to save. **Forward writing** provides optional timed sessions that lock completed lines while the timer runs. The writing tools work offline and need no account or LibreOffice.
+Select an element in the toolbar or press **Ctrl+1–8**. **Tab** and **Shift+Tab** move through element types. Use **Ctrl+B/I/U** for emphasis, **Ctrl+D** to mark a second character cue as dual dialogue, **Ctrl+K** to insert a known character, and **Ctrl+S** to save. **Forward writing** provides optional timed sessions that lock completed lines while the timer runs. The writing tools work offline and need no account.
 
 ### File conversion
 
@@ -92,7 +92,7 @@ Run the conversion checks with `python -m unittest -q`. Tagged commits build Win
 
 ## Privacy and security
 
-Files stay on your computer. The app has no upload service, analytics, or account. External tools are launched without a shell, inputs are not replaced, and SVG links to external resources are rejected. It is **not an operating-system sandbox**: codecs and LibreOffice process the supplied files with your user permissions. Only convert files from sources you trust. The bundled macOS app is not notarized.
+Files stay on your computer. The app has no upload service, analytics, or account. External media tools are launched without a shell, inputs are not replaced, and SVG links to external resources are rejected. It is **not an operating-system sandbox**: format libraries and codecs process supplied files with your user permissions. Only convert files from sources you trust. The bundled macOS app is not notarized.
 
 ## Limitations
 
@@ -100,8 +100,8 @@ Files stay on your computer. The app has no upload service, analytics, or accoun
 - PDF to DOCX uses extracted text and does not preserve the PDF layout, images, or tables.
 - Animated GIF input becomes a multi-page PDF or an animated GIF. Other raster outputs use the first frame.
 - CSV to XLSX stores values as text; XLSX to CSV exports the active worksheet's displayed values.
-- The bundled LibreOffice runtime handles Office files; it does not parse Final Draft metadata or reproduce Final Draft's pagination.
-- LibreOffice's own format filters can change layout when moving between Office formats. Check important documents after conversion.
+- The native Office conversion handles basic content. It can omit styles, charts, formulas, notes, macros, embedded media, metadata, or additional worksheets. PDF output is a simple rendering of extracted content, not an exact printout. Check important documents after conversion.
+- The native engine does not parse Final Draft metadata or reproduce Final Draft's pagination.
 - Bundled OCR currently recognizes English text. RapidOCR and its converted PaddleOCR models are distributed under Apache 2.0; see [third-party notices](THIRD_PARTY_NOTICES.md).
 - macOS builds are unnotarized and Windows builds are unsigned.
 

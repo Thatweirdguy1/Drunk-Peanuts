@@ -24,7 +24,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        pdf_merge, pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension,
                        trim_media, zip_entries)
 
-VERSION = "0.9.0"
+VERSION = "0.10.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -760,6 +760,9 @@ class Window(QMainWindow):
 
 
 def main():
+    if len(sys.argv) == 4 and sys.argv[1] == "--convert":
+        convert(Path(sys.argv[2]), Path(sys.argv[3]))
+        return
     if len(sys.argv) == 4 and sys.argv[1] == "--ocr":
         ocr_to_text(Path(sys.argv[2]), Path(sys.argv[3]))
         return

@@ -17,6 +17,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from pathlib import Path
 
 import imageio_ffmpeg
+from native_office import DOCUMENTS, PRESENTATIONS, SPREADSHEETS, convert_office, targets
 import pillow_heif
 import pypdfium2 as pdfium
 import rawpy
@@ -39,10 +40,7 @@ IMAGE = {"jpg", "jpeg", "png", "heic", "heif", "tif", "tiff", "gif", "bmp", "web
 RASTER = {"jpg", "png", "webp", "tiff", "bmp", "gif", "ico", "pdf"}
 VIDEO = {"mp4", "mov", "avi", "mpeg", "mpg", "mkv", "webm"}
 AUDIO = {"mp3", "wav", "aiff", "m4a", "aac", "flac", "ogg"}
-OFFICE = {"doc", "docx", "ppt", "pptx", "xls", "xlsx", "odt", "ods", "odp", "rtf"}
-WRITER = {"doc", "docx", "odt", "rtf", "txt"}
-PRESENTATION = {"ppt", "pptx", "odp"}
-SHEET = {"xls", "xlsx", "ods", "csv"}
+OFFICE = (DOCUMENTS | PRESENTATIONS | SPREADSHEETS) - {"txt", "csv"}
 FFMPEG_VIDEO = {"mp4", "mov", "avi", "mpeg", "mkv", "webm", "gif", "mp3", "wav", "m4a", "aac", "flac", "ogg"}
 FFMPEG_AUDIO = {"mp3", "wav", "aiff", "m4a", "aac", "flac", "ogg"}
 
@@ -77,41 +75,11 @@ def available_formats(path: Path) -> list[str]:
         choices = FFMPEG_VIDEO
     elif group == "Audio":
         choices = FFMPEG_AUDIO
-    elif ext == "csv":
-        choices = {"xlsx", "txt"} | ({"pdf", "ods", "xls"} if office_binary() else set())
-    elif ext == "xlsx":
-        choices = {"csv"} | ({"pdf", "ods", "xls"} if office_binary() else set())
-    elif ext in WRITER:
-        choices = ({"pdf", "doc", "docx", "odt", "rtf", "txt"} if office_binary() else set())
-        if ext == "docx":
-            choices.add("txt")
-        if ext == "txt":
-            choices.update({"pdf", "docx"})
-    elif ext in PRESENTATION:
-        choices = PRESENTATION | {"pdf"} if office_binary() else set()
-    elif ext in SHEET:
-        choices = SHEET | {"pdf"} if office_binary() else set()
+    elif ext in DOCUMENTS | SPREADSHEETS | PRESENTATIONS:
+        choices = targets(ext) | ({"txt"} if ext == "csv" else set())
     else:
         choices = set()
     return sorted(choices - {ext})
-
-
-def office_binary() -> str | None:
-    executable = Path(sys.executable).resolve()
-    bundled = (executable.parent / "LibreOffice" / "program" / "soffice.exe" if os.name == "nt" else
-               executable.parent.parent / "Resources" / "LibreOffice.app" / "Contents" / "MacOS" / "soffice")
-    if bundled.is_file():
-        return str(bundled)
-    found = shutil.which("soffice") or shutil.which("libreoffice")
-    if found:
-        return found
-    if os.name == "nt":
-        for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
-            if base:
-                candidate = Path(base) / "LibreOffice" / "program" / "soffice.exe"
-                if candidate.is_file():
-                    return str(candidate)
-    return None
 
 
 def ffmpeg_binary() -> str:
@@ -186,19 +154,6 @@ def _pdf_to_image(source: Path, target: Path, fmt: str) -> None:
             page.close()
     finally:
         pdf.close()
-
-
-def _office(source: Path, target: Path, fmt: str) -> None:
-    binary = office_binary()
-    if not binary:
-        raise RuntimeError("Install LibreOffice to convert this document format.")
-    with tempfile.TemporaryDirectory(prefix="local-converter-") as tmp:
-        # Independent profile avoids conflicts with an already-open LibreOffice instance.
-        _run([binary, f"-env:UserInstallation=file:///{Path(tmp).as_posix()}/profile", "--headless", "--convert-to", fmt, "--outdir", tmp, str(source)])
-        generated = Path(tmp) / f"{source.stem}.{fmt}"
-        if not generated.exists():
-            raise RuntimeError("LibreOffice did not produce an output file.")
-        shutil.copy2(generated, target)
 
 
 def _csv_to_xlsx(source: Path, target: Path) -> None:
@@ -420,7 +375,7 @@ def convert(source: Path, target: Path) -> None:
     elif source.suffix.lower() == ".txt" and fmt == "docx":
         _text_to_docx(source, target)
     else:
-        _office(source, target, fmt)
+        convert_office(source, target)
 
 
 def compress(paths: list[Path], target: Path, progress=None) -> None:
