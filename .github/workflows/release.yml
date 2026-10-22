@@ -31,7 +31,24 @@ jobs:
       - name: Run checks
         run: python -m unittest -q
       - name: Package app
-        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name LocalFileConverter --collect-all imageio_ffmpeg app.py
+        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name LocalFileConverter --collect-all imageio_ffmpeg --collect-data rapidocr app.py
+      - name: Verify packaged OCR on Windows
+        if: runner.os == 'Windows'
+        run: python verify_release_ocr.py dist/LocalFileConverter/LocalFileConverter.exe
+      - name: Verify packaged OCR on macOS
+        if: runner.os == 'macOS'
+        run: python verify_release_ocr.py dist/LocalFileConverter.app/Contents/MacOS/LocalFileConverter
+      - name: Include licenses on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item LICENSE, THIRD_PARTY_NOTICES.md -Destination dist/LocalFileConverter
+          Copy-Item THIRD_PARTY_LICENSES -Destination dist/LocalFileConverter -Recurse
+      - name: Include licenses on macOS
+        if: runner.os == 'macOS'
+        run: |
+          cp LICENSE THIRD_PARTY_NOTICES.md dist/LocalFileConverter.app/Contents/Resources/
+          cp -R THIRD_PARTY_LICENSES dist/LocalFileConverter.app/Contents/Resources/
       - name: Archive Windows app
         if: runner.os == 'Windows'
         shell: pwsh
@@ -56,4 +73,4 @@ jobs:
       - name: Publish downloads
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "Local File Converter ${GITHUB_REF_NAME}" --verify-tag --notes "Adds media trimming, safe ZIP preview and extraction, and optional OCR. Office conversions require a separate LibreOffice installation. OCR requires a separate Tesseract OCR installation. See the README for setup and format details." --generate-notes
+        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "Local File Converter ${GITHUB_REF_NAME}" --verify-tag --notes "OCR now runs locally with a bundled engine and English models; no separate Tesseract installation is needed. Office conversions still require a separate LibreOffice installation. See the README for details." --generate-notes

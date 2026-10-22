@@ -9,7 +9,7 @@ from unittest.mock import patch
 from zipfile import ZipFile
 import wave
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader
 from docx import Document
 from PySide6.QtCore import QMimeData, QPointF, Qt, QUrl
@@ -247,18 +247,15 @@ class ConversionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             image = root / "scan.png"
-            Image.new("RGB", (20, 20), "white").save(image)
-            with patch("converter.tesseract_binary", return_value="tesseract"), patch("converter.subprocess.run") as run:
-                run.return_value.returncode = 0
-                run.return_value.stdout = "recognized text\n"
-                ocr_to_text(image, root / "image.txt")
-                self.assertEqual((root / "image.txt").read_text(), "recognized text\n")
-                run.assert_called_once()
-                self.assertEqual(run.call_args.args[0][-3:], ["stdout", "-l", "eng"])
-                pdf = root / "pages.pdf"
-                convert(image, pdf)
-                ocr_to_text(pdf, root / "pages.txt")
-                self.assertIn("recognized text", (root / "pages.txt").read_text())
+            scan = Image.new("RGB", (600, 160), "white")
+            ImageDraw.Draw(scan).text((25, 35), "HELLO OCR 123", fill="black", font=ImageFont.load_default(size=48))
+            scan.save(image)
+            ocr_to_text(image, root / "image.txt")
+            self.assertIn("HELLO", (root / "image.txt").read_text())
+            pdf = root / "pages.pdf"
+            convert(image, pdf)
+            ocr_to_text(pdf, root / "pages.txt")
+            self.assertIn("HELLO", (root / "pages.txt").read_text())
 
     @staticmethod
     def _comment():

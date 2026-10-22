@@ -19,6 +19,8 @@ import imageio_ffmpeg
 import pillow_heif
 import pypdfium2 as pdfium
 import rawpy
+import rapidocr
+from rapidocr import RapidOCR
 from docx import Document
 from openpyxl import Workbook, load_workbook
 from PIL import Image, ImageOps, ImageSequence, UnidentifiedImageError
@@ -108,23 +110,6 @@ def office_binary() -> str | None:
 
 def ffmpeg_binary() -> str:
     return imageio_ffmpeg.get_ffmpeg_exe()
-
-
-def tesseract_binary() -> str | None:
-    found = shutil.which("tesseract")
-    if found:
-        return found
-    if os.name == "nt":
-        for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
-            if base:
-                candidate = Path(base) / "Tesseract-OCR" / "tesseract.exe"
-                if candidate.is_file():
-                    return str(candidate)
-    else:
-        for candidate in (Path("/opt/homebrew/bin/tesseract"), Path("/usr/local/bin/tesseract")):
-            if candidate.is_file():
-                return str(candidate)
-    return None
 
 
 def _run(command: list[str], timeout: int = 900) -> None:
@@ -562,36 +547,32 @@ def ocr_to_text(source: Path, target: Path) -> None:
     source, target = Path(source).resolve(strict=True), Path(target).resolve()
     if kind(source) not in {"Image", "PDF"}:
         raise ValueError("OCR supports images and PDFs.")
-    binary = tesseract_binary()
-    if not binary:
-        raise RuntimeError("Install Tesseract OCR to read scanned images and PDFs.")
     if target.exists() or target == source:
         raise FileExistsError(f"Output already exists: {target.name}")
-    pages = []
-    with tempfile.TemporaryDirectory(prefix="local-converter-ocr-") as tmp:
-        if kind(source) == "PDF":
-            pdf = pdfium.PdfDocument(str(source))
-            try:
-                for index in range(len(pdf)):
-                    page = pdf[index]
+    model_dir = Path(rapidocr.__file__).resolve().parent / "models"
+    models = {"Det.model_path": "PP-OCRv6_det_small.onnx",
+              "Cls.model_path": "ch_ppocr_mobile_v2.0_cls_mobile.onnx",
+              "Rec.model_path": "PP-OCRv6_rec_small.onnx"}
+    if any(not (model_dir / name).is_file() for name in models.values()):
+        raise RuntimeError("Bundled OCR models are missing. Reinstall the app.")
+    engine = RapidOCR(params={"Rec.lang_type": "en", **{key: str(model_dir / name) for key, name in models.items()}})
+    text = []
+    if kind(source) == "PDF":
+        pdf = pdfium.PdfDocument(str(source))
+        try:
+            for index in range(len(pdf)):
+                page = pdf[index]
+                try:
                     image = page.render(scale=2).to_pil()
+                    text.append("\n".join(engine(image).txts or ()))
+                finally:
                     page.close()
-                    file = Path(tmp) / f"page-{index + 1}.png"
-                    image.save(file)
-                    pages.append(file)
-            finally:
-                pdf.close()
-        else:
-            with _image(source) as opened:
-                file = Path(tmp) / "image.png"
-                ImageOps.exif_transpose(opened).save(file)
-                pages.append(file)
-        text = []
-        for page in pages:
-            result = subprocess.run([binary, str(page), "stdout", "-l", "eng"], capture_output=True, text=True, timeout=300, shell=False)
-            if result.returncode:
-                raise RuntimeError((result.stderr or "Tesseract OCR failed.")[-700:].strip())
-            text.append(result.stdout.strip())
+        finally:
+            pdf.close()
+    else:
+        with _image(source) as opened:
+            image = ImageOps.exif_transpose(opened).convert("RGB")
+            text.append("\n".join(engine(image).txts or ()))
     with target.open("x", encoding="utf-8") as output:
         output.write("\n\n".join(text) + "\n")
 

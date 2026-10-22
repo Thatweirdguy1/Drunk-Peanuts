@@ -22,9 +22,9 @@ from PySide6.QtWidgets import (
 
 from converter import (available_formats, compress, convert, edit_image, extract_zip, kind, ocr_to_text,
                        pdf_merge, pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension,
-                       tesseract_binary, trim_media, zip_entries)
+                       trim_media, zip_entries)
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -667,9 +667,6 @@ class Window(QMainWindow):
         if not selected or kind(selected) not in {"Image", "PDF"}:
             QMessageBox.warning(self, "OCR", "Select an image or PDF first.")
             return
-        if not tesseract_binary():
-            QMessageBox.information(self, "OCR needs Tesseract", "Install the free Tesseract OCR program, then restart this app. See the README for setup.")
-            return
         target = numbered_target(self.output_dir, f"{selected.stem}-ocr", ".txt",
                                  {str(path).casefold() for path in self.paths})
         self._start_worker(Worker([(selected, target)], operation=ocr_to_text, rows=[row]))
@@ -725,6 +722,9 @@ class Window(QMainWindow):
 
 
 def main():
+    if len(sys.argv) == 4 and sys.argv[1] == "--ocr":
+        ocr_to_text(Path(sys.argv[2]), Path(sys.argv[3]))
+        return
     app = QApplication(sys.argv)
     app.setApplicationName("Local File Converter")
     app.setApplicationVersion(VERSION)
