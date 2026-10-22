@@ -10,6 +10,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -96,6 +97,11 @@ def available_formats(path: Path) -> list[str]:
 
 
 def office_binary() -> str | None:
+    executable = Path(sys.executable).resolve()
+    bundled = (executable.parent / "LibreOffice" / "program" / "soffice.exe" if os.name == "nt" else
+               executable.parent.parent / "Resources" / "LibreOffice.app" / "Contents" / "MacOS" / "soffice")
+    if bundled.is_file():
+        return str(bundled)
     found = shutil.which("soffice") or shutil.which("libreoffice")
     if found:
         return found

@@ -17,12 +17,26 @@ from PySide6.QtGui import QDropEvent
 from PySide6.QtWidgets import QApplication
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from converter import available_formats, compress, convert, reduce_size
+from converter import available_formats, compress, convert, office_binary, reduce_size
 from app import Window, Worker, numbered_target
 from converter import edit_image, extract_zip, ocr_to_text, pdf_merge, pdf_reorder, pdf_rotate, pdf_split, trim_media, zip_entries
 
 
 class ConversionTest(unittest.TestCase):
+    def test_packaged_office_is_preferred(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            if os.name == "nt":
+                executable = root / "LocalFileConverter.exe"
+                bundled = root / "LibreOffice" / "program" / "soffice.exe"
+            else:
+                executable = root / "LocalFileConverter.app" / "Contents" / "MacOS" / "LocalFileConverter"
+                bundled = root / "LocalFileConverter.app" / "Contents" / "Resources" / "LibreOffice.app" / "Contents" / "MacOS" / "soffice"
+            bundled.parent.mkdir(parents=True)
+            bundled.touch()
+            with patch("converter.sys.executable", str(executable)):
+                self.assertEqual(office_binary(), str(bundled))
+
     def test_image_pdf_and_back(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

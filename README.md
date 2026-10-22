@@ -8,7 +8,7 @@ A free, local desktop file converter, compressor, and screenwriting workspace fo
 
 Download the zip for your system from the [latest release](https://github.com/Thatweirdguy1/FreeConvert/releases/latest). Extract it, then open `LocalFileConverter.exe` on Windows or `LocalFileConverter.app` on macOS. The macOS builds are unsigned; your system may require **Open Anyway** in Privacy & Security after the first launch. The app is free and needs no account.
 
-**For Office document, presentation, and spreadsheet conversions, install [LibreOffice](https://www.libreoffice.org/download/download-libreoffice/) separately.** It is not bundled with the app. The app detects standard Windows installations automatically; on macOS, make `soffice` available on `PATH`. Without LibreOffice, only the basic conversions listed below are available.
+The desktop downloads include [LibreOffice](https://www.libreoffice.org/) for local document, presentation, and spreadsheet conversions. **No separate LibreOffice installation is needed.** Select **Office suite** to open its full desktop editor for Writer, Calc, Impress, Draw, Base, and Math. The downloads are larger because they include the suite. When running from source, install LibreOffice separately or put `soffice` on `PATH` to enable Office conversions.
 
 OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) and English recognition models. No separate OCR installation, account, or network connection is needed.
 
@@ -25,7 +25,7 @@ OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) a
 | DOCX | TXT (paragraph text) |
 | TXT | PDF, DOCX |
 
-With LibreOffice detected, the app also exposes conversions within document (DOC, DOCX, ODT, RTF, TXT), presentation (PPT, PPTX, ODP), and spreadsheet (XLS, XLSX, ODS, CSV) families, plus PDF output. Output options vary by input and installed tools.
+The bundled LibreOffice runtime enables conversions within document (DOC, DOCX, ODT, RTF, TXT), presentation (PPT, PPTX, ODP), and spreadsheet (XLS, XLSX, ODS, CSV) families, plus PDF output. Output options vary by input. The **Office suite** button opens LibreOffice itself for richer editing than the converter window provides.
 
 ## Use
 
@@ -83,7 +83,8 @@ Files stay on your computer. The app has no upload service, analytics, or accoun
 - PDF to DOCX uses extracted text and does not preserve the PDF layout, images, or tables.
 - Animated GIF input becomes a multi-page PDF or an animated GIF. Other raster outputs use the first frame.
 - CSV to XLSX stores values as text; XLSX to CSV exports the active worksheet's displayed values.
-- LibreOffice is a separate free installation and is required for full Office conversions.
+- The bundled LibreOffice runtime handles Office files; it does not parse Final Draft metadata or reproduce Final Draft's pagination.
+- LibreOffice's own format filters can change layout when moving between Office formats. Check important documents after conversion.
 - Bundled OCR currently recognizes English text. RapidOCR and its converted PaddleOCR models are distributed under Apache 2.0; see [third-party notices](THIRD_PARTY_NOTICES.md).
 - macOS builds are unnotarized and Windows builds are unsigned.
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 import re
+import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable
@@ -20,11 +21,11 @@ from PySide6.QtWidgets import (
     QSplitter, QVBoxLayout, QWidget,
 )
 
-from converter import (available_formats, compress, convert, edit_image, extract_zip, kind, ocr_to_text,
+from converter import (available_formats, compress, convert, edit_image, extract_zip, kind, ocr_to_text, office_binary,
                        pdf_merge, pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension,
                        trim_media, zip_entries)
 
-VERSION = "0.7.1"
+VERSION = "0.8.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -196,6 +197,11 @@ class Window(QMainWindow):
         brand.addWidget(title)
         header.addLayout(brand)
         header.addStretch()
+        if office_binary():
+            office_button = QPushButton("Office suite")
+            office_button.setObjectName("secondaryButton")
+            office_button.clicked.connect(self._office_suite)
+            header.addWidget(office_button)
         writing_button = QPushButton("Screenwriter")
         writing_button.setObjectName("secondaryButton")
         writing_button.clicked.connect(self._screenwriter)
@@ -392,6 +398,15 @@ class Window(QMainWindow):
         self.screenwriter.show()
         self.screenwriter.raise_()
         self.screenwriter.activateWindow()
+
+    def _office_suite(self):
+        try:
+            binary = office_binary()
+            if not binary:
+                raise FileNotFoundError("LibreOffice is unavailable.")
+            subprocess.Popen([binary], shell=False)
+        except (OSError, TypeError) as error:
+            QMessageBox.warning(self, "Office suite", str(error))
 
     def _add_files(self, files: list[Path]):
         if self.worker and self.worker.isRunning():
