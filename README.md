@@ -1,14 +1,14 @@
-# Local File Converter
+# FreeConvert
 
-A free, local desktop file converter, compressor, and screenwriting workspace for Windows and macOS. Drop files into the queue, choose an output for each file, or use the PDF, image, media, ZIP, OCR, and writing tools.
+A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, drawings, databases, and screenplays.
 
-![Local File Converter desktop app](docs/screenshot.png)
+![FreeConvert desktop app](docs/screenshot.png)
 
 ## Download
 
 Download the zip for your system from the [latest release](https://github.com/Thatweirdguy1/FreeConvert/releases/latest). Extract it, then open `LocalFileConverter.exe` on Windows or `LocalFileConverter.app` on macOS. The macOS builds are unsigned; your system may require **Open Anyway** in Privacy & Security after the first launch. The app is free and needs no account.
 
-The desktop downloads include [LibreOffice](https://www.libreoffice.org/) for local document, presentation, and spreadsheet conversions. **No separate LibreOffice installation is needed.** Select **Office suite** to open its full desktop editor for Writer, Calc, Impress, Draw, Base, and Math. The downloads are larger because they include the suite. When running from source, install LibreOffice separately or put `soffice` on `PATH` to enable Office conversions.
+The desktop downloads include [LibreOffice](https://www.libreoffice.org/) **only as a local conversion engine** for Office formats; no separate installation is needed. The Pages, Tables, Dazzle, Sketch, and Organize editors are FreeConvert windows and work independently of LibreOffice. The downloads are larger because the conversion engine is bundled. When running from source, install LibreOffice or put `soffice` on `PATH` for broader Office conversions; the native editors work without it.
 
 OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) and English recognition models. No separate OCR installation, account, or network connection is needed.
 
@@ -25,13 +25,28 @@ OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) a
 | DOCX | TXT (paragraph text) |
 | TXT | PDF, DOCX |
 
-The bundled LibreOffice runtime enables conversions within document (DOC, DOCX, ODT, RTF, TXT), presentation (PPT, PPTX, ODP), and spreadsheet (XLS, XLSX, ODS, CSV) families, plus PDF output. Output options vary by input. The **Office suite** button opens LibreOffice itself for richer editing than the converter window provides.
+The bundled LibreOffice runtime enables conversions within document (DOC, DOCX, ODT, RTF, TXT), presentation (PPT, PPTX, ODP), and spreadsheet (XLS, XLSX, ODS, CSV) families, plus PDF output. Output options vary by input.
 
 ## Use
 
-### Screenwriter
+### Creative workspaces
 
-Select **Screenwriter** in the main window to write a screenplay locally. The editor uses [Fountain](https://fountain.io/syntax/) as its editable source format, with a live formatted preview, title page fields, scene navigation, a beat map (`#` sections and `=` synopses), character picker, emphasis buttons, dual dialogue, find, and local autosave with crash recovery. **New**, **Open**, and **Save** work with `.fountain`; **Open** also imports Final Draft `.fdx`, plain text, and Markdown. Scripts stay on your device.
+The workspace bar opens these built-in, offline editors:
+
+| Workspace | Create and edit | Local formats |
+| --- | --- | --- |
+| **Pages** | Rich text, bold, italic, underline, bullets, word count | DOCX, HTML, TXT; PDF export |
+| **Tables** | Editable spreadsheet grid | XLSX, CSV |
+| **Dazzle** | Slide titles and body text, add/delete slides | PPTX, Dazzle project; PDF export |
+| **Sketch** | Freehand pen, color, eraser | PNG, JPEG, BMP |
+| **Organize** | SQLite tables and records; CSV import/export | SQLite, CSV |
+| **Writer's Drafts** | Screenplay writing and preview | Fountain, FDX, PDF, TXT, HTML, Markdown |
+
+These are focused editors, not copies of Microsoft Office or LibreOffice. Pages opens DOCX text but does not preserve all formatting, embedded objects, or comments. Tables handles one visible sheet and does not calculate formulas itself; XLSX formulas are stored for compatible spreadsheet programs. Dazzle opens slide text from PPTX and saves its own simple layout; it does not retain arbitrary PowerPoint themes, images, animations, or notes. Organize can browse external SQLite databases read-only; it edits databases created by Organize. Back up important originals before importing them.
+
+### Writer's Drafts
+
+Select **Writer's Drafts** in the main window to write a screenplay locally. The editor uses [Fountain](https://fountain.io/syntax/) as its editable source format, with a live formatted preview, title page fields, scene navigation, a beat map (`#` sections and `=` synopses), character picker, emphasis buttons, dual dialogue, find, and local autosave with crash recovery. **New**, **Open**, and **Save** work with `.fountain`; **Open** also imports Final Draft `.fdx`, plain text, and Markdown. Scripts stay on your device.
 
 Use **Export** to save a separate **PDF, Fountain, Final Draft (.fdx), plain text, HTML, or Markdown** file. Existing export files are not overwritten. PDF uses US Letter screenplay pages by default; HTML is printable in a browser. An unchanged FDX import exports byte-for-byte. For text edits that map safely to the same paragraphs, FDX export retains other XML nodes, attributes, and scene metadata. When paragraphs are added, removed, retyped, or contain multiple styled text runs that were edited, the app asks before producing a new FDX that may lose unsupported metadata. It will not silently claim a lossless round trip.
 

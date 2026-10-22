@@ -19,3 +19,9 @@ Its complete license and attribution files remain inside the bundled
 Source code for the corresponding LibreOffice release is available at
 https://download.documentfoundation.org/libreoffice/src/ . The installed
 version is reported by `soffice --version` from the bundled runtime.
+
+# python-pptx
+
+The Dazzle workspace uses python-pptx 1.0.2 for PowerPoint files.
+It is licensed under MIT. The license is at
+`THIRD_PARTY_LICENSES/python-pptx-MIT.txt`.

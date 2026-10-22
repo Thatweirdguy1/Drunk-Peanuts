@@ -38,6 +38,12 @@ jobs:
         run: brew install --cask libreoffice
       - name: Package app
         run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name LocalFileConverter --collect-all imageio_ffmpeg --collect-data rapidocr app.py
+      - name: Use Windows ICU for Qt
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # PyInstaller may pick up an incompatible icuuc.dll from another app on PATH.
+          Remove-Item -LiteralPath dist/LocalFileConverter/_internal/icuuc.dll -ErrorAction SilentlyContinue
       - name: Bundle LibreOffice
         run: python bundle_office.py
       - name: Verify bundled LibreOffice on Windows
@@ -52,6 +58,12 @@ jobs:
       - name: Verify packaged OCR on macOS
         if: runner.os == 'macOS'
         run: python verify_release_ocr.py dist/LocalFileConverter.app/Contents/MacOS/LocalFileConverter
+      - name: Verify native workspaces on Windows
+        if: runner.os == 'Windows'
+        run: python verify_release_suite.py dist/LocalFileConverter/LocalFileConverter.exe
+      - name: Verify native workspaces on macOS
+        if: runner.os == 'macOS'
+        run: python verify_release_suite.py dist/LocalFileConverter.app/Contents/MacOS/LocalFileConverter
       - name: Include licenses on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -87,4 +99,4 @@ jobs:
       - name: Publish downloads
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "Local File Converter ${GITHUB_REF_NAME}" --verify-tag --notes "Edited FDX text now preserves unrelated XML metadata when paragraph structure can be mapped safely. PDF export reads supported FDX page and element settings and improves page breaks. Exact Final Draft pagination remains unverified. LibreOffice is bundled for Office conversions. See the README for limits." --generate-notes
+        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "FreeConvert ${GITHUB_REF_NAME}" --verify-tag --notes "Adds native Pages, Tables, Dazzle, Sketch, and Organize workspaces and renames the screenplay editor Writer's Drafts. The new light and dark workspace navigation is inspired by the supplied design. LibreOffice remains bundled for Office conversions; the new editors run independently. These editors cover core local workflows and do not provide full Microsoft Office or LibreOffice feature parity. See the README for format limits." --generate-notes

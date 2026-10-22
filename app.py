@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import sys
 import re
-import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable
@@ -21,11 +20,11 @@ from PySide6.QtWidgets import (
     QSplitter, QVBoxLayout, QWidget,
 )
 
-from converter import (available_formats, compress, convert, edit_image, extract_zip, kind, ocr_to_text, office_binary,
+from converter import (available_formats, compress, convert, edit_image, extract_zip, kind, ocr_to_text,
                        pdf_merge, pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension,
                        trim_media, zip_entries)
 
-VERSION = "0.8.2"
+VERSION = "0.9.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -166,13 +165,14 @@ class Worker(QThread):
 class Window(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"Local File Converter {VERSION}")
+        self.setWindowTitle(f"FreeConvert {VERSION}")
         self.resize(1080, 830)
         self.setMinimumSize(780, 700)
         self.paths: list[Path] = []
         self.formats: dict[Path, str] = {}
         self.worker: Worker | None = None
         self.screenwriter = None
+        self.workspaces = {}
         self.last_error = ""
         self.settings = QSettings("Local File Converter", "Local File Converter")
         self.output_dir = Path(self.settings.value("output_dir", str(Path.home() / "Downloads")))
@@ -191,30 +191,37 @@ class Window(QMainWindow):
         brand = QVBoxLayout()
         eyebrow = QLabel("LOCAL  /  PRIVATE  /  FREE")
         eyebrow.setObjectName("eyebrow")
-        title = QLabel("File Converter")
+        title = QLabel("FreeConvert")
         title.setObjectName("title")
         brand.addWidget(eyebrow)
         brand.addWidget(title)
         header.addLayout(brand)
         header.addStretch()
-        if office_binary():
-            office_button = QPushButton("Office suite")
-            office_button.setObjectName("secondaryButton")
-            office_button.clicked.connect(self._office_suite)
-            header.addWidget(office_button)
-        writing_button = QPushButton("Screenwriter")
-        writing_button.setObjectName("secondaryButton")
-        writing_button.clicked.connect(self._screenwriter)
-        header.addWidget(writing_button)
         self.add_button = QPushButton("Add files")
-        self.add_button.setObjectName("secondaryButton")
+        self.add_button.setObjectName("primaryButton")
         self.add_button.clicked.connect(self._choose_files)
         header.addWidget(self.add_button)
         page.addLayout(header)
 
-        subtitle = QLabel("Convert images, PDFs, media, and documents on your computer.")
+        subtitle = QLabel("Convert files and create documents, tables, slides, drawings, databases, and scripts on your computer.")
         subtitle.setObjectName("muted")
         page.addWidget(subtitle)
+
+        spaces = QFrame()
+        spaces.setObjectName("workspaces")
+        spaces_layout = QHBoxLayout(spaces)
+        spaces_layout.setContentsMargins(8, 8, 8, 8)
+        spaces_layout.setSpacing(5)
+        for name in ("Pages", "Tables", "Dazzle", "Sketch", "Organize"):
+            control = QPushButton(name)
+            control.setObjectName("workspaceButton")
+            control.clicked.connect(lambda checked=False, workspace=name: self._open_workspace(workspace))
+            spaces_layout.addWidget(control)
+        drafts = QPushButton("Writer's Drafts")
+        drafts.setObjectName("workspaceButton")
+        drafts.clicked.connect(self._screenwriter)
+        spaces_layout.addWidget(drafts)
+        page.addWidget(spaces)
 
         self.drop = DropArea()
         self.drop.setFixedHeight(115)
@@ -352,12 +359,12 @@ class Window(QMainWindow):
     def _theme(self, *_):
         dark = QApplication.instance().styleHints().colorScheme() == Qt.ColorScheme.Dark
         bg, card, text, muted, border, drop = (
-            ("#101923", "#182633", "#f2f7f8", "#a8bbc6", "#304250", "#14252d") if dark else
-            ("#f4faf9", "#ffffff", "#173b3e", "#526c72", "#cce0dd", "#e9f8f5")
+            ("#0b1520", "#17232e", "#edf5f6", "#a6bac3", "#304551", "#11222b") if dark else
+            ("#f6f9fb", "#ffffff", "#14283d", "#58717e", "#d8e4e9", "#eaf8f7")
         )
         self.setStyleSheet(f"""
             QWidget {{ background: {bg}; color: {text}; font-family: 'Segoe UI', 'SF Pro Text', sans-serif; font-size: 14px; }}
-            QLabel#title {{ font-size: 34px; font-weight: 750; }}
+            QLabel#title {{ font-size: 32px; font-weight: 750; }}
             QLabel#eyebrow {{ color: #087e75; font-size: 10px; font-weight: 700; letter-spacing: 2px; }}
             QLabel#sectionTitle {{ font-size: 19px; font-weight: 700; }}
             QLabel#dropTitle {{ font-size: 17px; font-weight: 700; }}
@@ -365,6 +372,9 @@ class Window(QMainWindow):
             QLabel#muted {{ color: {muted}; }}
             QLabel#fieldLabel {{ font-weight: 700; }}
             QFrame#dropArea {{ background: {drop}; border: 2px dashed #69aaa3; border-radius: 14px; }}
+            QFrame#workspaces {{ background: {card}; border: 1px solid {border}; border-radius: 12px; }}
+            QPushButton#workspaceButton {{ background: transparent; border: none; color: {text}; padding: 8px 6px; }}
+            QPushButton#workspaceButton:hover {{ background: {'#20524f' if dark else '#d9f2ec'}; }}
             QFrame#dropArea QLabel {{ background: transparent; }}
             QFrame#previewPanel, QFrame#controls {{ background: {card}; border: 1px solid {border}; border-radius: 12px; }}
             QFrame#previewPanel QLabel, QFrame#controls QLabel {{ background: transparent; }}
@@ -399,14 +409,14 @@ class Window(QMainWindow):
         self.screenwriter.raise_()
         self.screenwriter.activateWindow()
 
-    def _office_suite(self):
-        try:
-            binary = office_binary()
-            if not binary:
-                raise FileNotFoundError("LibreOffice is unavailable.")
-            subprocess.Popen([binary], shell=False)
-        except (OSError, TypeError) as error:
-            QMessageBox.warning(self, "Office suite", str(error))
+    def _open_workspace(self, name: str):
+        from office_suite import WORKSPACES
+        if name not in self.workspaces:
+            self.workspaces[name] = WORKSPACES[name]()
+        window = self.workspaces[name]
+        window.show()
+        window.raise_()
+        window.activateWindow()
 
     def _add_files(self, files: list[Path]):
         if self.worker and self.worker.isRunning():
@@ -753,8 +763,13 @@ def main():
     if len(sys.argv) == 4 and sys.argv[1] == "--ocr":
         ocr_to_text(Path(sys.argv[2]), Path(sys.argv[3]))
         return
+    if sys.argv[1:] == ["--office-self-check"]:
+        from office_suite import WORKSPACES
+        if set(WORKSPACES) != {"Pages", "Tables", "Dazzle", "Sketch", "Organize"}:
+            raise RuntimeError("Office workspaces are missing")
+        return
     app = QApplication(sys.argv)
-    app.setApplicationName("Local File Converter")
+    app.setApplicationName("FreeConvert")
     app.setApplicationVersion(VERSION)
     app.setOrganizationName("Local File Converter")
     window = Window()
