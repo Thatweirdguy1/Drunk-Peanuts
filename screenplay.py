@@ -211,7 +211,7 @@ def from_fdx(source: str) -> str:
 
     def append(paragraph, dual=False):
         kind = paragraph.get("Type", "Action")
-        text = "".join(paragraph.itertext()).strip()
+        text = "".join(part for node in paragraph.findall("Text") for part in node.itertext()).strip()
         if not text:
             return
         if kind == "Scene Heading" and not SCENE.match(text):
@@ -239,6 +239,64 @@ def from_fdx(source: str) -> str:
         else:
             append(paragraph)
     return "\n".join(lines).rstrip() + "\n"
+
+
+def merge_fdx(original: bytes, before: str, after: str) -> bytes:
+    """Change supported paragraph text while retaining unrelated FDX XML nodes."""
+    if b"<!DOCTYPE" in original.upper():
+        raise ValueError("FDX with a document type declaration cannot be merged safely.")
+    old_title, old_elements = parse_fountain(before)
+    new_title, new_elements = parse_fountain(after)
+    old_elements = [item for item in old_elements if item.kind not in {"section", "synopsis", "note"}]
+    new_elements = [item for item in new_elements if item.kind not in {"section", "synopsis", "note"}]
+    if (len(old_elements) != len(new_elements) or
+            any((a.kind, a.dual) != (b.kind, b.dual) for a, b in zip(old_elements, new_elements)) or
+            old_title.keys() != new_title.keys()):
+        raise ValueError("Added, removed, or retyped elements cannot be merged without risking FDX metadata.")
+    parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True, insert_pis=True))
+    root = ET.fromstring(original, parser=parser)
+    if root.tag != "FinalDraft":
+        raise ValueError("This is not a Final Draft document.")
+    content = root.find("Content")
+    if content is None:
+        raise ValueError("FDX has no screenplay content.")
+    paragraphs = []
+    for paragraph in content.findall("Paragraph"):
+        dual = paragraph.find("DualDialogue")
+        paragraphs.extend(dual.findall("Paragraph") if dual is not None else [paragraph])
+    paragraphs = [p for p in paragraphs if any((t.text or "").strip() for t in p.findall("Text"))]
+    if len(paragraphs) != len(old_elements):
+        raise ValueError("FDX paragraph structure cannot be mapped safely to this draft.")
+
+    def replace_text(paragraph: ET.Element, value: str) -> None:
+        nodes = paragraph.findall("Text")
+        if len(nodes) != 1:
+            raise ValueError("A changed paragraph has multiple styled text runs; its formatting cannot be preserved safely.")
+        nodes[0].text = value
+
+    for paragraph, old, new in zip(paragraphs, old_elements, new_elements):
+        if old.text == new.text:
+            continue
+        value = _strip_markup(new.text)
+        if new.kind == "scene" and (match := re.search(r"\s+#([\w.-]+)#$", value)):
+            paragraph.set("Number", match.group(1))
+            value = value[:match.start()]
+        elif new.kind == "scene":
+            paragraph.attrib.pop("Number", None)
+        replace_text(paragraph, value)
+
+    title_content = root.find("./TitlePage/Content")
+    for key, old_value in old_title.items():
+        if old_value == new_title[key]:
+            continue
+        if title_content is None:
+            raise ValueError("FDX title page cannot be mapped safely to this draft.")
+        matches = [p for p in title_content.findall("Paragraph")
+                   if "".join(p.itertext()).strip().lower().startswith(key + ":")]
+        if len(matches) != 1:
+            raise ValueError(f"FDX title field {key} cannot be mapped safely.")
+        replace_text(matches[0], f"{key.title()}: {new_title[key]}")
+    return b'<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="utf-8") + b"\n"
 
 
 def to_html(source: str) -> str:
@@ -291,11 +349,32 @@ def to_markdown(source: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def to_pdf(source: str, target: Path) -> None:
+def to_pdf(source: str, target: Path, layout_fdx: bytes | None = None) -> None:
     title, elements = parse_fountain(source)
-    document = canvas.Canvas(str(target), pagesize=letter, pageCompression=1)
-    document.setTitle(title.get("title", "Screenplay"))
     width, height = letter
+    layout = None
+    styles = {}
+    if layout_fdx:
+        root = ET.fromstring(layout_fdx)
+        layout = root.find("PageLayout")
+        styles = {node.get("Type"): node for node in root.findall("ElementSettings")}
+
+    def number(value, default, minimum, maximum):
+        try:
+            result = float(value)
+            return result if minimum <= result <= maximum else default
+        except (ValueError, TypeError):
+            return default
+
+    if layout is not None:
+        size = layout.find("PageSize")
+        if size is not None:
+            width = 72 * number(size.get("Width"), width / 72, 5, 20)
+            height = 72 * number(size.get("Height"), height / 72, 5, 20)
+    top_margin = number(layout.get("TopMargin") if layout is not None else None, 72, 18, 216)
+    bottom_margin = number(layout.get("BottomMargin") if layout is not None else None, 72, 18, 216)
+    document = canvas.Canvas(str(target), pagesize=(width, height), pageCompression=1)
+    document.setTitle(title.get("title", "Screenplay"))
     if title:
         document.setFont("Courier-Bold", 12)
         document.drawCentredString(width / 2, height * 0.65, title.get("title", "").upper())
@@ -309,7 +388,7 @@ def to_pdf(source: str, target: Path) -> None:
             document.drawRightString(width - 72, 100, title["draft date"])
         document.showPage()
     page = 1
-    y = height - 72
+    y = height - top_margin
     locations = {"scene": (108, 432), "shot": (108, 432), "action": (108, 432),
                  "character": (252, 280), "dialogue": (180, 252), "parenthetical": (216, 216),
                  "transition": (108, 432), "centered": (108, 432), "lyric": (180, 252),
@@ -319,62 +398,92 @@ def to_pdf(source: str, target: Path) -> None:
         nonlocal page, y
         document.showPage()
         page += 1
-        y = height - 72
+        y = height - top_margin
         document.setFont("Courier", 12)
         document.drawRightString(width - 72, height - 45, f"{page}.")
 
-    def block(element: Element, available: float):
+    def block(element: Element, column_width: float | None = None):
+        x, available = locations.get(element.kind, (108, 432))
+        spec = styles.get(TYPES.get(element.kind))
+        paragraph_spec = spec.find("ParagraphSpec") if spec is not None else None
+        font_spec = spec.find("FontSpec") if spec is not None else None
+        behavior = spec.find("Behavior") if spec is not None else None
+        if paragraph_spec is not None:
+            left = number(paragraph_spec.get("LeftIndent"), x / 72, 0.25, width / 72 - 1)
+            right = number(paragraph_spec.get("RightIndent"), (x + available) / 72, left + .5, width / 72 - .25)
+            x, available = left * 72, (right - left) * 72
+        if column_width is not None:
+            available = column_width
+        size = number(font_spec.get("Size") if font_spec is not None else None, 12, 8, 18)
+        spacing = number(paragraph_spec.get("Spacing") if paragraph_spec is not None else None, 1, .8, 3)
+        alignment = paragraph_spec.get("Alignment") if paragraph_spec is not None else ""
+        align = {"Left": 0, "Center": 1, "Centered": 1, "Right": 2, "Justified": 4}.get(
+            alignment, 2 if element.kind == "transition" else 1 if element.kind == "centered" else 0)
         style = ParagraphStyle("script", fontName="Courier-Bold" if element.kind in {"scene", "character", "transition"} else "Courier",
-                               fontSize=12, leading=12, alignment=2 if element.kind == "transition" else 1 if element.kind == "centered" else 0)
+                               fontSize=size, leading=size * spacing, alignment=align)
         paragraph = Paragraph(_inline_html(element.text) or "&nbsp;", style)
         _, block_height = paragraph.wrap(available, height)
-        gap = 0 if element.kind in {"character", "parenthetical"} else 12
-        return paragraph, block_height, gap
+        before = number(paragraph_spec.get("SpaceBefore") if paragraph_spec is not None else None,
+                        0 if element.kind in {"dialogue", "parenthetical"} else 12, 0, 72)
+        starts_page = behavior is not None and paragraph_spec is not None and paragraph_spec.get("StartsNewPage") == "Yes"
+        return paragraph, block_height, before, x, available, starts_page
 
-    for item in _layout(elements):
-        if isinstance(item, tuple):
-            columns = []
-            for speech in item:
-                columns.append([block(element, 205) for element in speech])
-            needed = max(sum(block_height + gap for _, block_height, gap in column) for column in columns)
-            if y - needed < 72:
+    def draw_block(element: Element):
+        nonlocal y
+        paragraph, block_height, before, x, available, starts_page = block(element)
+        if starts_page and y < height - top_margin:
+            new_page()
+        if y - before - min(block_height, 24) < bottom_margin:
+            new_page()
+        y -= before
+        pending = [paragraph]
+        while pending:
+            current = pending.pop(0)
+            _, current_height = current.wrap(available, height)
+            if current_height > y - bottom_margin:
+                parts = current.split(available, y - bottom_margin)
+                if len(parts) < 2:
+                    if y == height - top_margin:
+                        raise ValueError("A screenplay paragraph cannot fit on the selected page size.")
+                    new_page()
+                    pending.insert(0, current)
+                    continue
+                pending = parts + pending
+                continue
+            current.drawOn(document, x, y - current_height)
+            y -= current_height
+            if pending:
                 new_page()
-            # ponytail: very long simultaneous speeches stay one block; split them if scripts exceed a page per speech.
+
+    items = [item for item in _layout(elements) if isinstance(item, tuple) or item.kind not in {"section", "synopsis", "note"}]
+    for index, item in enumerate(items):
+        if isinstance(item, tuple):
+            columns = [[block(element, 205) for element in speech] for speech in item]
+            needed = max(sum(block_height + before for _, block_height, before, *_ in column) for column in columns)
+            if needed > height - top_margin - bottom_margin:
+                # ponytail: overlong dual speeches become sequential so no text is clipped.
+                for speech in item:
+                    for element in speech:
+                        draw_block(element)
+                continue
+            if y - needed < bottom_margin:
+                new_page()
             for x, column in zip((108, 333), columns):
                 top = y
-                for paragraph, block_height, gap in column:
+                for paragraph, block_height, before, *_ in column:
+                    top -= before
                     paragraph.drawOn(document, x, top - block_height)
-                    top -= block_height + gap
+                    top -= block_height
             y -= needed
             continue
-        if item.kind in {"section", "synopsis", "note"}:
-            continue
-        x, available = locations.get(item.kind, (108, 432))
-        paragraph, block_height, gap = block(item, available)
-        if y - block_height - gap < 72:
-            new_page()
-        if block_height > y - 72:
-            # Long action paragraphs continue on the next page.
-            pending = [paragraph]
-            while pending:
-                current = pending.pop(0)
-                _, current_height = current.wrap(available, height)
-                if current_height > y - 72:
-                    parts = current.split(available, y - 72)
-                    if len(parts) < 2:
-                        new_page()
-                        pending.insert(0, current)
-                        continue
-                    pending = parts + pending
-                    continue
-                current.drawOn(document, x, y - current_height)
-                y -= current_height
-                if pending:
+        if item.kind in {"scene", "character"} and index + 1 < len(items) and not isinstance(items[index + 1], tuple):
+            following = items[index + 1]
+            if (item.kind == "scene" and following.kind == "action" or
+                    item.kind == "character" and following.kind in {"dialogue", "parenthetical"}):
+                needed = sum(block(piece)[1] + block(piece)[2] for piece in (item, following))
+                if needed <= height - top_margin - bottom_margin and y - needed < bottom_margin:
                     new_page()
-            y -= gap
-            continue
-        paragraph.drawOn(document, x, y - block_height)
-        y -= block_height + gap
+        draw_block(item)
     document.save()
 
 
@@ -382,11 +491,11 @@ EXPORTS = {".fountain": lambda text: text, ".fdx": to_fdx, ".txt": plain_text,
            ".html": to_html, ".md": to_markdown}
 
 
-def export_script(source: str, target: Path) -> None:
+def export_script(source: str, target: Path, layout_fdx: bytes | None = None) -> None:
     if target.exists():
         raise FileExistsError(f"Output already exists: {target.name}")
     if target.suffix.lower() == ".pdf":
-        to_pdf(source, target)
+        to_pdf(source, target, layout_fdx)
     elif target.suffix.lower() in EXPORTS:
         target.write_text(EXPORTS[target.suffix.lower()](source), encoding="utf-8")
     else:

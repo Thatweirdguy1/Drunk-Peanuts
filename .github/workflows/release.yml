@@ -87,4 +87,4 @@ jobs:
       - name: Publish downloads
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "Local File Converter ${GITHUB_REF_NAME}" --verify-tag --notes "LibreOffice is now included in each desktop download for local Office conversions and the Office suite button, with no separate installation required. This does not add Final Draft-specific metadata or pagination support. See the README and third-party notices." --generate-notes
+        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "Local File Converter ${GITHUB_REF_NAME}" --verify-tag --notes "Edited FDX text now preserves unrelated XML metadata when paragraph structure can be mapped safely. PDF export reads supported FDX page and element settings and improves page breaks. Exact Final Draft pagination remains unverified. LibreOffice is bundled for Office conversions. See the README for limits." --generate-notes

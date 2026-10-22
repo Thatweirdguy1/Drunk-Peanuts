@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QPushButton, QSplitter, QTextBrowser, QVBoxLayout, QWidget,
 )
 
-from screenplay import SCENE, TITLE_KEYS, export_script, from_fdx, parse_fountain, to_html
+from screenplay import SCENE, TITLE_KEYS, export_script, from_fdx, merge_fdx, parse_fountain, to_html
 
 
 class FountainHighlighter(QSyntaxHighlighter):
@@ -257,15 +257,29 @@ class ScreenwriterWindow(QMainWindow):
                   "Plain text": ".txt", "HTML": ".html", "Markdown": ".md"}
         target = Path(filename).with_suffix(next(value for key, value in suffix.items() if selected.startswith(key)))
         try:
-            if (target.suffix.lower() == ".fdx" and self.original_fdx is not None and
-                    self.editor.toPlainText() == self.imported_fountain):
+            if target.suffix.lower() == ".fdx" and self.original_fdx is not None:
                 if target.exists():
                     raise FileExistsError(f"Output already exists: {target.name}")
-                target.write_bytes(self.original_fdx)
+                current = self.editor.toPlainText()
+                if current == self.imported_fountain:
+                    data = self.original_fdx
+                else:
+                    try:
+                        data = merge_fdx(self.original_fdx, self.imported_fountain, current)
+                    except ValueError as error:
+                        choice = QMessageBox.question(
+                            self, "FDX metadata", f"{error}\n\nExport a new FDX without the original metadata?",
+                            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                        if choice != QMessageBox.Yes:
+                            return
+                        data = None
+                if data is None:
+                    export_script(current, target)
+                else:
+                    target.write_bytes(data)
             else:
-                export_script(self.editor.toPlainText(), target)
-                if target.suffix.lower() == ".fdx" and self.original_fdx is not None:
-                    QMessageBox.information(self, "FDX export", "This script was edited after importing FDX. The export includes supported screenplay content; unsupported Final Draft metadata cannot be preserved.")
+                export_script(self.editor.toPlainText(), target,
+                              self.original_fdx if target.suffix.lower() == ".pdf" else None)
             self.status.setText(f"Exported locally: {target}")
         except Exception as error:
             QMessageBox.warning(self, "Cannot export", str(error))

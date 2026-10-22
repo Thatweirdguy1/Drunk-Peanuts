@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from screenplay import export_script, from_fdx, parse_fountain, to_fdx
+from screenplay import export_script, from_fdx, merge_fdx, parse_fountain, to_fdx, to_pdf
 from screenwriter import ScreenwriterWindow
 
 
@@ -39,6 +39,38 @@ CUT TO:
 
 
 class ScreenplayTest(unittest.TestCase):
+    def test_edited_fdx_keeps_unrelated_metadata(self):
+        original = b'''<?xml version="1.0" encoding="UTF-8"?>
+<FinalDraft Version="13"><CustomMetadata id="keep"><Revision key="A"/></CustomMetadata>
+<Content><Paragraph Type="Scene Heading" Number="7"><SceneProperties Page="3" Title="Story beat"/><Text>INT. ROOM - DAY</Text></Paragraph>
+<Paragraph Type="Action" id="action-1"><Text>The door opens.</Text></Paragraph></Content></FinalDraft>'''
+        before = from_fdx(original.decode())
+        after = before.replace("The door opens.", "The door closes.")
+        merged = ET.fromstring(merge_fdx(original, before, after))
+        self.assertEqual(merged.find("./CustomMetadata/Revision").get("key"), "A")
+        self.assertEqual(merged.find("./Content/Paragraph/SceneProperties").get("Title"), "Story beat")
+        self.assertEqual(merged.findall("./Content/Paragraph")[1].get("id"), "action-1")
+        self.assertEqual(merged.findall("./Content/Paragraph")[1].findtext("Text"), "The door closes.")
+        with self.assertRaises(ValueError):
+            merge_fdx(original, before, after + "\nAnother action.\n")
+
+    def test_pdf_uses_fdx_page_size_and_keeps_cue_with_dialogue(self):
+        source = "INT. ROOM - DAY\n\n" + "\n\n".join(f"Action number {n}." for n in range(28)) + "\n\n@MAYA\nStay here.\n"
+        settings = b'''<FinalDraft><PageLayout TopMargin="90" BottomMargin="62"><PageSize Width="8.5" Height="5.5"/></PageLayout>
+<ElementSettings Type="Action"><FontSpec Size="12"/><ParagraphSpec LeftIndent="1.25" RightIndent="7.25" SpaceBefore="12" Spacing="1"/></ElementSettings></FinalDraft>'''
+        with tempfile.TemporaryDirectory() as folder:
+            normal = Path(folder) / "normal.pdf"
+            compact = Path(folder) / "compact.pdf"
+            to_pdf(source, normal)
+            to_pdf(source, compact, settings)
+            default_pages = PdfReader(str(normal)).pages
+            compact_pages = PdfReader(str(compact)).pages
+            self.assertGreater(len(compact_pages), len(default_pages))
+            self.assertEqual(float(compact_pages[0].mediabox.height), 396)
+            pages = [page.extract_text() for page in compact_pages]
+            self.assertEqual(sum(page.count("Action number") for page in pages), 28)
+            self.assertTrue(any("MAYA" in page and "Stay here." in page for page in pages))
+
     def test_parse_and_all_exports(self):
         title, elements = parse_fountain(SAMPLE)
         self.assertEqual(title["title"], "NIGHT RUN")
@@ -88,6 +120,12 @@ class ScreenplayTest(unittest.TestCase):
             with patch("screenwriter.QFileDialog.getSaveFileName", return_value=(str(target), "Final Draft (*.fdx)")):
                 window._export()
             self.assertEqual(target.read_bytes(), original)
+            edited = Path(folder) / "edited.fdx"
+            window.editor.setPlainText(window.editor.toPlainText().replace("ROOM", "HALL"))
+            with patch("screenwriter.QFileDialog.getSaveFileName", return_value=(str(edited), "Final Draft (*.fdx)")):
+                window._export()
+            self.assertEqual(ET.fromstring(edited.read_bytes()).find("CustomMetadata").get("id"), "keep")
+            self.assertIn("INT. HALL", edited.read_text())
             window.editor.document().setModified(False)
             window.close()
 
