@@ -1,6 +1,6 @@
 # FreeConvert
 
-A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, and screenplays.
+A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with WatchIT.
 
 ![FreeConvert desktop app](docs/screenshot.png)
 
@@ -11,6 +11,8 @@ Download the zip for your system from the [latest release](https://github.com/Th
 Office conversions run inside FreeConvert using included Python format libraries. LibreOffice is no longer bundled or required. These conversions handle basic text, tables, and slide text; use the original Office application for files whose layout, formulas, embedded objects, or metadata must remain exact.
 
 OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) and English recognition models. No separate OCR installation, account, or network connection is needed.
+
+**WatchIT** uses a bundled [libVLC](https://www.videolan.org/vlc/libvlc.html) runtime and plugins in release downloads. You do not need to install VLC separately to play media. When running from source, install VLC Media Player locally so the Python binding can find libVLC. Playback support depends on the VLC build and its plugins; protected media and some discs or streams may require external permissions or hardware.
 
 ## What it converts
 
@@ -31,7 +33,7 @@ Legacy binary DOC, XLS, and PPT are not supported by the native engine. Convert 
 
 ### Creative workspaces
 
-The workspace bar opens these built-in, offline editors:
+The workspace bar opens these built-in, offline tools:
 
 | Workspace | Create and edit | Local formats |
 | --- | --- | --- |
@@ -42,8 +44,17 @@ The workspace bar opens these built-in, offline editors:
 | **Sketch** | Freehand pen, color, eraser | PNG, JPEG, BMP |
 | **Organize** | SQLite tables and records; CSV import/export | SQLite, CSV |
 | **Writer's Drafts** | Screenplay writing and preview | Fountain, FDX, PDF, TXT, HTML, Markdown |
+| **WatchIT** | Video and audio playback with a playlist, seeking, speed, volume, mute, loop, fullscreen, aspect ratio, audio and subtitle track choices, and external subtitles | Local files supported by the bundled VLC build |
 
-These are focused editors, not copies of Microsoft Office or LibreOffice. Pages, Tables, and Dazzle copy unchanged imported DOCX, XLSX, and PPTX files byte-for-byte when saved to a new file. Pages can edit text in existing paragraphs while keeping other document parts, but inline styling in changed paragraphs and unsupported Word features are not guaranteed. Tables edits one visible sheet and keeps other XLSX sheets when saving another XLSX; it does not calculate formulas or guarantee preservation of every Excel feature. Dazzle keeps nontext slide shapes when editing text in an imported PPTX without adding or deleting slides. Structural slide edits in complex imported decks are refused; advanced themes, animations, and notes are not guaranteed. Formulaic offers a small formula language with `over`, `sqrt`, `^`, `_`, and common Greek names; it is not a full StarMath parser. It opens supported MathML and OpenDocument Formula files and refuses elements it cannot edit. Organize can browse external SQLite databases read-only; it edits databases created by Organize. Back up important originals before importing them.
+The office workspaces are focused editors, not copies of Microsoft Office or LibreOffice. Pages, Tables, and Dazzle copy unchanged imported DOCX, XLSX, and PPTX files byte-for-byte when saved to a new file. Pages can edit text in existing paragraphs while keeping other document parts, but inline styling in changed paragraphs and unsupported Word features are not guaranteed. Tables edits one visible sheet and keeps other XLSX sheets when saving another XLSX; it does not calculate formulas or guarantee preservation of every Excel feature. Dazzle keeps nontext slide shapes when editing text in an imported PPTX without adding or deleting slides. Structural slide edits in complex imported decks are refused; advanced themes, animations, and notes are not guaranteed. Formulaic offers a small formula language with `over`, `sqrt`, `^`, `_`, and common Greek names; it is not a full StarMath parser. It opens supported MathML and OpenDocument Formula files and refuses elements it cannot edit. Organize can browse external SQLite databases read-only; it edits databases created by Organize. Back up important originals before importing them.
+
+### WatchIT
+
+![WatchIT media player](docs/watchit.png)
+
+Select **WatchIT** from the workspace bar, then **Open** one or more local media files. Double-click a playlist item to play it. Use the timeline to seek, choose a playback speed from 0.25× to 4×, set the display aspect ratio, pick embedded subtitle and audio tracks, or load an external subtitle file. The player also has volume, mute, loop, previous/next, and fullscreen controls. **Space** pauses or resumes, **Left/Right** skips 10 seconds, **F** toggles fullscreen, and **Ctrl+O** opens files. Media stays local.
+
+The bundled VLC build supports the formats its installed decoding and demux plugins provide, including common MP4, MKV, MOV, AVI, WebM, MP3, AAC, FLAC, and OGG media. No player can guarantee every file with one of these extensions will decode: codec variations, corruption, DRM, and platform decoders affect playback. WatchIT is a player; the separate conversion tools still use FFmpeg and have their own format list above.
 
 ### Writer's Drafts
 

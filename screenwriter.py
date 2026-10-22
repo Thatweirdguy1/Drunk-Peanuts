@@ -11,7 +11,7 @@ from pathlib import Path
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QFont, QKeySequence, QSyntaxHighlighter, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
-    QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout, QInputDialog, QLabel,
+    QApplication, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout, QInputDialog, QLabel,
     QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit,
     QPushButton, QSplitter, QTextBrowser, QVBoxLayout, QWidget,
 )
@@ -73,6 +73,8 @@ class ScreenwriterWindow(QMainWindow):
         self.deadline = 0.0
         self._building = False
         self._build()
+        self._theme()
+        QApplication.instance().styleHints().colorSchemeChanged.connect(self._theme)
         self.refresh = QTimer(self)
         self.refresh.setSingleShot(True)
         self.refresh.setInterval(450)
@@ -97,6 +99,20 @@ class ScreenwriterWindow(QMainWindow):
             self.editor.locked_prefix = self.editor.toPlainText().rpartition("\n")[0]
             self._tick()
         self._refresh()
+
+    def _theme(self, *_):
+        dark = QApplication.instance().styleHints().colorScheme() == Qt.ColorScheme.Dark
+        bg, card, ink, muted, border = (("#0b1520", "#17232e", "#edf5f6", "#a6bac3", "#304551") if dark else
+                                        ("#f6f9fb", "#ffffff", "#14283d", "#58717e", "#d8e4e9"))
+        self.setStyleSheet(f"""
+            QMainWindow, QWidget {{ background: {bg}; color: {ink}; font-family: 'Segoe UI', 'SF Pro Text'; font-size: 14px; }}
+            QPlainTextEdit, QTextBrowser, QListWidget {{ background: {card}; color: {ink}; border: 1px solid {border}; border-radius: 9px; padding: 8px; }}
+            QPushButton, QComboBox {{ background: {card}; color: {ink}; border: 1px solid {border}; border-radius: 8px; padding: 7px; }}
+            QPushButton:hover, QComboBox:hover {{ border-color: #087e75; }}
+            QPushButton:focus, QComboBox:focus, QPlainTextEdit:focus {{ border: 2px solid #087e75; }}
+            QComboBox QAbstractItemView {{ background: {card}; color: {ink}; selection-background-color: #087e75; }}
+            QLabel {{ color: {muted}; }}
+        """)
 
     def _build(self):
         root = QWidget()

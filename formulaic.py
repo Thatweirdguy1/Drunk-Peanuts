@@ -218,9 +218,10 @@ class Formulaic(QMainWindow):
         dark = QApplication.instance().styleHints().colorScheme() == Qt.ColorScheme.Dark
         bg, ink, card, border = (("#0b1520", "#edf5f6", "#17232e", "#304551") if dark else
                                  ("#f6f9fb", "#14283d", "#ffffff", "#d8e4e9"))
-        self.setStyleSheet(f"QMainWindow,QWidget{{background:{bg};color:{ink};font-size:14px}}"
+        self.setStyleSheet(f"QMainWindow,QWidget{{background:{bg};color:{ink};font-family:'Segoe UI','SF Pro Text';font-size:14px}}"
                            f"QTextEdit,QTextBrowser{{background:{card};color:{ink};border:1px solid {border};border-radius:8px;padding:8px}}"
-                           f"QPushButton{{background:{card};color:{ink};border:1px solid {border};border-radius:7px;padding:7px}}")
+                           f"QPushButton{{background:{card};color:{ink};border:1px solid {border};border-radius:7px;padding:7px}}"
+                           "QPushButton:hover,QPushButton:focus{border:2px solid #087e75}")
 
     def refresh(self):
         try:

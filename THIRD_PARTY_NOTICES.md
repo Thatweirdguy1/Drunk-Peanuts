@@ -21,3 +21,19 @@ https://github.com/eea/odfpy and https://github.com/joshy/striprtf .
 The Dazzle workspace uses python-pptx 1.0.2 for PowerPoint files.
 It is licensed under MIT. The license is at
 `THIRD_PARTY_LICENSES/python-pptx-MIT.txt`.
+
+# WatchIT playback
+
+WatchIT uses the unmodified VLC/libVLC runtime and its plugins from VideoLAN,
+plus the `python-vlc` Python binding. The VLC runtime contains components under
+GPL, LGPL, and other compatible free software licenses. See the bundled
+`VLC-COPYING.txt` and the component notices in the upstream distribution.
+The `python-vlc` binding is LGPL 2.1 or later; its license is at
+`THIRD_PARTY_LICENSES/python-vlc-LGPL-2.1.txt`.
+The exact VLC version shipped in each release can be printed with
+`LocalFileConverter --watchit-self-check`. Source code for VLC and its
+contributed libraries is available from
+https://www.videolan.org/vlc/download-sources.html . The Python binding is
+available at https://github.com/oaubert/python-vlc . FreeConvert's own source
+remains licensed under MIT; the included VLC components retain their own
+licenses.

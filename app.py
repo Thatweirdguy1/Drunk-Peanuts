@@ -24,7 +24,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        pdf_merge, pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension,
                        trim_media, zip_entries)
 
-VERSION = "0.11.0"
+VERSION = "0.12.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -172,6 +172,7 @@ class Window(QMainWindow):
         self.formats: dict[Path, str] = {}
         self.worker: Worker | None = None
         self.screenwriter = None
+        self.watchit = None
         self.workspaces = {}
         self.last_error = ""
         self.settings = QSettings("Local File Converter", "Local File Converter")
@@ -221,6 +222,10 @@ class Window(QMainWindow):
         drafts.setObjectName("workspaceButton")
         drafts.clicked.connect(self._screenwriter)
         spaces_layout.addWidget(drafts)
+        watch = QPushButton("WatchIT")
+        watch.setObjectName("workspaceButton")
+        watch.clicked.connect(self._watchit)
+        spaces_layout.addWidget(watch)
         page.addWidget(spaces)
 
         self.drop = DropArea()
@@ -408,6 +413,17 @@ class Window(QMainWindow):
         self.screenwriter.show()
         self.screenwriter.raise_()
         self.screenwriter.activateWindow()
+
+    def _watchit(self):
+        try:
+            from watchit import WatchIT
+            if self.watchit is None:
+                self.watchit = WatchIT()
+            self.watchit.show()
+            self.watchit.raise_()
+            self.watchit.activateWindow()
+        except Exception as error:
+            QMessageBox.warning(self, "WatchIT", str(error))
 
     def _open_workspace(self, name: str):
         from office_suite import WORKSPACES
@@ -773,6 +789,15 @@ def main():
             raise RuntimeError("Office workspaces are missing")
         if b"mfrac" not in mathml("{a} over {b}"):
             raise RuntimeError("Formulaic is unavailable")
+        return
+    if sys.argv[1:] == ["--watchit-self-check"]:
+        from watchit import vlc_runtime
+        vlc = vlc_runtime()
+        engine = vlc.Instance("--quiet", "--no-video")
+        if engine is None:
+            raise RuntimeError("VLC playback engine failed to load")
+        print(vlc.libvlc_get_version().decode())
+        engine.release()
         return
     app = QApplication(sys.argv)
     app.setApplicationName("FreeConvert")
