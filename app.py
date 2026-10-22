@@ -24,7 +24,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        pdf_merge, pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension,
                        trim_media, zip_entries)
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -171,6 +171,7 @@ class Window(QMainWindow):
         self.paths: list[Path] = []
         self.formats: dict[Path, str] = {}
         self.worker: Worker | None = None
+        self.screenwriter = None
         self.last_error = ""
         self.settings = QSettings("Local File Converter", "Local File Converter")
         self.output_dir = Path(self.settings.value("output_dir", str(Path.home() / "Downloads")))
@@ -195,6 +196,10 @@ class Window(QMainWindow):
         brand.addWidget(title)
         header.addLayout(brand)
         header.addStretch()
+        writing_button = QPushButton("Screenwriter")
+        writing_button.setObjectName("secondaryButton")
+        writing_button.clicked.connect(self._screenwriter)
+        header.addWidget(writing_button)
         self.add_button = QPushButton("Add files")
         self.add_button.setObjectName("secondaryButton")
         self.add_button.clicked.connect(self._choose_files)
@@ -379,6 +384,14 @@ class Window(QMainWindow):
     def _choose_files(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Choose files")
         self._add_files([Path(file) for file in files])
+
+    def _screenwriter(self):
+        from screenwriter import ScreenwriterWindow
+        if self.screenwriter is None:
+            self.screenwriter = ScreenwriterWindow()
+        self.screenwriter.show()
+        self.screenwriter.raise_()
+        self.screenwriter.activateWindow()
 
     def _add_files(self, files: list[Path]):
         if self.worker and self.worker.isRunning():

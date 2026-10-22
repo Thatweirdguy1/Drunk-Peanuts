@@ -1,6 +1,6 @@
 # Local File Converter
 
-A free, local desktop file converter and compressor for Windows and macOS. Drop files into the queue, choose an output for each file, or use the PDF, image, media, ZIP, and OCR tools.
+A free, local desktop file converter, compressor, and screenwriting workspace for Windows and macOS. Drop files into the queue, choose an output for each file, or use the PDF, image, media, ZIP, OCR, and writing tools.
 
 ![Local File Converter desktop app](docs/screenshot.png)
 
@@ -28,6 +28,16 @@ OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) a
 With LibreOffice detected, the app also exposes conversions within document (DOC, DOCX, ODT, RTF, TXT), presentation (PPT, PPTX, ODP), and spreadsheet (XLS, XLSX, ODS, CSV) families, plus PDF output. Output options vary by input and installed tools.
 
 ## Use
+
+### Screenwriter
+
+Select **Screenwriter** in the main window to write a screenplay locally. The editor uses [Fountain](https://fountain.io/syntax/) as its editable source format, with a live formatted preview, title page fields, scene navigation, a beat map (`#` sections and `=` synopses), character picker, emphasis buttons, dual dialogue, find, and local autosave with crash recovery. **New**, **Open**, and **Save** work with `.fountain`; **Open** also imports Final Draft `.fdx`, plain text, and Markdown. Scripts stay on your device.
+
+Use **Export** to save a separate **PDF, Fountain, Final Draft (.fdx), plain text, HTML, or Markdown** file. Existing export files are not overwritten. PDF uses US Letter screenplay pages; HTML is printable in a browser. FDX imports and exports cover common paragraph types and dual dialogue, but complex Final Draft metadata and exact pagination may differ from Final Draft itself.
+
+Select an element in the toolbar or press **Ctrl+1–8**. **Tab** and **Shift+Tab** move through element types. Use **Ctrl+B/I/U** for emphasis, **Ctrl+D** to mark a second character cue as dual dialogue, **Ctrl+K** to insert a known character, and **Ctrl+S** to save. **Forward writing** provides optional timed sessions that lock completed lines while the timer runs. The writing tools work offline and need no account or LibreOffice.
+
+### File conversion
 
 1. Drag files into the window or select **Add files**.
 2. Select each file for a visual image/PDF preview and choose its output format. Mixed formats can share one batch.
