@@ -65,6 +65,8 @@ class ScreenwriterWindow(QMainWindow):
         self.setWindowTitle("Screenwriter · Local File Converter")
         self.resize(1320, 830)
         self.path: Path | None = None
+        self.original_fdx: bytes | None = None
+        self.imported_fountain: str | None = None
         self.settings = QSettings("Local File Converter", "Screenwriter")
         self.autosave = Path.home() / ".local-file-converter" / "screenwriter-autosave.fountain"
         self.autosave.parent.mkdir(parents=True, exist_ok=True)
@@ -181,6 +183,8 @@ class ScreenwriterWindow(QMainWindow):
         if self.editor.document().isModified() and not self._ask_save():
             return
         self.path = None
+        self.original_fdx = None
+        self.imported_fountain = None
         self._new_text()
         self.autosave_timer.stop()
         self.autosave.unlink(missing_ok=True)
@@ -204,8 +208,13 @@ class ScreenwriterWindow(QMainWindow):
             path = Path(filename)
             if path.stat().st_size > 20 * 1024 * 1024:
                 raise ValueError("Script is too large to open safely.")
-            content = path.read_text(encoding="utf-8-sig")
-            self.editor.setPlainText(from_fdx(content) if path.suffix.lower() == ".fdx" else content)
+            is_fdx = path.suffix.lower() == ".fdx"
+            original = path.read_bytes() if is_fdx else None
+            content = original.decode("utf-8-sig") if original is not None else path.read_text(encoding="utf-8-sig")
+            fountain = from_fdx(content) if is_fdx else content
+            self.editor.setPlainText(fountain)
+            self.original_fdx = original
+            self.imported_fountain = fountain if is_fdx else None
             self.path = path if path.suffix.lower() == ".fountain" else None
             self.editor.document().setModified(False)
             self.autosave_timer.stop()
@@ -246,11 +255,17 @@ class ScreenwriterWindow(QMainWindow):
             return
         suffix = {"PDF": ".pdf", "Fountain": ".fountain", "Final Draft": ".fdx",
                   "Plain text": ".txt", "HTML": ".html", "Markdown": ".md"}
-        target = Path(filename)
-        if target.suffix.lower() not in suffix.values():
-            target = target.with_suffix(next(value for key, value in suffix.items() if selected.startswith(key)))
+        target = Path(filename).with_suffix(next(value for key, value in suffix.items() if selected.startswith(key)))
         try:
-            export_script(self.editor.toPlainText(), target)
+            if (target.suffix.lower() == ".fdx" and self.original_fdx is not None and
+                    self.editor.toPlainText() == self.imported_fountain):
+                if target.exists():
+                    raise FileExistsError(f"Output already exists: {target.name}")
+                target.write_bytes(self.original_fdx)
+            else:
+                export_script(self.editor.toPlainText(), target)
+                if target.suffix.lower() == ".fdx" and self.original_fdx is not None:
+                    QMessageBox.information(self, "FDX export", "This script was edited after importing FDX. The export includes supported screenplay content; unsupported Final Draft metadata cannot be preserved.")
             self.status.setText(f"Exported locally: {target}")
         except Exception as error:
             QMessageBox.warning(self, "Cannot export", str(error))

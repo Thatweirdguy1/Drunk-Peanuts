@@ -73,6 +73,24 @@ class ScreenplayTest(unittest.TestCase):
             window.editor.document().setModified(False)
             window.close()
 
+    def test_unchanged_fdx_export_keeps_original_bytes(self):
+        QApplication.instance() or QApplication([])
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "original.fdx"
+            target = Path(folder) / "copy.fdx"
+            original = b'\xef\xbb\xbf<?xml version="1.0" encoding="UTF-8"?><FinalDraft Version="13"><CustomMetadata id="keep"/><Content><Paragraph Type="Scene Heading"><Text>INT. ROOM - DAY</Text></Paragraph></Content></FinalDraft>'
+            source.write_bytes(original)
+            with patch("screenwriter.QMessageBox.question", return_value=QMessageBox.No):
+                window = ScreenwriterWindow()
+            window.autosave = Path(folder) / "draft.fountain"
+            with patch("screenwriter.QFileDialog.getOpenFileName", return_value=(str(source), "")):
+                window._open()
+            with patch("screenwriter.QFileDialog.getSaveFileName", return_value=(str(target), "Final Draft (*.fdx)")):
+                window._export()
+            self.assertEqual(target.read_bytes(), original)
+            window.editor.document().setModified(False)
+            window.close()
+
 
 if __name__ == "__main__":
     unittest.main()

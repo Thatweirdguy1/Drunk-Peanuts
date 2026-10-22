@@ -73,4 +73,4 @@ jobs:
       - name: Publish downloads
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "Local File Converter ${GITHUB_REF_NAME}" --verify-tag --notes "New local Screenwriter workspace with Fountain editing, preview, scene navigation, beats, title page, dual dialogue, autosave, timed forward writing, and PDF/FDX/TXT/HTML/Markdown exports. Office conversions still require a separate LibreOffice installation. See the README for details." --generate-notes
+        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "Local File Converter ${GITHUB_REF_NAME}" --verify-tag --notes "Unchanged Final Draft imports now export byte-for-byte, preserving all original FDX metadata. Edited FDX files still use the supported screenplay conversion, and the app cannot guarantee Final Draft's exact pagination. Office conversions require a separate LibreOffice installation. See the README for details." --generate-notes
