@@ -103,4 +103,4 @@ jobs:
       - name: Publish downloads
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "FreeConvert ${GITHUB_REF_NAME}" --verify-tag --notes "Removes the fixed 20 MB script import limit. Pages and Dazzle preserve existing inline text formatting on supported edits. Tables edits the active XLSX worksheet without rewriting unrelated package parts. Cross-format Office conversion and full Office feature support remain limited; see README." --generate-notes
+        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "FreeConvert ${GITHUB_REF_NAME}" --verify-tag --notes "Adds WatchIT audio and subtitle timing offsets and audio output device selection on desktop. The bundled libVLC runtime remains the playback engine; format and device availability depend on its plugins and the operating system. See README." --generate-notes

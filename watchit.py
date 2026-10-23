@@ -10,7 +10,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QHBoxLayout,
-    QLabel, QListWidget, QMainWindow, QMessageBox, QPushButton, QSlider,
+    QLabel, QListWidget, QMainWindow, QMessageBox, QPushButton, QSlider, QSpinBox,
     QVBoxLayout, QWidget)
 
 _dll_directory = None
@@ -127,6 +127,27 @@ class WatchIT(QMainWindow):
         self.audio.currentIndexChanged.connect(self._audio)
         options.addWidget(self.audio)
         page.addLayout(options)
+        sync = QHBoxLayout()
+        for label, method in (("Audio sync (ms)", "audio_set_delay"),
+                              ("Subtitle sync (ms)", "video_set_spu_delay")):
+            sync.addWidget(QLabel(label))
+            control = QSpinBox()
+            control.setRange(-5000, 5000)
+            control.setSingleStep(100)
+            control.valueChanged.connect(lambda value, setter=method: getattr(self.player, setter)(value * 1000))
+            sync.addWidget(control)
+            if label.startswith("Audio"):
+                self.audio_sync = control
+            else:
+                self.subtitle_sync = control
+        sync.addWidget(QLabel("Output device"))
+        self.devices = QComboBox()
+        self.devices.currentIndexChanged.connect(self._device)
+        sync.addWidget(self.devices)
+        refresh_devices = QPushButton("Refresh devices")
+        refresh_devices.clicked.connect(self._devices)
+        sync.addWidget(refresh_devices)
+        page.addLayout(sync)
         volume_row = QHBoxLayout()
         volume_row.addWidget(QLabel("Volume"))
         self.volume = QSlider(Qt.Horizontal)
@@ -149,6 +170,7 @@ class WatchIT(QMainWindow):
         self.playlist.itemDoubleClicked.connect(lambda item: self._play(self.playlist.row(item)))
         page.addWidget(self.playlist)
         self.statusBar().showMessage("Open media files to play locally")
+        self._devices()
         for keys, callback in (("Space", self.toggle), ("Ctrl+O", self.open_files),
                                ("F", self.fullscreen), ("Right", lambda: self._skip(10000)),
                                ("Left", lambda: self._skip(-10000))):
@@ -254,6 +276,33 @@ class WatchIT(QMainWindow):
     def _audio(self):
         if self.audio.currentData() is not None:
             self.player.audio_set_track(self.audio.currentData())
+
+    def _devices(self):
+        self.devices.blockSignals(True)
+        self.devices.clear()
+        self.devices.addItem("System default", None)
+        head = self.player.audio_output_device_enum()
+        device = head
+        try:
+            while device:
+                entry = device.contents
+                device_id = entry.device.decode(errors="replace") if entry.device else ""
+                name = entry.description.decode(errors="replace") if entry.description else device_id
+                if device_id:
+                    self.devices.addItem(name, device_id)
+                device = entry.next
+        finally:
+            if head:
+                self.vlc.libvlc_audio_output_device_list_release(head)
+        current = self.player.audio_output_device_get()
+        if current:
+            current = current.decode(errors="replace") if isinstance(current, bytes) else current
+            self.devices.setCurrentIndex(max(0, self.devices.findData(current)))
+        self.devices.blockSignals(False)
+
+    def _device(self):
+        device = self.devices.currentData()
+        self.player.audio_output_device_set(None, device)
 
     def load_subtitles(self):
         name, _ = QFileDialog.getOpenFileName(self, "Load subtitles", "", "Subtitle files (*.srt *.ass *.ssa *.sub *.vtt *.txt);;All files (*)")

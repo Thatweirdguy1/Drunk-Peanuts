@@ -24,7 +24,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        pdf_merge, pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension,
                        trim_media, zip_entries)
 
-VERSION = "0.12.1"
+VERSION = "0.12.2"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
