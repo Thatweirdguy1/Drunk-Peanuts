@@ -22,6 +22,15 @@ The Dazzle workspace uses python-pptx 1.0.2 for PowerPoint files.
 It is licensed under MIT. The license is at
 `THIRD_PARTY_LICENSES/python-pptx-MIT.txt`.
 
+# Windows Office automation
+
+Windows downloads include pywin32 to invoke an installed Microsoft Office
+application through its documented COM interface. pywin32's package metadata
+identifies the Python Software Foundation license; its COM and Win32 component
+license texts are at `THIRD_PARTY_LICENSES/pywin32-com-License.txt` and
+`THIRD_PARTY_LICENSES/pywin32-win32-License.txt`. Microsoft Office and
+LibreOffice are not included in the download.
+
 # WatchIT playback
 
 WatchIT uses the unmodified VLC/libVLC runtime and its plugins from VideoLAN,

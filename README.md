@@ -8,7 +8,7 @@ A free, local desktop converter and creative suite for Windows and macOS. Conver
 
 Download the zip for your system from the [latest release](https://github.com/Thatweirdguy1/FreeConvert/releases/latest). Extract it, then open `LocalFileConverter.exe` on Windows or `LocalFileConverter.app` on macOS. The macOS builds are unsigned; your system may require **Open Anyway** in Privacy & Security after the first launch. The app is free and needs no account.
 
-Office conversions run inside FreeConvert using included Python format libraries. LibreOffice is no longer bundled or required. These conversions handle basic text, tables, and slide text; use the original Office application for files whose layout, formulas, embedded objects, or metadata must remain exact.
+Basic Office conversions run inside FreeConvert using included Python format libraries. For a more faithful PDF, choose **Automatic** or select an installed Microsoft Office or LibreOffice renderer for an Office file. These applications are optional and are **not bundled**. On Windows, automatic PDF rendering prefers installed Word for DOCX, Excel for XLSX, and PowerPoint for PPTX; it then tries installed LibreOffice and finally the built-in basic renderer. On macOS, installed LibreOffice is the optional external renderer. The app reports a failure if a selected external export fails; it does not silently substitute a different PDF.
 
 OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) and English recognition models. No separate OCR installation, account, or network connection is needed.
 
@@ -70,7 +70,12 @@ Select an element in the toolbar or press **Ctrl+1–8**. **Tab** and **Shift+Ta
 
 1. Drag files into the window or select **Add files**.
 2. Select each file for a visual image/PDF preview and choose its output format. Mixed formats can share one batch.
-3. Choose a save folder and select **Convert files**.
+3. For an Office file going to PDF, choose its **PDF renderer**. The choice is saved per queued file. Automatic uses the best installed engine available for that file; Built-in keeps the basic offline converter.
+4. Choose a save folder and select **Convert files**.
+
+The external renderer option supports DOCX, XLSX, and PPTX through installed Microsoft Office on Windows, and DOCX, XLSX, PPTX, ODT, ODS, ODP, and RTF through installed LibreOffice on Windows or macOS. Microsoft Office PDF export uses its COM automation; LibreOffice uses its documented headless conversion interface. Existing outputs and source files are not replaced. Running from source on Windows needs the `pywin32` package in `requirements.txt`; release downloads include that support. To select an engine from a terminal, use `LocalFileConverter.exe --convert-with auto input.docx output.pdf` (or `microsoft`, `libreoffice`, or `built-in`). Plain `--convert` retains the built-in renderer.
+
+The native-app investigation, synthetic fixtures, and measured PDF differences are in [rendering-investigation/REPORT.md](rendering-investigation/REPORT.md). LibreOffice output is compatible, not pixel-identical to Microsoft's PDF. Exact Final Draft pagination still requires a Final Draft PDF export: Final Draft is not installed here, and no supported command-line or automation export interface was established. Writer's Drafts continues to make its own deterministic screenplay PDFs.
 
 For a shortcut, hold **Shift** while dropping files into the app's drop area. A menu at the pointer shows formats shared by those files and anything already queued. Choose one to apply that format to the queue and start conversion immediately into the selected save folder; dismiss the menu to cancel. The shortcut works inside the app window on Windows and macOS.
 
@@ -112,7 +117,7 @@ Files stay on your computer. The app has no upload service, analytics, or accoun
 - PDF to DOCX uses extracted text and does not preserve the PDF layout, images, or tables.
 - Animated GIF input becomes a multi-page PDF or an animated GIF. Other raster outputs use the first frame.
 - CSV to XLSX stores values as text; XLSX to CSV exports the active worksheet's displayed values.
-- Cross-format Office conversion still handles basic content. It refuses many advanced DOCX, XLSX, and PPTX files when it detects content it would discard, such as media, charts, formulas, or extra worksheets. Detection is not exhaustive; styling, metadata, or other unsupported parts may still change. The loss-minimizing edits in Pages, Tables, and Dazzle apply when saving back to the same Office format. TXT and CSV are deliberate text/value extraction. PDF output is a simple rendering of extracted content, not an exact printout. Check important documents after conversion.
+- Cross-format Office conversion still handles basic content. It refuses many advanced DOCX, XLSX, and PPTX files when it detects content it would discard, such as media, charts, formulas, or extra worksheets. Detection is not exhaustive; styling, metadata, or other unsupported parts may still change. The loss-minimizing edits in Pages, Tables, and Dazzle apply when saving back to the same Office format. TXT and CSV are deliberate text/value extraction. Built-in PDF output is a simple rendering of extracted content. External PDF export invokes the selected installed application and depends on its version, fonts, print settings, and license. Check important documents after conversion.
 - Large scripts can be opened without a fixed size cutoff, but opening and rendering very large scripts may require substantial memory and may feel slow.
 - The native engine does not parse Final Draft metadata or reproduce Final Draft's pagination.
 - Bundled OCR currently recognizes English text. RapidOCR and its converted PaddleOCR models are distributed under Apache 2.0; see [third-party notices](THIRD_PARTY_NOTICES.md).

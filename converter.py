@@ -18,6 +18,7 @@ from pathlib import Path
 
 import imageio_ffmpeg
 from native_office import DOCUMENTS, PRESENTATIONS, SPREADSHEETS, advanced_content, convert_office, targets
+from office_pdf import LIBREOFFICE_FORMATS, export_pdf, resolve_engine
 import pillow_heif
 import pypdfium2 as pdfium
 import rawpy
@@ -325,7 +326,7 @@ def edit_image(source: Path, target: Path, action: str, values: tuple[int, ...] 
         raise
 
 
-def convert(source: Path, target: Path) -> None:
+def convert(source: Path, target: Path, engine: str = "built-in") -> None:
     source, target = Path(source).resolve(strict=True), Path(target).resolve()
     if not source.is_file() or source == target:
         raise ValueError("Choose a file and a different output path.")
@@ -335,11 +336,18 @@ def convert(source: Path, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists():
         raise FileExistsError(f"Output already exists: {target.name}")
-    if fmt not in {"txt", "csv"}:
+    office_pdf = fmt == "pdf" and source.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS
+    selected_engine = resolve_engine(source, engine) if office_pdf else "built-in"
+    if engine not in {"built-in", "auto"} and not office_pdf:
+        raise ValueError("An external rendering engine can only export an Office file to PDF.")
+    if fmt not in {"txt", "csv"} and selected_engine == "built-in":
         unsupported = advanced_content(source)
         if unsupported:
             raise ValueError("This file contains advanced Office content that native conversion would lose: "
                              + ", ".join(unsupported[:3]) + ". Use its original editor for an exact export.")
+    if office_pdf and selected_engine != "built-in":
+        export_pdf(source, target, selected_engine)
+        return
     group = kind(source)
     if group == "Image":
         _save_image(source, target, fmt)

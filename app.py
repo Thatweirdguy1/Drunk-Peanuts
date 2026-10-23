@@ -23,8 +23,9 @@ from PySide6.QtWidgets import (
 from converter import (available_formats, compress, convert, edit_image, extract_zip, kind, ocr_to_text,
                        pdf_merge, pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension,
                        trim_media, zip_entries)
+from office_pdf import LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.12.2"
+VERSION = "0.13.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -115,13 +116,15 @@ class Worker(QThread):
     finished_batch = Signal(int, int)
 
     def __init__(self, jobs: list[tuple[Path, Path]], archive: Path | None = None, target_mb: float | None = None,
-                 operation: Callable[[Path, Path], None] | None = None, rows: list[int] | None = None):
+                 operation: Callable[[Path, Path], None] | None = None, rows: list[int] | None = None,
+                 engines: dict[Path, str] | None = None):
         super().__init__()
         self.jobs = jobs
         self.archive = archive
         self.target_mb = target_mb
         self.operation = operation
         self.rows = rows or list(range(len(jobs)))
+        self.engines = engines or {}
 
     def run(self):
         done = failed = 0
@@ -144,7 +147,10 @@ class Worker(QThread):
                 elif self.target_mb:
                     reduce_size(source, target, self.target_mb)
                 else:
-                    convert(source, target)
+                    if source in self.engines:
+                        convert(source, target, self.engines[source])
+                    else:
+                        convert(source, target)
                 self.update.emit(row, "Done", target.name)
                 return True
             except Exception as error:
@@ -170,6 +176,7 @@ class Window(QMainWindow):
         self.setMinimumSize(780, 700)
         self.paths: list[Path] = []
         self.formats: dict[Path, str] = {}
+        self.engines: dict[Path, str] = {}
         self.worker: Worker | None = None
         self.screenwriter = None
         self.watchit = None
@@ -310,6 +317,21 @@ class Window(QMainWindow):
         self.compress_button.clicked.connect(self._compress)
         controls_top.addWidget(self.compress_button)
         controls_layout.addLayout(controls_top)
+        self.pdf_engine_panel = QWidget()
+        engine_row = QHBoxLayout(self.pdf_engine_panel)
+        engine_row.setContentsMargins(0, 0, 0, 0)
+        engine_label = QLabel("PDF renderer")
+        engine_label.setObjectName("fieldLabel")
+        engine_row.addWidget(engine_label)
+        self.pdf_engine = QComboBox()
+        self.pdf_engine.currentIndexChanged.connect(self._set_engine)
+        engine_row.addWidget(self.pdf_engine)
+        engine_hint = QLabel("For the selected Office file")
+        engine_hint.setObjectName("muted")
+        engine_row.addWidget(engine_hint)
+        engine_row.addStretch()
+        controls_layout.addWidget(self.pdf_engine_panel)
+        self.pdf_engine_panel.hide()
         reduce_row = QHBoxLayout()
         reduce_label = QLabel("Upload limit per file")
         reduce_label.setObjectName("fieldLabel")
@@ -447,6 +469,7 @@ class Window(QMainWindow):
                 continue
             self.paths.append(path)
             self.formats[path] = preferred_format(path) if path.suffix.lower() != ".zip" else ""
+            self.engines[path] = "auto"
             label = f"{path.name}\n{kind(path).upper() if path.suffix.lower() != '.zip' else 'ZIP'} → {self.formats[path].upper() if self.formats[path] else 'EXTRACT'}  ·  {path.stat().st_size / 1024 / 1024:.1f} MB  ·  Waiting"
             self.list.addItem(QListWidgetItem(label))
         self.count.setText(f"{len(self.paths)} file{'s' if len(self.paths) != 1 else ''}")
@@ -461,6 +484,7 @@ class Window(QMainWindow):
             return
         self.paths.clear()
         self.formats.clear()
+        self.engines.clear()
         self.list.clear()
         self.format.clear()
         self.preview.setPixmap(QPixmap())
@@ -489,7 +513,39 @@ class Window(QMainWindow):
             self.formats[self.paths[row]] = fmt
             item = self.list.item(row)
             item.setText(f"{self.paths[row].name}\n{kind(self.paths[row]).upper()} → {fmt.upper()}  ·  Waiting")
+        self._refresh_engine()
         self._refresh_details()
+
+    def _set_engine(self, _index: int):
+        row = self.list.currentRow()
+        if 0 <= row < len(self.paths) and self.pdf_engine.currentData():
+            self.engines[self.paths[row]] = self.pdf_engine.currentData()
+        self._refresh_details()
+
+    def _refresh_engine(self):
+        row = self.list.currentRow()
+        path = self.paths[row] if 0 <= row < len(self.paths) else None
+        enabled = bool(path and self.formats.get(path) == "pdf" and
+                       path.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS)
+        self.pdf_engine_panel.setVisible(enabled)
+        if not enabled:
+            return
+        choices = [("Automatic (best installed)", "auto"), ("Built-in (basic)", "built-in")]
+        available = available_engines(path)
+        if "microsoft" in available:
+            choices.append(("Microsoft Office (installed)", "microsoft"))
+        if "libreoffice" in available:
+            choices.append(("LibreOffice (installed)", "libreoffice"))
+        self.pdf_engine.blockSignals(True)
+        self.pdf_engine.clear()
+        for label, value in choices:
+            self.pdf_engine.addItem(label, value)
+        selected = self.engines.get(path, "auto")
+        index = self.pdf_engine.findData(selected)
+        self.pdf_engine.setCurrentIndex(index if index >= 0 else 0)
+        if index < 0:
+            self.engines[path] = "auto"
+        self.pdf_engine.blockSignals(False)
 
     def _refresh_details(self):
         row = self.list.currentRow()
@@ -497,6 +553,9 @@ class Window(QMainWindow):
             path = self.paths[row]
             target = self.formats.get(path, "—").upper()
             note = "\nSelectable text only; PDF layout and images are not preserved." if path.suffix.lower() == ".pdf" and target == "DOCX" else ""
+            if target == "PDF" and path.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS:
+                chosen = resolve_engine(path, self.engines.get(path, "auto"))
+                note = f"\nPDF renderer: {chosen}. Installed application required for its native layout."
             self.details.setText(f"{path.name}\n{kind(path)} input  →  {target} output{note}")
 
     def _refresh_formats(self):
@@ -509,6 +568,7 @@ class Window(QMainWindow):
         if path:
             self.format.setCurrentText(self.formats[path])
         self.format.blockSignals(False)
+        self._refresh_engine()
         idle = not (self.worker and self.worker.isRunning())
         self.convert_button.setEnabled(bool(self.paths) and all(self.formats.values()) and idle)
         self.compress_button.setEnabled(bool(self.paths) and idle)
@@ -564,7 +624,9 @@ class Window(QMainWindow):
         except Exception as error:
             QMessageBox.warning(self, "Could not plan conversion", str(error))
             return
-        self._start_worker(Worker(jobs))
+        engines = {source: self.engines.get(source, "auto") for source, target in jobs
+                   if target.suffix.lower() == ".pdf" and source.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS}
+        self._start_worker(Worker(jobs, engines=engines))
 
     def _start_worker(self, worker: Worker):
         try:
@@ -776,6 +838,9 @@ class Window(QMainWindow):
 
 
 def main():
+    if len(sys.argv) == 5 and sys.argv[1] == "--convert-with":
+        convert(Path(sys.argv[3]), Path(sys.argv[4]), sys.argv[2])
+        return
     if len(sys.argv) == 4 and sys.argv[1] == "--convert":
         convert(Path(sys.argv[2]), Path(sys.argv[3]))
         return
@@ -789,6 +854,13 @@ def main():
             raise RuntimeError("Office workspaces are missing")
         if b"mfrac" not in mathml("{a} over {b}"):
             raise RuntimeError("Formulaic is unavailable")
+        return
+    if sys.argv[1:] == ["--renderer-self-check"]:
+        from office_pdf import available_engines
+        if sys.platform == "win32":
+            import pythoncom
+            import win32com.client
+        print(", ".join(available_engines(Path("sample.docx"))))
         return
     if sys.argv[1:] == ["--watchit-self-check"]:
         from watchit import vlc_runtime

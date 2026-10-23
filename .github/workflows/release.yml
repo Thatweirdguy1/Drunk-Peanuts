@@ -66,6 +66,15 @@ jobs:
       - name: Verify native conversion on macOS
         if: runner.os == 'macOS'
         run: python verify_release_native.py dist/LocalFileConverter.app/Contents/MacOS/LocalFileConverter
+      - name: Verify optional renderer support on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath (Resolve-Path dist/LocalFileConverter/LocalFileConverter.exe).Path -ArgumentList '--renderer-self-check' -Wait -PassThru -WindowStyle Hidden
+          if ($process.ExitCode -ne 0) { exit $process.ExitCode }
+      - name: Verify optional renderer support on macOS
+        if: runner.os == 'macOS'
+        run: dist/LocalFileConverter.app/Contents/MacOS/LocalFileConverter --renderer-self-check
       - name: Include licenses on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -103,4 +112,4 @@ jobs:
       - name: Publish downloads
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "FreeConvert ${GITHUB_REF_NAME}" --verify-tag --notes "Adds WatchIT audio and subtitle timing offsets and audio output device selection on desktop. The bundled libVLC runtime remains the playback engine; format and device availability depend on its plugins and the operating system. See README." --generate-notes
+        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "FreeConvert ${GITHUB_REF_NAME}" --verify-tag --notes "Adds optional PDF export through installed Microsoft Office on Windows or LibreOffice on Windows and macOS. Choose a renderer per Office file; Automatic prefers the original Microsoft application for DOCX, XLSX, and PPTX. Those external applications are not bundled. Final Draft's native PDF export still requires Final Draft. See README and rendering-investigation/REPORT.md." --generate-notes
