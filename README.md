@@ -10,7 +10,9 @@ Download the zip for your system from the [latest release](https://github.com/Th
 
 Basic Office conversions run inside FreeConvert using included Python format libraries. For a more faithful PDF, choose **Automatic** or select an installed Microsoft Office or LibreOffice renderer for an Office file. These applications are optional and are **not bundled**. On Windows, automatic PDF rendering prefers installed Word for DOCX, Excel for XLSX, and PowerPoint for PPTX; it then tries installed LibreOffice and finally the built-in basic renderer. On macOS, installed LibreOffice is the optional external renderer. The app reports a failure if a selected external export fails; it does not silently substitute a different PDF.
 
-OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) and English recognition models. No separate OCR installation, account, or network connection is needed.
+OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) and PaddleOCR-derived ONNX models. The default model recognizes Latin-script languages, Chinese, and Japanese; choose a dedicated Cyrillic, Hindi/Devanagari, Korean, or Arabic model for those scripts. No separate OCR installation, account, or network connection is needed.
+
+The [OCR investigation](ocr-investigation/REPORT.md) records the REA package inspection, model sources, hashes, and recognition checks.
 
 **WatchIT** uses a bundled [libVLC](https://www.videolan.org/vlc/libvlc.html) runtime and plugins in release downloads. You do not need to install VLC separately to play media. When running from source, install VLC Media Player locally so the Python binding can find libVLC. Playback support depends on the VLC build and its plugins; protected media and some discs or streams may require external permissions or hardware.
 
@@ -19,15 +21,16 @@ OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) a
 | Input | Output |
 | --- | --- |
 | JPG, PNG, HEIC, HEIF, TIFF, GIF, BMP, WebP, SVG, RAW (CR2/NEF/ARW), ICO | JPG, PNG, TIFF, GIF, BMP, WebP, ICO, PDF (where different from input) |
-| PDF | PNG, JPG, WebP (one image per page), TXT or DOCX (selectable text only) |
+| PDF | PNG, JPG, WebP (one image per page), TXT, editable text DOCX, or visual-page DOCX |
 | MP4, MOV, AVI, MPEG/MPG, MKV, WebM | MP4, MOV, AVI, MPEG, MKV, WebM, GIF, MP3, WAV, M4A, AAC, FLAC, OGG |
 | MP3, WAV, AIFF, M4A, AAC, FLAC, OGG | MP3, WAV, AIFF, M4A, AAC, FLAC, OGG |
 | TXT, DOCX, ODT, RTF | The other document formats and PDF (basic content) |
 | CSV, XLSX, ODS | The other spreadsheet formats and PDF (first sheet) |
 | PPTX, ODP | The other presentation format and PDF (slide text) |
+| Legacy DOC, XLS, PPT | DOCX, XLSX, PPTX respectively, or PDF, using installed Microsoft Office or LibreOffice |
 | CSV | TXT (plain CSV copy) |
 
-Legacy binary DOC, XLS, and PPT are not supported by the native engine. Convert them to DOCX, XLSX, or PPTX in their original application first.
+Legacy binary DOC, XLS, and PPT require an installed Microsoft Office or LibreOffice application; the app does not contain native parsers for them.
 
 ## Use
 
@@ -38,7 +41,7 @@ The workspace bar opens these built-in, offline tools:
 | Workspace | Create and edit | Local formats |
 | --- | --- | --- |
 | **Pages** | Rich text, bold, italic, underline, bullets, word count | DOCX, HTML, TXT; PDF export |
-| **Tables** | Editable spreadsheet grid | XLSX, CSV |
+| **Tables** | Editable spreadsheet grid; selected-cell calculation for arithmetic, references, ranges, SUM, AVERAGE, MIN, MAX, and COUNT | XLSX, CSV |
 | **Dazzle** | Slide titles and body text, add/delete slides | PPTX, Dazzle project; PDF export |
 | **Formulaic** | Local equation source and preview: fractions, roots, scripts, Greek names | Formulaic source, MathML, OpenDocument Formula; PDF and PNG export |
 | **Sketch** | Freehand pen, color, eraser | PNG, JPEG, BMP |
@@ -46,7 +49,7 @@ The workspace bar opens these built-in, offline tools:
 | **Writer's Drafts** | Screenplay writing and preview | Fountain, FDX, PDF, TXT, HTML, Markdown |
 | **WatchIT** | Video and audio playback with a playlist, seeking, speed, volume, mute, loop, fullscreen, aspect ratio, audio and subtitle track choices, external subtitles, sync offsets, and audio output selection | Local files supported by the bundled VLC build |
 
-The office workspaces are focused editors, not copies of Microsoft Office or LibreOffice. Pages, Tables, and Dazzle copy unchanged imported DOCX, XLSX, and PPTX files byte-for-byte when saved to a new file. Pages edits text in existing paragraphs while retaining unchanged runs and their formatting; complex fields and structural edits can still be refused. Tables edits the active XLSX worksheet without rewriting other package parts, preserving other sheets, charts, metadata, and unsupported extension parts on a cell edit. It does not calculate formulas. Dazzle edits existing text boxes while retaining run formatting and nontext shapes; changes that alter text box paragraph structure are refused. Structural slide edits in complex imported decks are refused. These editors do not expose every advanced Office feature, and visual layout still needs checking in a full Office viewer. Formulaic offers a small formula language with `over`, `sqrt`, `^`, `_`, and common Greek names; it is not a full StarMath parser. It opens supported MathML and OpenDocument Formula files and refuses elements it cannot edit. Organize can browse external SQLite databases read-only; it edits databases created by Organize. Back up important originals before importing them.
+The office workspaces are focused editors, not copies of Microsoft Office or LibreOffice. Pages, Tables, and Dazzle copy unchanged imported DOCX, XLSX, and PPTX files byte-for-byte when saved to a new file. Pages edits text in existing paragraphs while retaining unchanged runs and their formatting; complex fields and structural edits can still be refused. Tables edits the active XLSX worksheet without rewriting other package parts, preserving other sheets, charts, metadata, and unsupported extension parts on a cell edit. **Calculate selected** displays a result for common formulas without changing the stored formula; full Excel calculation remains unavailable. CSV import can detect comma, semicolon, tab, or pipe separators, and Tables lets you choose a separator and UTF-8 BOM when saving CSV. Dazzle edits existing text boxes while retaining run formatting and nontext shapes; changes that alter text box paragraph structure are refused. Structural slide edits in complex imported decks are refused. These editors do not expose every advanced Office feature, and visual layout still needs checking in a full Office viewer. Formulaic supports `over`, `sqrt`, `nroot`, combined super/subscripts, and common Greek names; it is not a full StarMath parser. It opens supported MathML and OpenDocument Formula files and refuses elements it cannot edit. Organize can browse external SQLite databases read-only; it edits databases created by Organize. Back up important originals before importing them.
 
 ### WatchIT
 
@@ -70,10 +73,10 @@ Select an element in the toolbar or press **Ctrl+1–8**. **Tab** and **Shift+Ta
 
 1. Drag files into the window or select **Add files**.
 2. Select each file for a visual image/PDF preview and choose its output format. Mixed formats can share one batch.
-3. For an Office file going to PDF, choose its **PDF renderer**. The choice is saved per queued file. Automatic uses the best installed engine available for that file; Built-in keeps the basic offline converter.
+3. For an Office file going to PDF, choose its **PDF renderer**. Automatic uses the best installed engine available for that file; Built-in keeps the basic offline converter. For PDF to DOCX, choose editable text or visual pages. Visual pages preserve appearance but are images, so their text is not editable.
 4. Choose a save folder and select **Convert files**.
 
-The external renderer option supports DOCX, XLSX, and PPTX through installed Microsoft Office on Windows, and DOCX, XLSX, PPTX, ODT, ODS, ODP, and RTF through installed LibreOffice on Windows or macOS. Microsoft Office PDF export uses its COM automation; LibreOffice uses its documented headless conversion interface. Existing outputs and source files are not replaced. Running from source on Windows needs the `pywin32` package in `requirements.txt`; release downloads include that support. To select an engine from a terminal, use `LocalFileConverter.exe --convert-with auto input.docx output.pdf` (or `microsoft`, `libreoffice`, or `built-in`). Plain `--convert` retains the built-in renderer.
+The external renderer option supports DOC, DOCX, XLS, XLSX, PPT, and PPTX through installed Microsoft Office on Windows, and those formats plus ODT, ODS, ODP, and RTF through installed LibreOffice on Windows or macOS. Legacy DOC/XLS/PPT can also be converted to DOCX/XLSX/PPTX through those applications. Microsoft Office export uses COM automation; LibreOffice uses its documented headless conversion interface. Existing outputs and source files are not replaced. Running from source on Windows needs the `pywin32` package in `requirements.txt`; release downloads include that support. To select an engine from a terminal, use `LocalFileConverter.exe --convert-with auto input.docx output.pdf` (or `microsoft`, `libreoffice`, or `built-in`). Use `--convert-with visual input.pdf output.docx` for visual pages. Plain `--convert` retains the built-in Office renderer; for legacy files it selects an installed application because there is no built-in legacy parser.
 
 The native-app investigation, synthetic fixtures, and measured PDF differences are in [rendering-investigation/REPORT.md](rendering-investigation/REPORT.md). LibreOffice output is compatible, not pixel-identical to Microsoft's PDF. Exact Final Draft pagination still requires a Final Draft PDF export: Final Draft is not installed here, and no supported command-line or automation export interface was established. Writer's Drafts continues to make its own deterministic screenplay PDFs.
 
@@ -83,9 +86,9 @@ For a shortcut, hold **Shift** while dropping files into the app's drop area. A 
 
 **Media trim** takes start and end times in seconds. Precise trim re-encodes for accurate cuts; fast trim copies streams and may start at a nearby keyframe. It saves a new file alongside other outputs. FFmpeg is bundled with the app.
 
-**Open ZIP** previews the selected archive's entries and unpacked size, then extracts it to a new numbered folder. Extraction rejects unsafe paths, duplicate names, symlinks, encrypted entries, and archives over 10,000 entries or 2 GB unpacked. Very high compression ratios are also rejected. **OCR to text** reads the selected image or each page of a scanned PDF and saves a UTF-8 text file. Recognition quality depends on the scan.
+**Open ZIP** previews the selected archive's entries and unpacked size, then extracts it to a new numbered folder. Extraction rejects unsafe paths, duplicate names, symlinks, encrypted entries, and archives over 10,000 entries or 2 GB unpacked. Very high compression ratios are also rejected. **OCR to text** asks for the text's script, reads the selected image or each page of a scanned PDF, and saves a UTF-8 text file. Recognition quality depends on the scan, font, script, and page layout. Mixed pages spanning different script families may need separate passes.
 
-For command-line OCR, run `LocalFileConverter.exe --ocr input.png output.txt` on Windows or `LocalFileConverter.app/Contents/MacOS/LocalFileConverter --ocr input.png output.txt` on macOS. Existing output files are not replaced.
+For command-line OCR, run `LocalFileConverter.exe --ocr input.png output.txt` on Windows or `LocalFileConverter.app/Contents/MacOS/LocalFileConverter --ocr input.png output.txt` on macOS. Use `--ocr-with cyrillic|hindi|korean|arabic input.png output.txt` to choose a dedicated model. Existing output files are not replaced.
 
 Select **Compress to ZIP** to save the queued files in one lossless archive. Files with duplicate names cannot share an archive.
 
@@ -114,13 +117,14 @@ Files stay on your computer. The app has no upload service, analytics, or accoun
 ## Limitations
 
 - Regular PDF to text extracts embedded/selectable text. Use **OCR to text** for scanned PDFs.
-- PDF to DOCX uses extracted text and does not preserve the PDF layout, images, or tables.
-- Animated GIF input becomes a multi-page PDF or an animated GIF. Other raster outputs use the first frame.
-- CSV to XLSX stores values as text; XLSX to CSV exports the active worksheet's displayed values.
+- PDF to DOCX offers editable extracted text without layout or images, or visual pages that preserve appearance as images without editable text.
+- Animated GIF, WebP, and TIFF inputs preserve every frame when converted to animated GIF/WebP, multipage TIFF, or multipage PDF. Still-image targets are not offered for animations; image editing still requires a still image.
+- CSV to XLSX stores values as text; XLSX to CSV exports the active worksheet's displayed values. CSV cannot retain workbook formulas, charts, or sheets.
 - Cross-format Office conversion still handles basic content. It refuses many advanced DOCX, XLSX, and PPTX files when it detects content it would discard, such as media, charts, formulas, or extra worksheets. Detection is not exhaustive; styling, metadata, or other unsupported parts may still change. The loss-minimizing edits in Pages, Tables, and Dazzle apply when saving back to the same Office format. TXT and CSV are deliberate text/value extraction. Built-in PDF output is a simple rendering of extracted content. External PDF export invokes the selected installed application and depends on its version, fonts, print settings, and license. Check important documents after conversion.
 - Large scripts can be opened without a fixed size cutoff, but opening and rendering very large scripts may require substantial memory and may feel slow.
+- Legacy DOC/XLS/PPT conversion requires an installed Office application and may change advanced content. Full Excel formula recalculation is not available; Tables calculates only the listed common operations for the selected cell.
 - The native engine does not parse Final Draft metadata or reproduce Final Draft's pagination.
-- Bundled OCR currently recognizes English text. RapidOCR and its converted PaddleOCR models are distributed under Apache 2.0; see [third-party notices](THIRD_PARTY_NOTICES.md).
+- Bundled OCR supports the script choices above, but recognition is not guaranteed for handwriting, damaged scans, unusual layouts, or every language. RapidOCR and its converted PaddleOCR models are distributed under Apache 2.0; see [third-party notices](THIRD_PARTY_NOTICES.md).
 - macOS builds are unnotarized and Windows builds are unsigned.
 
 MIT licensed. See [LICENSE](LICENSE).

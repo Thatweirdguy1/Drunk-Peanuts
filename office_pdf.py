@@ -9,12 +9,17 @@ import sys
 import tempfile
 import threading
 from pathlib import Path
+from zipfile import ZipFile
 
 from pypdf import PdfReader
 
 
-MICROSOFT_FORMATS = {"docx": "WINWORD.EXE", "xlsx": "EXCEL.EXE", "pptx": "POWERPNT.EXE"}
-LIBREOFFICE_FORMATS = {"docx", "xlsx", "pptx", "odt", "ods", "odp", "rtf"}
+MICROSOFT_FORMATS = {"doc": "WINWORD.EXE", "docx": "WINWORD.EXE",
+                     "xls": "EXCEL.EXE", "xlsx": "EXCEL.EXE",
+                     "ppt": "POWERPNT.EXE", "pptx": "POWERPNT.EXE"}
+LIBREOFFICE_FORMATS = {"doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "rtf"}
+LEGACY_FORMATS = {"doc", "xls", "ppt"}
+MODERN_FOR_LEGACY = {"doc": "docx", "xls": "xlsx", "ppt": "pptx"}
 _external_launch_lock = threading.Lock()
 
 
@@ -44,7 +49,7 @@ def _libreoffice_executable() -> Path | None:
 
 def available_engines(source: Path) -> list[str]:
     extension = source.suffix.lower().lstrip(".")
-    engines = ["built-in"]
+    engines = [] if extension in LEGACY_FORMATS else ["built-in"]
     if _office_executable(extension):
         engines.append("microsoft")
     if extension in LIBREOFFICE_FORMATS and _libreoffice_executable():
@@ -55,7 +60,8 @@ def available_engines(source: Path) -> list[str]:
 def resolve_engine(source: Path, requested: str) -> str:
     available = available_engines(source)
     if requested == "auto":
-        return next((engine for engine in ("microsoft", "libreoffice", "built-in") if engine in available))
+        return next((engine for engine in ("microsoft", "libreoffice", "built-in") if engine in available),
+                    "unavailable")
     if requested not in available:
         raise RuntimeError(f"{requested} PDF export is unavailable for {source.suffix}; install the application or choose another engine.")
     return requested
@@ -68,16 +74,18 @@ def _microsoft_pdf(source: Path, output: Path) -> None:
     except ImportError as error:
         raise RuntimeError("Microsoft Office automation support is unavailable in this build.") from error
     extension = source.suffix.lower().lstrip(".")
-    program = {"docx": "Word.Application", "xlsx": "Excel.Application", "pptx": "PowerPoint.Application"}[extension]
+    program = {"doc": "Word.Application", "docx": "Word.Application",
+               "xls": "Excel.Application", "xlsx": "Excel.Application",
+               "ppt": "PowerPoint.Application", "pptx": "PowerPoint.Application"}[extension]
     pythoncom.CoInitialize()
     application = document = None
     try:
         application = win32com.client.DispatchEx(program)
-        if extension == "docx":
+        if extension in {"doc", "docx"}:
             application.DisplayAlerts = 0
             document = application.Documents.Open(str(source), ReadOnly=True, AddToRecentFiles=False)
             document.SaveAs2(str(output), FileFormat=17)
-        elif extension == "xlsx":
+        elif extension in {"xls", "xlsx"}:
             application.DisplayAlerts = False
             document = application.Workbooks.Open(str(source), UpdateLinks=0, ReadOnly=True)
             document.ExportAsFixedFormat(0, str(output))
@@ -87,7 +95,7 @@ def _microsoft_pdf(source: Path, output: Path) -> None:
     finally:
         if document is not None:
             try:
-                document.Close(False) if extension == "xlsx" else document.Close()
+                document.Close(False) if extension in {"xls", "xlsx"} else document.Close()
             except Exception:
                 pass
         if application is not None:
@@ -98,12 +106,12 @@ def _microsoft_pdf(source: Path, output: Path) -> None:
         pythoncom.CoUninitialize()
 
 
-def _libreoffice_pdf(source: Path, output: Path, workdir: Path) -> None:
+def _libreoffice_convert(source: Path, output: Path, workdir: Path) -> None:
     executable = _libreoffice_executable()
     if executable is None:
         raise RuntimeError("LibreOffice is not installed.")
     profile = (workdir / "profile").as_uri()
-    command = [str(executable), f"-env:UserInstallation={profile}", "--headless", "--convert-to", "pdf",
+    command = [str(executable), f"-env:UserInstallation={profile}", "--headless", "--convert-to", output.suffix.lstrip("."),
                "--outdir", str(workdir), str(source)]
     environment = os.environ.copy()
     if getattr(sys, "frozen", False):
@@ -131,9 +139,9 @@ def _libreoffice_pdf(source: Path, output: Path, workdir: Path) -> None:
         process.kill()
         process.communicate()
         raise RuntimeError("LibreOffice PDF export timed out.") from error
-    generated = workdir / f"{source.stem}.pdf"
+    generated = workdir / f"{source.stem}{output.suffix}"
     if process.returncode or not generated.is_file():
-        raise RuntimeError(f"LibreOffice PDF export failed (exit {process.returncode}): {(stderr or stdout).strip()[-400:]}")
+        raise RuntimeError(f"LibreOffice conversion failed (exit {process.returncode}): {(stderr or stdout).strip()[-400:]}")
     if generated != output:
         generated.rename(output)
 
@@ -154,7 +162,7 @@ def export_pdf(source: Path, target: Path, engine: str) -> None:
         if engine == "microsoft":
             _microsoft_pdf(source, output)
         else:
-            _libreoffice_pdf(source, output, workdir)
+            _libreoffice_convert(source, output, workdir)
         if not output.is_file() or not PdfReader(str(output)).pages:
             raise RuntimeError(f"{engine} did not produce a valid PDF.")
         created = False
@@ -167,3 +175,71 @@ def export_pdf(source: Path, target: Path, engine: str) -> None:
             if created:
                 target.unlink(missing_ok=True)
             raise
+
+
+def convert_legacy(source: Path, target: Path, engine: str = "auto") -> None:
+    source, target = Path(source).resolve(strict=True), Path(target).resolve()
+    extension = source.suffix.lower().lstrip(".")
+    if extension not in MODERN_FOR_LEGACY or target.suffix.lower() != "." + MODERN_FOR_LEGACY[extension]:
+        raise ValueError("Choose DOC to DOCX, XLS to XLSX, or PPT to PPTX.")
+    if target.exists() or source == target:
+        raise FileExistsError("Choose a new output path.")
+    engine = resolve_engine(source, "auto" if engine == "built-in" else engine)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="freeconvert-legacy-") as temporary:
+        workdir = Path(temporary)
+        output = workdir / f"converted{target.suffix}"
+        if engine == "libreoffice":
+            _libreoffice_convert(source, output, workdir)
+        elif engine == "microsoft":
+            _microsoft_modern(source, output)
+        else:
+            raise RuntimeError("Install Microsoft Office or LibreOffice to convert a legacy Office file.")
+        marker = {"doc": "word/document.xml", "xls": "xl/workbook.xml", "ppt": "ppt/presentation.xml"}[extension]
+        with ZipFile(output) as archive:
+            if marker not in archive.namelist():
+                raise RuntimeError(f"{engine} did not produce a valid {target.suffix} file.")
+        created = False
+        try:
+            with target.open("xb") as destination, output.open("rb") as generated:
+                created = True
+                shutil.copyfileobj(generated, destination)
+        except Exception:
+            if created:
+                target.unlink(missing_ok=True)
+            raise
+
+
+def _microsoft_modern(source: Path, output: Path) -> None:
+    import pythoncom
+    import win32com.client
+
+    extension = source.suffix.lower().lstrip(".")
+    program = {"doc": "Word.Application", "xls": "Excel.Application", "ppt": "PowerPoint.Application"}[extension]
+    pythoncom.CoInitialize()
+    application = document = None
+    try:
+        application = win32com.client.DispatchEx(program)
+        if extension == "doc":
+            application.DisplayAlerts = 0
+            document = application.Documents.Open(str(source), ReadOnly=True, AddToRecentFiles=False)
+            document.SaveAs2(str(output), FileFormat=16)
+        elif extension == "xls":
+            application.DisplayAlerts = False
+            document = application.Workbooks.Open(str(source), UpdateLinks=0, ReadOnly=True)
+            document.SaveAs(str(output), FileFormat=51)
+        else:
+            document = application.Presentations.Open(str(source), ReadOnly=True, Untitled=False, WithWindow=False)
+            document.SaveAs(str(output), 24)
+    finally:
+        if document is not None:
+            try:
+                document.Close(False) if extension == "xls" else document.Close()
+            except Exception:
+                pass
+        if application is not None:
+            try:
+                application.Quit()
+            except Exception:
+                pass
+        pythoncom.CoUninitialize()

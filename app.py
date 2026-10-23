@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries)
 from office_pdf import LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.13.0"
+VERSION = "0.14.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -320,15 +320,15 @@ class Window(QMainWindow):
         self.pdf_engine_panel = QWidget()
         engine_row = QHBoxLayout(self.pdf_engine_panel)
         engine_row.setContentsMargins(0, 0, 0, 0)
-        engine_label = QLabel("PDF renderer")
-        engine_label.setObjectName("fieldLabel")
-        engine_row.addWidget(engine_label)
+        self.engine_label = QLabel("PDF renderer")
+        self.engine_label.setObjectName("fieldLabel")
+        engine_row.addWidget(self.engine_label)
         self.pdf_engine = QComboBox()
         self.pdf_engine.currentIndexChanged.connect(self._set_engine)
         engine_row.addWidget(self.pdf_engine)
-        engine_hint = QLabel("For the selected Office file")
-        engine_hint.setObjectName("muted")
-        engine_row.addWidget(engine_hint)
+        self.engine_hint = QLabel("For the selected Office file")
+        self.engine_hint.setObjectName("muted")
+        engine_row.addWidget(self.engine_hint)
         engine_row.addStretch()
         controls_layout.addWidget(self.pdf_engine_panel)
         self.pdf_engine_panel.hide()
@@ -525,17 +525,25 @@ class Window(QMainWindow):
     def _refresh_engine(self):
         row = self.list.currentRow()
         path = self.paths[row] if 0 <= row < len(self.paths) else None
-        enabled = bool(path and self.formats.get(path) == "pdf" and
-                       path.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS)
-        self.pdf_engine_panel.setVisible(enabled)
-        if not enabled:
+        office_pdf = bool(path and self.formats.get(path) == "pdf" and
+                          path.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS)
+        pdf_docx = bool(path and path.suffix.lower() == ".pdf" and self.formats.get(path) == "docx")
+        self.pdf_engine_panel.setVisible(office_pdf or pdf_docx)
+        if not (office_pdf or pdf_docx):
             return
-        choices = [("Automatic (best installed)", "auto"), ("Built-in (basic)", "built-in")]
-        available = available_engines(path)
-        if "microsoft" in available:
-            choices.append(("Microsoft Office (installed)", "microsoft"))
-        if "libreoffice" in available:
-            choices.append(("LibreOffice (installed)", "libreoffice"))
+        self.engine_label.setText("PDF to DOCX mode" if pdf_docx else "PDF renderer")
+        self.engine_hint.setText("Visual pages cannot be edited as text" if pdf_docx else "For the selected Office file")
+        if pdf_docx:
+            choices = [("Editable text", "built-in"), ("Visual pages", "visual")]
+        else:
+            choices = [("Automatic (best installed)", "auto")]
+            available = available_engines(path)
+            if "built-in" in available:
+                choices.append(("Built-in (basic)", "built-in"))
+            if "microsoft" in available:
+                choices.append(("Microsoft Office (installed)", "microsoft"))
+            if "libreoffice" in available:
+                choices.append(("LibreOffice (installed)", "libreoffice"))
         self.pdf_engine.blockSignals(True)
         self.pdf_engine.clear()
         for label, value in choices:
@@ -544,7 +552,7 @@ class Window(QMainWindow):
         index = self.pdf_engine.findData(selected)
         self.pdf_engine.setCurrentIndex(index if index >= 0 else 0)
         if index < 0:
-            self.engines[path] = "auto"
+            self.engines[path] = "built-in" if pdf_docx else "auto"
         self.pdf_engine.blockSignals(False)
 
     def _refresh_details(self):
@@ -552,7 +560,10 @@ class Window(QMainWindow):
         if 0 <= row < len(self.paths):
             path = self.paths[row]
             target = self.formats.get(path, "—").upper()
-            note = "\nSelectable text only; PDF layout and images are not preserved." if path.suffix.lower() == ".pdf" and target == "DOCX" else ""
+            note = ""
+            if path.suffix.lower() == ".pdf" and target == "DOCX":
+                note = ("\nVisual pages preserve appearance; text is not editable." if self.engines.get(path) == "visual"
+                        else "\nSelectable text only; PDF layout and images are not preserved.")
             if target == "PDF" and path.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS:
                 chosen = resolve_engine(path, self.engines.get(path, "auto"))
                 note = f"\nPDF renderer: {chosen}. Installed application required for its native layout."
@@ -783,9 +794,18 @@ class Window(QMainWindow):
         if not selected or kind(selected) not in {"Image", "PDF"}:
             QMessageBox.warning(self, "OCR", "Select an image or PDF first.")
             return
+        labels = {"Multilingual (Latin, Chinese, Japanese)": "multilingual",
+                  "Cyrillic": "cyrillic", "Hindi / Devanagari": "hindi",
+                  "Korean": "korean", "Arabic": "arabic"}
+        choice, accepted = QInputDialog.getItem(self, "OCR language", "Choose the text's script:",
+                                                 list(labels), 0, False)
+        if not accepted:
+            return
         target = numbered_target(self.output_dir, f"{selected.stem}-ocr", ".txt",
                                  {str(path).casefold() for path in self.paths})
-        self._start_worker(Worker([(selected, target)], operation=ocr_to_text, rows=[row]))
+        self._start_worker(Worker([(selected, target)],
+                                  operation=lambda source, output: ocr_to_text(source, output, labels[choice]),
+                                  rows=[row]))
 
     def _compress(self):
         if not self.paths:
@@ -846,6 +866,9 @@ def main():
         return
     if len(sys.argv) == 4 and sys.argv[1] == "--ocr":
         ocr_to_text(Path(sys.argv[2]), Path(sys.argv[3]))
+        return
+    if len(sys.argv) == 5 and sys.argv[1] == "--ocr-with":
+        ocr_to_text(Path(sys.argv[3]), Path(sys.argv[4]), sys.argv[2])
         return
     if sys.argv[1:] == ["--office-self-check"]:
         from office_suite import WORKSPACES

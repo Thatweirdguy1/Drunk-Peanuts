@@ -20,7 +20,9 @@ from PySide6.QtWidgets import QApplication
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from converter import available_formats, compress, convert, reduce_size
+from office_pdf import available_engines
 from app import Window, Worker, numbered_target
+from office_suite import calculate_cell
 from converter import edit_image, extract_zip, ocr_to_text, pdf_merge, pdf_reorder, pdf_rotate, pdf_split, trim_media, zip_entries
 
 
@@ -28,7 +30,7 @@ class ConversionTest(unittest.TestCase):
     def test_office_formats_are_native(self):
         self.assertIn("pdf", available_formats(Path("slides.pptx")))
         self.assertIn("odt", available_formats(Path("letter.docx")))
-        self.assertEqual(available_formats(Path("old.doc")), [])
+        self.assertEqual(available_formats(Path("old.doc")), ["docx", "pdf"] if available_engines(Path("old.doc")) else [])
 
     def test_image_pdf_and_back(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -45,6 +47,30 @@ class ConversionTest(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 convert(source, pdf)
 
+    def test_pdf_visual_docx_keeps_page_images(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "source.txt"
+            source.write_text("First page\n" * 95, encoding="utf-8")
+            pdf = root / "source.pdf"
+            convert(source, pdf)
+            visual = root / "visual.docx"
+            convert(pdf, visual, "visual")
+            self.assertEqual(len(Document(visual).inline_shapes), len(PdfReader(str(pdf)).pages))
+
+    def test_animated_image_keeps_frames(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "animated.gif"
+            Image.new("RGB", (20, 20), "red").save(source, save_all=True,
+                append_images=[Image.new("RGB", (20, 20), "blue")], duration=[100, 150])
+            self.assertNotIn("jpg", available_formats(source))
+            for format in ("webp", "tiff"):
+                output = root / f"animated.{format}"
+                convert(source, output)
+                with Image.open(output) as image:
+                    self.assertEqual(image.n_frames, 2)
+
     def test_csv_xlsx_roundtrip(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -56,6 +82,21 @@ class ConversionTest(unittest.TestCase):
             convert(spreadsheet, output)
             self.assertIn("alpha,3", output.read_text(encoding="utf-8-sig"))
             self.assertNotIn("xlsx", available_formats(spreadsheet))
+            semicolon = root / "european.csv"
+            semicolon.write_text('name;value\n"Smith; Jones";4\n', encoding="utf-8")
+            converted = root / "european.xlsx"
+            convert(semicolon, converted)
+            workbook = load_workbook(converted)
+            self.assertEqual([cell.value for cell in workbook.active[2]], ["Smith; Jones", "4"])
+            workbook.close()
+
+    def test_table_formula_calculation(self):
+        rows = [["2", "=A1*3"], ["4", "=SUM(A1:A2)+B1"]]
+        self.assertEqual(calculate_cell(rows, "B2"), 12)
+        with self.assertRaises(ValueError):
+            calculate_cell([["=A1+1"]], "A1")
+        with self.assertRaises(ValueError):
+            calculate_cell([["=__import__('os').system('echo unsafe')"]], "A1")
 
     def test_local_document_conversion(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -318,6 +359,20 @@ class ConversionTest(unittest.TestCase):
             convert(image, pdf)
             ocr_to_text(pdf, root / "pages.txt")
             self.assertIn("HELLO", (root / "pages.txt").read_text())
+
+    def test_ocr_multilingual_models(self):
+        fixtures = Path(__file__).parent / "test_data"
+        samples = (("multilingual", "latin", "CAFÉ"),
+                   ("cyrillic", "cyrillic", "Привет"),
+                   ("hindi", "hindi", "भारत"),
+                   ("korean", "korean", "세계"),
+                   ("arabic", "arabic", "مرحبا"))
+        with tempfile.TemporaryDirectory() as folder:
+            with patch("socket.socket.connect", side_effect=AssertionError("OCR tried to access the network")):
+                for language, name, expected in samples:
+                    output = Path(folder) / f"{name}.txt"
+                    ocr_to_text(fixtures / f"ocr_{name}.png", output, language)
+                    self.assertIn(expected, output.read_text(encoding="utf-8"))
 
     @staticmethod
     def _comment():

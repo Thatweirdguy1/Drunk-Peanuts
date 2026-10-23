@@ -8,6 +8,13 @@ respective contributors and are distributed under Apache License 2.0.
 Source and model attribution: https://github.com/RapidAI/RapidOCR
 License text: `THIRD_PARTY_LICENSES/Apache-2.0.txt`
 
+The additional PP-OCRv5 Cyrillic, Devanagari, Korean, and Arabic recognition
+models are from the RapidOCR model repository, converted from PaddleOCR models.
+Their upstream SHA-256 hashes and sources are recorded in RapidOCR 3.9.2's
+`default_models.yaml`. Arabic text ordering uses python-bidi 0.6.7, licensed
+under LGPL 3.0; its license and third-party notices are in
+`THIRD_PARTY_LICENSES/python-bidi-*`.
+
 # Office format libraries
 
 Office conversions use python-docx, openpyxl, python-pptx, odfpy, striprtf,

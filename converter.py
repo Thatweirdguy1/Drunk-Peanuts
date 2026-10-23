@@ -17,13 +17,14 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from pathlib import Path
 
 import imageio_ffmpeg
-from native_office import DOCUMENTS, PRESENTATIONS, SPREADSHEETS, advanced_content, convert_office, targets
-from office_pdf import LIBREOFFICE_FORMATS, export_pdf, resolve_engine
+from native_office import DOCUMENTS, PRESENTATIONS, SPREADSHEETS, advanced_content, convert_office, csv_delimiter, targets
+from office_pdf import (LEGACY_FORMATS, LIBREOFFICE_FORMATS, MODERN_FOR_LEGACY,
+                        available_engines, convert_legacy, export_pdf, resolve_engine)
 import pillow_heif
 import pypdfium2 as pdfium
 import rawpy
 import rapidocr
-from rapidocr import RapidOCR
+from rapidocr import ModelType, OCRVersion, RapidOCR
 from docx import Document
 from openpyxl import Workbook, load_workbook
 from PIL import Image, ImageOps, ImageSequence, UnidentifiedImageError
@@ -41,7 +42,7 @@ IMAGE = {"jpg", "jpeg", "png", "heic", "heif", "tif", "tiff", "gif", "bmp", "web
 RASTER = {"jpg", "png", "webp", "tiff", "bmp", "gif", "ico", "pdf"}
 VIDEO = {"mp4", "mov", "avi", "mpeg", "mpg", "mkv", "webm"}
 AUDIO = {"mp3", "wav", "aiff", "m4a", "aac", "flac", "ogg"}
-OFFICE = (DOCUMENTS | PRESENTATIONS | SPREADSHEETS) - {"txt", "csv"}
+OFFICE = ((DOCUMENTS | PRESENTATIONS | SPREADSHEETS) - {"txt", "csv"}) | LEGACY_FORMATS
 FFMPEG_VIDEO = {"mp4", "mov", "avi", "mpeg", "mkv", "webm", "gif", "mp3", "wav", "m4a", "aac", "flac", "ogg"}
 FFMPEG_AUDIO = {"mp3", "wav", "aiff", "m4a", "aac", "flac", "ogg"}
 
@@ -70,12 +71,18 @@ def available_formats(path: Path) -> list[str]:
     group = kind(path)
     if group == "Image":
         choices = RASTER | {"svg"} if ext == "svg" else RASTER
+        if ext in {"gif", "webp", "tif", "tiff"} and path.is_file():
+            with Image.open(path) as image:
+                if getattr(image, "n_frames", 1) > 1:
+                    choices &= {"gif", "webp", "tiff", "pdf"}
     elif group == "PDF":
         choices = {"png", "jpg", "webp", "txt", "docx"}
     elif group == "Video":
         choices = FFMPEG_VIDEO
     elif group == "Audio":
         choices = FFMPEG_AUDIO
+    elif ext in LEGACY_FORMATS:
+        choices = {"pdf", MODERN_FOR_LEGACY[ext]} if available_engines(path) else set()
     elif ext in DOCUMENTS | SPREADSHEETS | PRESENTATIONS:
         choices = targets(ext) | ({"txt"} if ext == "csv" else set())
     else:
@@ -121,14 +128,19 @@ def _image(path: Path) -> Image.Image:
 
 def _save_image(source: Path, target: Path, fmt: str) -> None:
     with _image(source) as opened:
-        frame = ImageOps.exif_transpose(opened)
-        if fmt == "pdf":
-            images = [ImageOps.exif_transpose(f.copy()).convert("RGB") for f in ImageSequence.Iterator(frame)]
-            images[0].save(target, "PDF", save_all=True, append_images=images[1:])
-        elif fmt == "gif" and getattr(frame, "n_frames", 1) > 1:
-            frames = [f.copy().convert("RGBA") for f in ImageSequence.Iterator(frame)]
-            frames[0].save(target, "GIF", save_all=True, append_images=frames[1:], duration=opened.info.get("duration", 100), loop=opened.info.get("loop", 0))
+        if getattr(opened, "n_frames", 1) > 1:
+            if fmt not in {"pdf", "gif", "webp", "tiff"}:
+                raise ValueError("Choose GIF, WebP, TIFF, or PDF to keep every frame.")
+            frames, durations = [], []
+            for frame in ImageSequence.Iterator(opened):
+                durations.append(frame.info.get("duration", opened.info.get("duration", 100)))
+                frames.append(ImageOps.exif_transpose(frame.copy()).convert("RGB" if fmt in {"pdf", "tiff"} else "RGBA"))
+            options = {"save_all": True, "append_images": frames[1:]}
+            if fmt in {"gif", "webp"}:
+                options.update(duration=durations, loop=opened.info.get("loop", 0))
+            frames[0].save(target, {"tiff": "TIFF"}.get(fmt, fmt.upper()), **options)
         else:
+            frame = ImageOps.exif_transpose(opened)
             if fmt in {"jpg", "bmp"}:
                 background = Image.new("RGB", frame.size, "white")
                 if frame.mode == "RGBA":
@@ -161,7 +173,7 @@ def _csv_to_xlsx(source: Path, target: Path) -> None:
     book = Workbook(write_only=True)
     sheet = book.create_sheet("Sheet1")
     with source.open("r", encoding="utf-8-sig", newline="") as stream:
-        for row in csv.reader(stream):
+        for row in csv.reader(stream, delimiter=csv_delimiter(source)):
             sheet.append(row)
     book.save(target)
 
@@ -199,6 +211,34 @@ def _text_to_docx(source: Path, target: Path) -> None:
 
 def _pdf_text(source: Path) -> str:
     return "\n\n".join(page.extract_text() or "" for page in PdfReader(str(source)).pages)
+
+
+def _pdf_to_docx_visual(source: Path, target: Path) -> None:
+    from docx.enum.section import WD_SECTION_START
+    from docx.shared import Pt
+
+    document = Document()
+    pdf = pdfium.PdfDocument(str(source))
+    try:
+        for index in range(len(pdf)):
+            page = pdf[index]
+            try:
+                width, height = page.get_size()
+                section = document.sections[0] if index == 0 else document.add_section(WD_SECTION_START.NEW_PAGE)
+                section.page_width, section.page_height = Pt(width), Pt(height)
+                section.left_margin = section.right_margin = Pt(0)
+                section.top_margin = section.bottom_margin = Pt(0)
+                picture = io.BytesIO()
+                page.render(scale=1.5).to_pil().save(picture, format="PNG")
+                picture.seek(0)
+                paragraph = document.add_paragraph()
+                paragraph.paragraph_format.space_before = paragraph.paragraph_format.space_after = Pt(0)
+                paragraph.add_run().add_picture(picture, width=Pt(max(1, width - 6)), height=Pt(max(1, height - 6)))
+            finally:
+                page.close()
+    finally:
+        pdf.close()
+    document.save(target)
 
 
 def pdf_merge(sources: list[Path], target: Path) -> None:
@@ -337,9 +377,11 @@ def convert(source: Path, target: Path, engine: str = "built-in") -> None:
     if target.exists():
         raise FileExistsError(f"Output already exists: {target.name}")
     office_pdf = fmt == "pdf" and source.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS
+    legacy_modern = source.suffix.lower().lstrip(".") in LEGACY_FORMATS and fmt == MODERN_FOR_LEGACY[source.suffix.lower().lstrip(".")]
     selected_engine = resolve_engine(source, engine) if office_pdf else "built-in"
-    if engine not in {"built-in", "auto"} and not office_pdf:
-        raise ValueError("An external rendering engine can only export an Office file to PDF.")
+    pdf_visual = source.suffix.lower() == ".pdf" and fmt == "docx" and engine == "visual"
+    if engine not in {"built-in", "auto"} and not office_pdf and not pdf_visual and not legacy_modern:
+        raise ValueError("An external rendering engine is unavailable for this conversion.")
     if fmt not in {"txt", "csv"} and selected_engine == "built-in":
         unsupported = advanced_content(source)
         if unsupported:
@@ -347,6 +389,12 @@ def convert(source: Path, target: Path, engine: str = "built-in") -> None:
                              + ", ".join(unsupported[:3]) + ". Use its original editor for an exact export.")
     if office_pdf and selected_engine != "built-in":
         export_pdf(source, target, selected_engine)
+        return
+    if legacy_modern:
+        convert_legacy(source, target, engine)
+        return
+    if pdf_visual:
+        _pdf_to_docx_visual(source, target)
         return
     group = kind(source)
     if group == "Image":
@@ -517,19 +565,39 @@ def extract_zip(source: Path, folder: Path) -> None:
         raise
 
 
-def ocr_to_text(source: Path, target: Path) -> None:
+OCR_LANGUAGES = {
+    "multilingual": None,  # PP-OCRv6: Latin, Chinese, and Japanese scripts.
+    "cyrillic": "cyrillic_PP-OCRv5_rec_mobile.onnx",
+    "hindi": "devanagari_PP-OCRv5_rec_mobile.onnx",
+    "korean": "korean_PP-OCRv5_rec_mobile.onnx",
+    "arabic": "arabic_PP-OCRv5_rec_mobile.onnx",
+}
+
+
+def ocr_to_text(source: Path, target: Path, language: str = "multilingual") -> None:
     source, target = Path(source).resolve(strict=True), Path(target).resolve()
     if kind(source) not in {"Image", "PDF"}:
         raise ValueError("OCR supports images and PDFs.")
     if target.exists() or target == source:
         raise FileExistsError(f"Output already exists: {target.name}")
+    if language not in OCR_LANGUAGES:
+        raise ValueError(f"Unsupported OCR language: {language}")
     model_dir = Path(rapidocr.__file__).resolve().parent / "models"
     models = {"Det.model_path": "PP-OCRv6_det_small.onnx",
               "Cls.model_path": "ch_ppocr_mobile_v2.0_cls_mobile.onnx",
               "Rec.model_path": "PP-OCRv6_rec_small.onnx"}
     if any(not (model_dir / name).is_file() for name in models.values()):
         raise RuntimeError("Bundled OCR models are missing. Reinstall the app.")
-    engine = RapidOCR(params={"Rec.lang_type": "en", **{key: str(model_dir / name) for key, name in models.items()}})
+    params = {"Rec.lang_type": "en", **{key: str(model_dir / name) for key, name in models.items()}}
+    if language != "multilingual":
+        recognition = Path(__file__).resolve().parent / "ocr_models" / OCR_LANGUAGES[language]
+        if not recognition.is_file():
+            raise RuntimeError(f"Bundled {language} OCR model is missing. Reinstall the app.")
+        params.update({"Rec.lang_type": "devanagari" if language == "hindi" else language,
+                       "Rec.ocr_version": OCRVersion.PPOCRV5,
+                       "Rec.model_type": ModelType.MOBILE,
+                       "Rec.model_path": str(recognition)})
+    engine = RapidOCR(params=params)
     text = []
     if kind(source) == "PDF":
         pdf = pdfium.PdfDocument(str(source))
@@ -538,7 +606,8 @@ def ocr_to_text(source: Path, target: Path) -> None:
                 page = pdf[index]
                 try:
                     image = page.render(scale=2).to_pil()
-                    text.append("\n".join(engine(image).txts or ()))
+                    lines = engine(image).txts or ()
+                    text.append("\n".join(_ocr_lines(lines, language)))
                 finally:
                     page.close()
         finally:
@@ -546,9 +615,18 @@ def ocr_to_text(source: Path, target: Path) -> None:
     else:
         with _image(source) as opened:
             image = ImageOps.exif_transpose(opened).convert("RGB")
-            text.append("\n".join(engine(image).txts or ()))
+            lines = engine(image).txts or ()
+            text.append("\n".join(_ocr_lines(lines, language)))
     with target.open("x", encoding="utf-8") as output:
         output.write("\n\n".join(text) + "\n")
+
+
+def _ocr_lines(lines: tuple[str, ...], language: str) -> tuple[str, ...]:
+    if language == "arabic":
+        # RapidOCR returns visual-order Arabic for display; text files need logical order.
+        from bidi.algorithm import get_display
+        return tuple(get_display(line) for line in lines)
+    return lines
 
 
 def reduce_size(source: Path, target: Path, target_mb: float) -> None:

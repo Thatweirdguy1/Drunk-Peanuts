@@ -16,3 +16,12 @@ with tempfile.TemporaryDirectory() as folder:
     image.save(source)
     subprocess.run([sys.argv[1], "--ocr", str(source), str(target)], check=True, timeout=120)
     assert "HELLO" in target.read_text(encoding="utf-8"), "Packaged OCR failed to recognize test image"
+    fixtures = Path(__file__).parent / "test_data"
+    for language, name, expected in (("cyrillic", "cyrillic", "Привет"),
+                                     ("hindi", "hindi", "भारत"),
+                                     ("korean", "korean", "세계"),
+                                     ("arabic", "arabic", "مرحبا")):
+        output = Path(folder) / f"{name}.txt"
+        subprocess.run([sys.argv[1], "--ocr-with", language,
+                        str(fixtures / f"ocr_{name}.png"), str(output)], check=True, timeout=120)
+        assert expected in output.read_text(encoding="utf-8"), f"Packaged {language} OCR failed"

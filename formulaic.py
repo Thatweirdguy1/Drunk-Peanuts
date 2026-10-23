@@ -17,15 +17,16 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QLabel, QM
 MATH = "http://www.w3.org/1998/Math/MathML"
 MANIFEST = "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"
 MIME = "application/vnd.oasis.opendocument.formula"
-GREEK = {"alpha": "α", "beta": "β", "gamma": "γ", "delta": "δ", "theta": "θ", "lambda": "λ", "mu": "μ", "pi": "π", "sigma": "σ", "phi": "φ", "omega": "ω"}
-TOKENS = re.compile(r"sqrt|over|[A-Za-z]+|\d+(?:\.\d+)?|[{}^_()+\-*/=]|\S")
+GREEK = dict(zip("alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega".split(),
+                 "α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π ρ σ τ υ φ χ ψ ω".split()))
+TOKENS = re.compile(r"nroot|sqrt|over|[A-Za-z]+|\d+(?:\.\d+)?|[{}^_()+\-*/=]|\S")
 
 
 def parse_formula(source: str):
     tokens = TOKENS.findall(source)
     index = 0
 
-    def atom():
+    def atom(allow_scripts=True):
         nonlocal index
         if index >= len(tokens):
             raise ValueError("An operand is missing")
@@ -38,14 +39,25 @@ def parse_formula(source: str):
             index += 1
         elif token == "sqrt":
             value = ("sqrt", atom())
+        elif token == "nroot":
+            degree = atom()
+            value = ("root", atom(), degree)
         elif token in {"}", "over", "^", "_"}:
             raise ValueError(f"Unexpected {token}")
         else:
             value = ("token", GREEK.get(token, token))
-        while index < len(tokens) and tokens[index] in {"^", "_"}:
+        scripts = {}
+        while allow_scripts and index < len(tokens) and tokens[index] in {"^", "_"}:
             kind = "sup" if tokens[index] == "^" else "sub"
             index += 1
-            value = (kind, value, atom())
+            if kind in scripts:
+                raise ValueError("Duplicate superscript or subscript")
+            scripts[kind] = atom(False)
+        if len(scripts) == 2:
+            value = ("subsup", value, scripts["sub"], scripts["sup"])
+        elif scripts:
+            kind, script = next(iter(scripts.items()))
+            value = (kind, value, script)
         return value
 
     def expression():
@@ -68,7 +80,8 @@ def parse_formula(source: str):
 def mathml(source: str) -> bytes:
     def add(parent, node):
         kind = node[0]
-        tag = {"row": "mrow", "frac": "mfrac", "sqrt": "msqrt", "sup": "msup", "sub": "msub"}.get(kind)
+        tag = {"row": "mrow", "frac": "mfrac", "sqrt": "msqrt", "root": "mroot",
+               "sup": "msup", "sub": "msub", "subsup": "msubsup"}.get(kind)
         if kind == "token":
             value = node[1]
             tag = "mn" if value[0].isdigit() else "mi" if value.isalpha() else "mo"
@@ -96,6 +109,10 @@ def preview_html(source: str) -> str:
             return '<table style="display:inline-table;vertical-align:middle;text-align:center;border-collapse:collapse"><tr><td style="border-bottom:1px solid;padding:0 8px">' + render(node[1]) + '</td></tr><tr><td>' + render(node[2]) + '</td></tr></table>'
         if kind == "sqrt":
             return "√(" + render(node[1]) + ")"
+        if kind == "root":
+            return "<sup>" + render(node[2]) + "</sup>√(" + render(node[1]) + ")"
+        if kind == "subsup":
+            return render(node[1]) + "<sub>" + render(node[2]) + "</sub><sup>" + render(node[3]) + "</sup>"
         tag = "sup" if kind == "sup" else "sub"
         return render(node[1]) + f"<{tag}>" + render(node[2]) + f"</{tag}>"
 
@@ -157,6 +174,10 @@ def read_formula(path: Path) -> str:
             return "{" + source_for(children[0]) + "} over {" + source_for(children[1]) + "}"
         if tag == "msqrt":
             return "sqrt {" + " ".join(source_for(child) for child in children) + "}"
+        if tag == "mroot" and len(children) == 2:
+            return "nroot {" + source_for(children[1]) + "} {" + source_for(children[0]) + "}"
+        if tag == "msubsup" and len(children) == 3:
+            return "{" + source_for(children[0]) + "}_{" + source_for(children[1]) + "}^{" + source_for(children[2]) + "}"
         if tag in {"msup", "msub"} and len(children) == 2:
             return "{" + source_for(children[0]) + "}" + ("^" if tag == "msup" else "_") + "{" + source_for(children[1]) + "}"
         raise ValueError(f"Formulaic cannot edit MathML element {tag} without losing it")

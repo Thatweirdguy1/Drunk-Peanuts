@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import csv
+import ast
+import operator
+import re
 import shutil
 import sqlite3
 from contextlib import closing, contextmanager
@@ -11,7 +14,7 @@ from pathlib import Path
 from docx import Document
 from openpyxl import Workbook, load_workbook
 from pptx import Presentation
-from native_office import advanced_content
+from native_office import advanced_content, csv_delimiter
 from office_surgery import edit_xlsx_cells, replace_runs, replace_text_frame
 from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFont, QImage, QPainter, QPen, QTextListFormat
@@ -19,6 +22,93 @@ from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QColorDialog, QFileDialog, QHBoxLayout, QInputDialog, QLabel,
     QListWidget, QMainWindow, QMessageBox, QPushButton, QSplitter, QTableWidget,
     QTableWidgetItem, QTextEdit, QToolBar, QVBoxLayout, QWidget)
+
+
+def calculate_cell(rows, address):
+    """Evaluate common spreadsheet arithmetic without running Python from a cell."""
+    operations = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
+                  ast.Div: operator.truediv, ast.Pow: operator.pow}
+    visiting, cache = set(), {}
+
+    def coordinates(name):
+        match = re.fullmatch(r"\$?([A-Z]{1,3})\$?([1-9][0-9]*)", name.upper())
+        if not match:
+            raise ValueError(f"Unsupported cell reference: {name}")
+        column = 0
+        for letter in match[1]:
+            column = column * 26 + ord(letter) - 64
+        return int(match[2]) - 1, column - 1
+
+    def value(name):
+        row, column = coordinates(name)
+        key = (row, column)
+        if key in cache:
+            return cache[key]
+        if key in visiting:
+            raise ValueError("Circular formula reference")
+        visiting.add(key)
+        raw = rows[row][column] if row < len(rows) and column < len(rows[row]) else ""
+        if isinstance(raw, str) and raw.startswith("="):
+            expression = re.sub(r"(\$?[A-Za-z]{1,3}\$?[1-9][0-9]*):(\$?[A-Za-z]{1,3}\$?[1-9][0-9]*)",
+                                lambda m: f'RANGE("{m[1]}","{m[2]}")', raw[1:]).replace("^", "**")
+            if len(expression) > 2000:
+                raise ValueError("Formula is too long")
+            result = evaluate(ast.parse(expression, mode="eval").body)
+        else:
+            try:
+                result = float(raw) if raw != "" else 0.0
+            except (TypeError, ValueError):
+                result = raw
+        visiting.remove(key)
+        cache[key] = result
+        return result
+
+    def evaluate(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return node.value
+        if isinstance(node, ast.Name):
+            return value(node.id)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+            number = evaluate(node.operand)
+            return number if isinstance(node.op, ast.UAdd) else -number
+        if isinstance(node, ast.BinOp) and type(node.op) in operations:
+            left, right = evaluate(node.left), evaluate(node.right)
+            if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
+                raise ValueError("Arithmetic requires numbers")
+            if isinstance(node.op, ast.Pow) and abs(right) > 100:
+                raise ValueError("Formula exponent is too large")
+            return operations[type(node.op)](left, right)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and not node.keywords:
+            name = node.func.id.upper()
+            if name == "RANGE" and len(node.args) == 2 and all(isinstance(arg, ast.Constant) and isinstance(arg.value, str) for arg in node.args):
+                start, end = coordinates(node.args[0].value), coordinates(node.args[1].value)
+                if (end[0] - start[0] + 1) * (end[1] - start[1] + 1) > 10000:
+                    raise ValueError("Formula range is too large")
+                return [value(f"{column_name(column)}{row + 1}")
+                        for row in range(start[0], end[0] + 1) for column in range(start[1], end[1] + 1)]
+            args = []
+            for arg in node.args:
+                result = evaluate(arg)
+                args.extend(result if isinstance(result, list) else [result])
+            numbers = [item for item in args if isinstance(item, (int, float))]
+            if name == "SUM":
+                return sum(numbers)
+            if name == "COUNT":
+                return len(numbers)
+            if name in {"AVERAGE", "MIN", "MAX"} and numbers:
+                return {"AVERAGE": lambda: sum(numbers) / len(numbers), "MIN": lambda: min(numbers),
+                        "MAX": lambda: max(numbers)}[name]()
+        raise ValueError("Formula uses an unsupported function or expression")
+
+    def column_name(index):
+        name = ""
+        while index >= 0:
+            index, remainder = divmod(index, 26)
+            name = chr(65 + remainder) + name
+            index -= 1
+        return name
+
+    return value(address)
 
 
 def button(bar, label, callback):
@@ -208,15 +298,36 @@ class Tables(Workspace):
         super().__init__("Tables")
         self.imported_xlsx = None
         self.original_rows = []
+        self.csv_delimiter = ","
+        self.csv_encoding = "utf-8-sig"
         self.grid = QTableWidget(100, 26)
         self.grid.setHorizontalHeaderLabels([chr(65 + i) for i in range(26)])
         self.setCentralWidget(self.grid)
         self.grid.itemChanged.connect(lambda _: setattr(self, "dirty", True))
         for label, method in [("New", self.new), ("Open", self.open), ("Save", self.save), ("Save as", self.save_as),
                               ("Add row", lambda: self.grid.insertRow(self.grid.rowCount())),
-                              ("Add column", lambda: self.grid.insertColumn(self.grid.columnCount()))]:
+                              ("Add column", lambda: self.grid.insertColumn(self.grid.columnCount())),
+                              ("Calculate selected", self.calculate_selected)]:
             button(self.toolbar, label, method)
-        self.statusBar().showMessage("CSV and XLSX · enter values or formulas")
+        self.statusBar().showMessage("CSV and XLSX · formulas: arithmetic, SUM, AVERAGE, MIN, MAX, COUNT")
+
+    def calculate_selected(self):
+        row, column = self.grid.currentRow(), self.grid.currentColumn()
+        if row < 0 or column < 0:
+            return
+        name = ""
+        index = column
+        while index >= 0:
+            index, letter = divmod(index, 26)
+            name = chr(65 + letter) + name
+            index -= 1
+        address = f"{name}{row + 1}"
+        try:
+            result = calculate_cell(self._rows(), address)
+        except (ValueError, SyntaxError, TypeError, ZeroDivisionError, OverflowError) as error:
+            self.statusBar().showMessage(f"{address}: {error}")
+            return
+        self.statusBar().showMessage(f"{address} = {result:g}" if isinstance(result, (int, float)) else f"{address} = {result}")
 
     def new(self):
         if not self.discard_changes():
@@ -230,9 +341,16 @@ class Tables(Workspace):
     def open(self):
         path = pick_open(self, "Open table", "Spreadsheets (*.xlsx *.csv)")
         if path and self.discard_changes():
-            self.report(lambda: self._read(path))
+            delimiter = None
+            if path.suffix.lower() == ".csv":
+                choice, accepted = QInputDialog.getItem(self, "CSV import", "Separator:",
+                    ["Detect automatically", "Comma", "Semicolon", "Tab", "Pipe"], 0, False)
+                if not accepted:
+                    return
+                delimiter = {"Comma": ",", "Semicolon": ";", "Tab": "\t", "Pipe": "|"}.get(choice)
+            self.report(lambda: self._read(path, delimiter))
 
-    def _read(self, path):
+    def _read(self, path, delimiter=None):
         if path.suffix.lower() == ".xlsx":
             book = load_workbook(path, read_only=True, data_only=False)
             try:
@@ -240,8 +358,9 @@ class Tables(Workspace):
             finally:
                 book.close()
         elif path.suffix.lower() == ".csv":
+            delimiter = delimiter or csv_delimiter(path)
             with path.open(newline="", encoding="utf-8-sig") as stream:
-                rows = list(csv.reader(stream))
+                rows = list(csv.reader(stream, delimiter=delimiter))
         else:
             raise ValueError("Choose XLSX or CSV")
         self.grid.clearContents()
@@ -252,6 +371,8 @@ class Tables(Workspace):
                 if value is not None:
                     self.grid.setItem(i, j, QTableWidgetItem(str(value)))
         self.imported_xlsx = path if path.suffix.lower() == ".xlsx" else None
+        if path.suffix.lower() == ".csv":
+            self.csv_delimiter = delimiter
         self.original_rows = [["" if value is None else str(value) for value in row] for row in rows]
         # Imported XLSX requires a new path, preserving the original file.
         self.path = None if path.suffix.lower() == ".xlsx" else path
@@ -266,7 +387,20 @@ class Tables(Workspace):
     def save_as(self):
         path = pick_save(self, "Save table", "Excel workbook (*.xlsx);;CSV (*.csv)")
         if path:
-            self.report(lambda: self._write(path))
+            delimiter, encoding = self.csv_delimiter, self.csv_encoding
+            if path.suffix.lower() == ".csv":
+                labels = {"Comma": ",", "Semicolon": ";", "Tab": "\t", "Pipe": "|"}
+                choice, accepted = QInputDialog.getItem(self, "CSV export", "Separator:", list(labels),
+                    list(labels.values()).index(delimiter) if delimiter in labels.values() else 0, False)
+                if not accepted:
+                    return
+                delimiter = labels[choice]
+                choice, accepted = QInputDialog.getItem(self, "CSV export", "Encoding:",
+                    ["UTF-8 with BOM (Excel compatible)", "UTF-8"], 0 if encoding == "utf-8-sig" else 1, False)
+                if not accepted:
+                    return
+                encoding = "utf-8-sig" if choice.startswith("UTF-8 with") else "utf-8"
+            self.report(lambda: self._write(path, delimiter, encoding))
 
     def _rows(self):
         rows = [[self.grid.item(i, j).text() if self.grid.item(i, j) else ""
@@ -276,7 +410,7 @@ class Tables(Workspace):
         width = max((next((j + 1 for j in range(len(row) - 1, -1, -1) if row[j]), 0) for row in rows), default=0)
         return [row[:width] for row in rows]
 
-    def _write(self, path):
+    def _write(self, path, delimiter=None, encoding=None):
         rows = self._rows()
         if path.suffix.lower() == ".xlsx":
             if self.imported_xlsx and path.resolve() == self.imported_xlsx.resolve() and self.path is None:
@@ -303,8 +437,10 @@ class Tables(Workspace):
             self.imported_xlsx = path
             self.original_rows = rows
         elif path.suffix.lower() == ".csv":
-            with path.open("w", newline="", encoding="utf-8-sig") as stream:
-                csv.writer(stream).writerows(rows)
+            with path.open("w", newline="", encoding=encoding or self.csv_encoding) as stream:
+                csv.writer(stream, delimiter=delimiter or self.csv_delimiter).writerows(rows)
+            self.csv_delimiter = delimiter or self.csv_delimiter
+            self.csv_encoding = encoding or self.csv_encoding
         else:
             raise ValueError("Choose XLSX or CSV")
         self.path = path

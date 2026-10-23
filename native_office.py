@@ -32,6 +32,15 @@ SPREADSHEETS = {"csv", "xlsx", "ods"}
 PRESENTATIONS = {"pptx", "odp"}
 
 
+def csv_delimiter(source: Path) -> str:
+    with source.open(encoding="utf-8-sig", newline="") as stream:
+        sample = stream.read(8192)
+    try:
+        return csv.Sniffer().sniff(sample, delimiters=",;\t|").delimiter
+    except csv.Error:
+        return ","
+
+
 def advanced_content(source: Path) -> list[str]:
     """Flag OOXML parts the extraction converter cannot retain."""
     ext = source.suffix.lower()
@@ -249,7 +258,7 @@ def _sheet_rows(source: Path) -> list[list[str]]:
     ext = source.suffix.lower().lstrip(".")
     if ext == "csv":
         with source.open(encoding="utf-8-sig", newline="") as stream:
-            return list(csv.reader(stream))
+            return list(csv.reader(stream, delimiter=csv_delimiter(source)))
     if ext == "xlsx":
         book = load_workbook(source, read_only=True, data_only=True)
         try:

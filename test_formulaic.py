@@ -39,6 +39,16 @@ class FormulaicTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Missing closing brace"):
             mathml("sqrt {x")
 
+    def test_root_and_combined_scripts_roundtrip(self):
+        source = "nroot {3} {x} + {epsilon}_{i}^{2}"
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "formula.mml"
+            write_formula(source, path)
+            xml = ET.fromstring(path.read_bytes())
+            self.assertIsNotNone(xml.find(f".//{{{MATH}}}mroot"))
+            self.assertIsNotNone(xml.find(f".//{{{MATH}}}msubsup"))
+            self.assertIn("nroot", read_formula(path))
+
     def test_pdf_and_png_export(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
