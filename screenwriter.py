@@ -222,8 +222,6 @@ class ScreenwriterWindow(QMainWindow):
             return
         try:
             path = Path(filename)
-            if path.stat().st_size > 20 * 1024 * 1024:
-                raise ValueError("Script is too large to open safely.")
             is_fdx = path.suffix.lower() == ".fdx"
             original = path.read_bytes() if is_fdx else None
             content = original.decode("utf-8-sig") if original is not None else path.read_text(encoding="utf-8-sig")

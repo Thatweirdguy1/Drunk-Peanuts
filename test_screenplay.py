@@ -39,6 +39,20 @@ CUT TO:
 
 
 class ScreenplayTest(unittest.TestCase):
+    def test_import_script_over_20_mb(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "large.fountain"
+            source.write_text(("A" * 4095 + "\n") * 5121, encoding="utf-8")
+            self.assertGreater(source.stat().st_size, 20 * 1024 * 1024)
+            app = QApplication.instance() or QApplication([])
+            with patch.object(QMessageBox, "question", return_value=QMessageBox.No):
+                window = ScreenwriterWindow()
+            window.autosave = Path(folder) / "autosave.fountain"
+            with patch("screenwriter.QFileDialog.getOpenFileName", return_value=(str(source), "")):
+                window._open()
+            self.assertEqual(window.editor.toPlainText(), source.read_text(encoding="utf-8"))
+            window.close()
+
     def test_edited_fdx_keeps_unrelated_metadata(self):
         original = b'''<?xml version="1.0" encoding="UTF-8"?>
 <FinalDraft Version="13"><CustomMetadata id="keep"><Revision key="A"/></CustomMetadata>

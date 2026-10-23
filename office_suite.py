@@ -12,6 +12,7 @@ from docx import Document
 from openpyxl import Workbook, load_workbook
 from pptx import Presentation
 from native_office import advanced_content
+from office_surgery import edit_xlsx_cells, replace_runs, replace_text_frame
 from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFont, QImage, QPainter, QPen, QTextListFormat
 from PySide6.QtPrintSupport import QPrinter
@@ -167,12 +168,7 @@ class Pages(Workspace):
                 doc = Document(self.imported_docx)
                 for paragraph, old, new in zip(doc.paragraphs, self.original_paragraphs, lines):
                     if new != old:
-                        if paragraph.runs:
-                            paragraph.runs[0].text = new
-                            for run in paragraph.runs[1:]:
-                                run.text = ""
-                        else:
-                            paragraph.add_run(new)
+                        replace_runs(paragraph, new)
                 doc.save(path)
             else:
                 if self.imported_docx:
@@ -292,17 +288,18 @@ class Tables(Workspace):
                 self.path = path
                 self.dirty = False
                 return
-            book = load_workbook(self.imported_xlsx) if self.imported_xlsx else Workbook()
-            try:
-                sheet = book.active
-                for i, row in enumerate(rows):
-                    for j, value in enumerate(row):
-                        old = (self.original_rows[i][j] if i < len(self.original_rows) and j < len(self.original_rows[i]) else "")
-                        if not self.imported_xlsx or value != old:
+            if self.imported_xlsx:
+                edit_xlsx_cells(self.imported_xlsx, path, self.original_rows, rows)
+            else:
+                book = Workbook()
+                try:
+                    sheet = book.active
+                    for i, row in enumerate(rows):
+                        for j, value in enumerate(row):
                             sheet.cell(i + 1, j + 1).value = (float(value) if value and value.replace(".", "", 1).replace("-", "", 1).isdigit() else value)
-                book.save(path)
-            finally:
-                book.close()
+                    book.save(path)
+                finally:
+                    book.close()
             self.imported_xlsx = path
             self.original_rows = rows
         elif path.suffix.lower() == ".csv":
@@ -451,14 +448,20 @@ class Dazzle(Workspace):
                     shapes = [shape for shape in slide.shapes if shape.has_text_frame and shape.text.strip()]
                     if title != original[0]:
                         if shapes:
-                            shapes[0].text = title
+                            replace_text_frame(shapes[0], title)
                         else:
                             slide.shapes.add_textbox(914400, 914400, prs.slide_width - 1828800, 685800).text = title
                     if body != original[1]:
                         if len(shapes) > 1:
-                            shapes[1].text = body
-                            for shape in shapes[2:]:
-                                shape.text = ""
+                            old_shapes = shapes[1:]
+                            lines = body.split("\n")
+                            counts = [len(shape.text_frame.paragraphs) for shape in old_shapes]
+                            if sum(counts) != len(lines):
+                                raise ValueError("Text box structure changed; save a Dazzle copy to keep the text")
+                            offset = 0
+                            for shape, count in zip(old_shapes, counts):
+                                replace_text_frame(shape, "\n".join(lines[offset:offset + count]))
+                                offset += count
                         else:
                             slide.shapes.add_textbox(914400, 1828800, prs.slide_width - 1828800, 3657600).text = body
             else:

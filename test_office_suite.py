@@ -14,6 +14,7 @@ from openpyxl import Workbook, load_workbook
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches
+from zipfile import ZipFile
 from office_suite import Dazzle, Organize, Pages, Sketch, Tables, quote
 
 
@@ -90,6 +91,45 @@ class OfficeSuiteTest(unittest.TestCase):
             saved.close()
             self.assertEqual(load_workbook(source).active["A1"].value, "first")
 
+    def test_formatted_runs_and_unrelated_excel_parts_survive(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "source.docx"
+            document = __import__("docx").Document()
+            paragraph = document.add_paragraph()
+            paragraph.add_run("Bold ").bold = True
+            paragraph.add_run("plain")
+            document.save(source)
+            pages = Pages()
+            pages.imported_docx = source
+            pages.original_paragraphs = ["Bold plain"]
+            pages.editor.setPlainText("Bold changed")
+            pages._write(root / "edited.docx")
+            saved = __import__("docx").Document(root / "edited.docx")
+            self.assertEqual(saved.paragraphs[0].text, "Bold changed")
+            self.assertTrue(saved.paragraphs[0].runs[0].bold)
+            self.assertFalse(bool(saved.paragraphs[0].runs[1].bold))
+
+            source = root / "source.xlsx"
+            book = Workbook()
+            book.active["A1"] = "before"
+            book.create_sheet("Other")["B2"] = "untouched"
+            book.save(source)
+            tables = Tables()
+            tables._read(source)
+            tables.grid.setItem(0, 0, QTableWidgetItem("after"))
+            target = root / "edited.xlsx"
+            tables._write(target)
+            with ZipFile(source) as old, ZipFile(target) as new:
+                self.assertEqual(set(old.namelist()), set(new.namelist()))
+                changed = [name for name in old.namelist() if old.read(name) != new.read(name)]
+                self.assertEqual(changed, ["xl/worksheets/sheet1.xml"])
+            tables.grid.setItem(0, 0, QTableWidgetItem("again"))
+            tables._write(target)
+            saved = load_workbook(target)
+            self.assertEqual(saved.active["A1"].value, "again")
+            saved.close()
+
     def test_dazzle_keeps_nontext_shapes_on_text_edit(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -111,6 +151,28 @@ class OfficeSuiteTest(unittest.TestCase):
             saved = Presentation(output)
             self.assertEqual(saved.slides[0].shapes.title.text, "After")
             self.assertEqual(len(saved.slides[0].shapes), len(slide.shapes))
+
+    def test_dazzle_keeps_inline_text_formatting(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "source.pptx"
+            deck = Presentation()
+            slide = deck.slides.add_slide(deck.slide_layouts[5])
+            paragraph = slide.shapes.title.text_frame.paragraphs[0]
+            paragraph.add_run().text = "Bold "
+            paragraph.runs[0].font.bold = True
+            paragraph.add_run().text = "plain"
+            deck.save(source)
+            editor = Dazzle()
+            editor.imported_pptx = source
+            editor.original_slides = [("Bold plain", "")]
+            editor.slides = [("Bold changed", "")]
+            editor.title.setPlainText("Bold changed")
+            editor._write(root / "edited.pptx")
+            saved = Presentation(root / "edited.pptx")
+            runs = saved.slides[0].shapes.title.text_frame.paragraphs[0].runs
+            self.assertEqual("".join(run.text for run in runs), "Bold changed")
+            self.assertTrue(runs[0].font.bold)
 
     def test_unchanged_office_imports_copy_exact_bytes(self):
         with tempfile.TemporaryDirectory() as folder:

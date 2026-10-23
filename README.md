@@ -46,7 +46,7 @@ The workspace bar opens these built-in, offline tools:
 | **Writer's Drafts** | Screenplay writing and preview | Fountain, FDX, PDF, TXT, HTML, Markdown |
 | **WatchIT** | Video and audio playback with a playlist, seeking, speed, volume, mute, loop, fullscreen, aspect ratio, audio and subtitle track choices, and external subtitles | Local files supported by the bundled VLC build |
 
-The office workspaces are focused editors, not copies of Microsoft Office or LibreOffice. Pages, Tables, and Dazzle copy unchanged imported DOCX, XLSX, and PPTX files byte-for-byte when saved to a new file. Pages can edit text in existing paragraphs while keeping other document parts, but inline styling in changed paragraphs and unsupported Word features are not guaranteed. Tables edits one visible sheet and keeps other XLSX sheets when saving another XLSX; it does not calculate formulas or guarantee preservation of every Excel feature. Dazzle keeps nontext slide shapes when editing text in an imported PPTX without adding or deleting slides. Structural slide edits in complex imported decks are refused; advanced themes, animations, and notes are not guaranteed. Formulaic offers a small formula language with `over`, `sqrt`, `^`, `_`, and common Greek names; it is not a full StarMath parser. It opens supported MathML and OpenDocument Formula files and refuses elements it cannot edit. Organize can browse external SQLite databases read-only; it edits databases created by Organize. Back up important originals before importing them.
+The office workspaces are focused editors, not copies of Microsoft Office or LibreOffice. Pages, Tables, and Dazzle copy unchanged imported DOCX, XLSX, and PPTX files byte-for-byte when saved to a new file. Pages edits text in existing paragraphs while retaining unchanged runs and their formatting; complex fields and structural edits can still be refused. Tables edits the active XLSX worksheet without rewriting other package parts, preserving other sheets, charts, metadata, and unsupported extension parts on a cell edit. It does not calculate formulas. Dazzle edits existing text boxes while retaining run formatting and nontext shapes; changes that alter text box paragraph structure are refused. Structural slide edits in complex imported decks are refused. These editors do not expose every advanced Office feature, and visual layout still needs checking in a full Office viewer. Formulaic offers a small formula language with `over`, `sqrt`, `^`, `_`, and common Greek names; it is not a full StarMath parser. It opens supported MathML and OpenDocument Formula files and refuses elements it cannot edit. Organize can browse external SQLite databases read-only; it edits databases created by Organize. Back up important originals before importing them.
 
 ### WatchIT
 
@@ -100,7 +100,7 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-Run the conversion checks with `python -m unittest -q`. Tagged commits build Windows x64, macOS Intel, and macOS Apple Silicon downloads through GitHub Actions.
+Run the conversion checks with `python -m unittest -q`. If you have local Office test files in `test docs`, run `python verify_office_fixtures.py` to check one text edit per DOCX, XLSX, and PPTX against copies. Tagged commits build Windows x64, macOS Intel, and macOS Apple Silicon downloads through GitHub Actions.
 
 ## Privacy and security
 
@@ -112,7 +112,8 @@ Files stay on your computer. The app has no upload service, analytics, or accoun
 - PDF to DOCX uses extracted text and does not preserve the PDF layout, images, or tables.
 - Animated GIF input becomes a multi-page PDF or an animated GIF. Other raster outputs use the first frame.
 - CSV to XLSX stores values as text; XLSX to CSV exports the active worksheet's displayed values.
-- The native Office conversion handles basic content. For rich-format output, it refuses many advanced DOCX, XLSX, and PPTX files when it detects content it would discard, such as media, charts, formulas, or extra worksheets. Detection is not exhaustive; styling, metadata, or other unsupported parts may still change. TXT and CSV are deliberate text/value extraction. PDF output is a simple rendering of extracted content, not an exact printout. Check important documents after conversion.
+- Cross-format Office conversion still handles basic content. It refuses many advanced DOCX, XLSX, and PPTX files when it detects content it would discard, such as media, charts, formulas, or extra worksheets. Detection is not exhaustive; styling, metadata, or other unsupported parts may still change. The loss-minimizing edits in Pages, Tables, and Dazzle apply when saving back to the same Office format. TXT and CSV are deliberate text/value extraction. PDF output is a simple rendering of extracted content, not an exact printout. Check important documents after conversion.
+- Large scripts can be opened without a fixed size cutoff, but opening and rendering very large scripts may require substantial memory and may feel slow.
 - The native engine does not parse Final Draft metadata or reproduce Final Draft's pagination.
 - Bundled OCR currently recognizes English text. RapidOCR and its converted PaddleOCR models are distributed under Apache 2.0; see [third-party notices](THIRD_PARTY_NOTICES.md).
 - macOS builds are unnotarized and Windows builds are unsigned.
