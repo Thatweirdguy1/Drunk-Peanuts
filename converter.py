@@ -19,7 +19,7 @@ from pathlib import Path
 import imageio_ffmpeg
 from native_office import DOCUMENTS, PRESENTATIONS, SPREADSHEETS, advanced_content, convert_office, csv_delimiter, targets
 from office_pdf import (LEGACY_FORMATS, LIBREOFFICE_FORMATS, MODERN_FOR_LEGACY,
-                        available_engines, convert_legacy, export_pdf, resolve_engine)
+                        available_engines, convert_legacy, convert_with_libreoffice, export_pdf, resolve_engine)
 import pillow_heif
 import pypdfium2 as pdfium
 import rawpy
@@ -326,40 +326,47 @@ def edit_image(source: Path, target: Path, action: str, values: tuple[int, ...] 
     if kind(source) != "Image" or target.exists() or source == target:
         raise ValueError("Choose an image and a new output path.")
     with _image(source) as opened:
-        if getattr(opened, "n_frames", 1) > 1:
-            raise ValueError("Edit animated images frame by frame after conversion.")
-        image = ImageOps.exif_transpose(opened).copy()
-    if action == "resize":
-        width, height = values
-        if width < 1 or height < 1:
-            raise ValueError("Width and height must be positive.")
-        image.thumbnail((width, height), Image.Resampling.LANCZOS)
-    elif action == "crop":
-        left, top, width, height = values
-        if min(left, top) < 0 or min(width, height) < 1 or left + width > image.width or top + height > image.height:
-            raise ValueError("Crop rectangle must fit inside the image.")
-        image = image.crop((left, top, left + width, top + height))
-    elif action == "rotate":
-        degrees, = values
-        if degrees not in {90, 180, 270}:
-            raise ValueError("Choose 90, 180, or 270 degrees.")
-        image = image.rotate(-degrees, expand=True)
-    elif action == "strip_metadata":
-        pass
-    else:
-        raise ValueError("Unknown image tool.")
-    image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
-    if target.suffix.lower() in {".jpg", ".jpeg", ".bmp"} and "A" in image.getbands():
-        background = Image.new("RGB", image.size, "white")
-        background.paste(image, mask=image.getchannel("A"))
-        image = background
-    # Pixel-only copy prevents EXIF, GPS, comments, and other source metadata from leaking.
-    image = Image.frombytes(image.mode, image.size, image.tobytes())
+        animated = getattr(opened, "n_frames", 1) > 1
+        if animated and target.suffix.lower() not in {".gif", ".webp", ".tif", ".tiff"}:
+            raise ValueError("Choose GIF, WebP, or TIFF to keep every frame.")
+        durations = []
+        frames = []
+        for frame in ImageSequence.Iterator(opened):
+            durations.append(frame.info.get("duration", opened.info.get("duration", 100)))
+            image = ImageOps.exif_transpose(frame.copy())
+            if action == "resize":
+                width, height = values
+                if width < 1 or height < 1:
+                    raise ValueError("Width and height must be positive.")
+                image.thumbnail((width, height), Image.Resampling.LANCZOS)
+            elif action == "crop":
+                left, top, width, height = values
+                if min(left, top) < 0 or min(width, height) < 1 or left + width > image.width or top + height > image.height:
+                    raise ValueError("Crop rectangle must fit inside the image.")
+                image = image.crop((left, top, left + width, top + height))
+            elif action == "rotate":
+                degrees, = values
+                if degrees not in {90, 180, 270}:
+                    raise ValueError("Choose 90, 180, or 270 degrees.")
+                image = image.rotate(-degrees, expand=True)
+            elif action != "strip_metadata":
+                raise ValueError("Unknown image tool.")
+            image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
+            if target.suffix.lower() in {".jpg", ".jpeg", ".bmp"} and "A" in image.getbands():
+                background = Image.new("RGB", image.size, "white")
+                background.paste(image, mask=image.getchannel("A"))
+                image = background
+            # Pixel-only copy prevents EXIF, GPS, comments, and other source metadata from leaking.
+            frames.append(Image.frombytes(image.mode, image.size, image.tobytes()))
+        loop = opened.info.get("loop", 0)
+    options = {"save_all": True, "append_images": frames[1:]} if animated else {}
+    if animated and target.suffix.lower() in {".gif", ".webp"}:
+        options.update(duration=durations, loop=loop)
     created = False
     try:
         with target.open("xb") as output:
             created = True
-            image.save(output, format={".jpg": "JPEG", ".jpeg": "JPEG", ".tif": "TIFF", ".tiff": "TIFF"}.get(target.suffix.lower(), target.suffix[1:].upper()))
+            frames[0].save(output, format={".jpg": "JPEG", ".jpeg": "JPEG", ".tif": "TIFF", ".tiff": "TIFF"}.get(target.suffix.lower(), target.suffix[1:].upper()), **options)
     except Exception:
         if created:
             target.unlink(missing_ok=True)
@@ -378,10 +385,14 @@ def convert(source: Path, target: Path, engine: str = "built-in") -> None:
         raise FileExistsError(f"Output already exists: {target.name}")
     office_pdf = fmt == "pdf" and source.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS
     legacy_modern = source.suffix.lower().lstrip(".") in LEGACY_FORMATS and fmt == MODERN_FOR_LEGACY[source.suffix.lower().lstrip(".")]
+    office_cross = source.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS and fmt in {"docx", "odt", "rtf", "xlsx", "ods", "pptx", "odp"} and fmt in targets(source.suffix.lower().lstrip("."))
     selected_engine = resolve_engine(source, engine) if office_pdf else "built-in"
     pdf_visual = source.suffix.lower() == ".pdf" and fmt == "docx" and engine == "visual"
-    if engine not in {"built-in", "auto"} and not office_pdf and not pdf_visual and not legacy_modern:
+    if engine not in {"built-in", "auto"} and not office_pdf and not pdf_visual and not legacy_modern and not (office_cross and engine == "libreoffice"):
         raise ValueError("An external rendering engine is unavailable for this conversion.")
+    if office_cross and engine == "libreoffice":
+        convert_with_libreoffice(source, target)
+        return
     if fmt not in {"txt", "csv"} and selected_engine == "built-in":
         unsupported = advanced_content(source)
         if unsupported:
@@ -440,22 +451,29 @@ def convert(source: Path, target: Path, engine: str = "built-in") -> None:
 
 
 def compress(paths: list[Path], target: Path, progress=None) -> None:
-    """Create a lossless ZIP archive, refusing collisions and input replacement."""
+    """Create a lossless ZIP archive without replacing inputs or entries."""
     sources = [Path(path).resolve(strict=True) for path in paths]
     target = Path(target).resolve()
     if not sources or any(not path.is_file() for path in sources):
         raise ValueError("Add one or more files before compressing.")
-    if len({path.name.casefold() for path in sources}) != len(sources):
-        raise ValueError("Files with the same name cannot share one ZIP archive.")
     if target.exists() or target in sources:
         raise FileExistsError(f"Output already exists: {target.name}")
     target.parent.mkdir(parents=True, exist_ok=True)
+    originals = {path.name.casefold() for path in sources}
+    used = set()
     try:
         with ZipFile(target, "x", compression=ZIP_DEFLATED, compresslevel=6) as archive:
             for index, path in enumerate(sources):
-                archive.write(path, arcname=path.name)
+                name = path.name
+                if name.casefold() in used:
+                    number = 2
+                    while (candidate := f"{path.stem} ({number}){path.suffix}").casefold() in originals | used:
+                        number += 1
+                    name = candidate
+                used.add(name.casefold())
+                archive.write(path, arcname=name)
                 if progress:
-                    progress(index, path.name)
+                    progress(index, name)
     except Exception:
         target.unlink(missing_ok=True)
         raise
@@ -600,9 +618,14 @@ def ocr_to_text(source: Path, target: Path, language: str = "multilingual") -> N
     engine = RapidOCR(params=params)
     text = []
     if kind(source) == "PDF":
+        embedded = PdfReader(str(source)).pages
         pdf = pdfium.PdfDocument(str(source))
         try:
             for index in range(len(pdf)):
+                selectable = embedded[index].extract_text() or ""
+                if selectable.strip():
+                    text.append(selectable)
+                    continue
                 page = pdf[index]
                 try:
                     image = page.render(scale=2).to_pil()
@@ -646,16 +669,33 @@ def reduce_size(source: Path, target: Path, target_mb: float) -> None:
     try:
         if kind(source) == "Image":
             with _image(source) as opened:
-                if getattr(opened, "n_frames", 1) > 1:
-                    raise ValueError("Animated images need ZIP compression or a manual conversion.")
-                image = ImageOps.exif_transpose(opened).convert("RGBA")
+                animated = getattr(opened, "n_frames", 1) > 1
+                frames, durations = [], []
+                for frame in ImageSequence.Iterator(opened):
+                    durations.append(frame.info.get("duration", opened.info.get("duration", 100)))
+                    frames.append(ImageOps.exif_transpose(frame.copy()).convert("RGBA"))
+                loop = opened.info.get("loop", 0)
             for scale in (1, 0.85, 0.7, 0.55):
-                resized = image if scale == 1 else image.resize((max(1, int(image.width * scale)), max(1, int(image.height * scale))), Image.Resampling.LANCZOS)
+                resized = frames if scale == 1 else [frame.resize((max(1, int(frame.width * scale)), max(1, int(frame.height * scale))), Image.Resampling.LANCZOS) for frame in frames]
                 for quality in (85, 65, 45, 25):
-                    resized.save(target, "WEBP", quality=quality, method=6)
+                    options = {"save_all": True, "append_images": resized[1:], "duration": durations, "loop": loop} if animated else {}
+                    resized[0].save(target, "WEBP", quality=quality, method=6, **options)
                     if target.stat().st_size <= limit:
                         return
         elif kind(source) == "PDF":
+            try:
+                writer = PdfWriter(clone_from=str(source))
+                for page in writer.pages:
+                    page.compress_content_streams()
+                writer.compress_identical_objects()
+                with target.open("xb") as output:
+                    writer.write(output)
+                writer.close()
+                if target.stat().st_size <= limit:
+                    return
+                target.unlink()
+            except Exception:
+                target.unlink(missing_ok=True)
             for scale, quality in ((2, 80), (1.6, 65), (1.3, 50)):
                 pdf = pdfium.PdfDocument(str(source))
                 document = canvas.Canvas(str(target), pageCompression=1)

@@ -23,9 +23,9 @@ from PySide6.QtWidgets import (
 from converter import (available_formats, compress, convert, edit_image, extract_zip, kind, ocr_to_text,
                        pdf_merge, pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension,
                        trim_media, zip_entries)
-from office_pdf import LIBREOFFICE_FORMATS, available_engines, resolve_engine
+from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.14.0"
+VERSION = "0.14.1"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -528,13 +528,18 @@ class Window(QMainWindow):
         office_pdf = bool(path and self.formats.get(path) == "pdf" and
                           path.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS)
         pdf_docx = bool(path and path.suffix.lower() == ".pdf" and self.formats.get(path) == "docx")
-        self.pdf_engine_panel.setVisible(office_pdf or pdf_docx)
-        if not (office_pdf or pdf_docx):
+        office_cross = bool(path and path.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS - LEGACY_FORMATS and
+                            self.formats.get(path) in {"docx", "odt", "rtf", "xlsx", "ods", "pptx", "odp"} and
+                            "libreoffice" in available_engines(path))
+        self.pdf_engine_panel.setVisible(office_pdf or pdf_docx or office_cross)
+        if not (office_pdf or pdf_docx or office_cross):
             return
-        self.engine_label.setText("PDF to DOCX mode" if pdf_docx else "PDF renderer")
+        self.engine_label.setText("PDF to DOCX mode" if pdf_docx else "PDF renderer" if office_pdf else "Conversion engine")
         self.engine_hint.setText("Visual pages cannot be edited as text" if pdf_docx else "For the selected Office file")
         if pdf_docx:
             choices = [("Editable text", "built-in"), ("Visual pages", "visual")]
+        elif office_cross:
+            choices = [("Built-in (basic)", "built-in"), ("LibreOffice (installed)", "libreoffice")]
         else:
             choices = [("Automatic (best installed)", "auto")]
             available = available_engines(path)
@@ -552,7 +557,7 @@ class Window(QMainWindow):
         index = self.pdf_engine.findData(selected)
         self.pdf_engine.setCurrentIndex(index if index >= 0 else 0)
         if index < 0:
-            self.engines[path] = "built-in" if pdf_docx else "auto"
+            self.engines[path] = "auto" if office_pdf else "built-in"
         self.pdf_engine.blockSignals(False)
 
     def _refresh_details(self):
@@ -567,6 +572,8 @@ class Window(QMainWindow):
             if target == "PDF" and path.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS:
                 chosen = resolve_engine(path, self.engines.get(path, "auto"))
                 note = f"\nPDF renderer: {chosen}. Installed application required for its native layout."
+            elif self.engines.get(path) == "libreoffice":
+                note = "\nUsing installed LibreOffice for format conversion."
             self.details.setText(f"{path.name}\n{kind(path)} input  →  {target} output{note}")
 
     def _refresh_formats(self):
@@ -636,7 +643,10 @@ class Window(QMainWindow):
             QMessageBox.warning(self, "Could not plan conversion", str(error))
             return
         engines = {source: self.engines.get(source, "auto") for source, target in jobs
-                   if target.suffix.lower() == ".pdf" and source.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS}
+                   if (target.suffix.lower() == ".pdf" and source.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS)
+                   or (source.suffix.lower() == ".pdf" and target.suffix.lower() == ".docx")
+                   or (source.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS and
+                       target.suffix.lower().lstrip(".") in {"docx", "odt", "rtf", "xlsx", "ods", "pptx", "odp"})}
         self._start_worker(Worker(jobs, engines=engines))
 
     def _start_worker(self, worker: Worker):
@@ -739,7 +749,7 @@ class Window(QMainWindow):
             action, values = "strip_metadata", ()
         else:
             action, values = "rotate", (90 if chosen == clockwise else 270,)
-        ext = selected.suffix.lower() if selected.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp"} else ".png"
+        ext = selected.suffix.lower() if selected.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp", ".gif"} else ".png"
         target = numbered_target(self.output_dir, f"{selected.stem}-{action}", ext, {str(path).casefold() for path in self.paths})
         self._start_worker(Worker([(selected, target)], operation=lambda source, output: edit_image(source, output, action, values), rows=[row]))
 

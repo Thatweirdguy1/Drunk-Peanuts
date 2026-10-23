@@ -210,6 +210,36 @@ def convert_legacy(source: Path, target: Path, engine: str = "auto") -> None:
             raise
 
 
+def convert_with_libreoffice(source: Path, target: Path) -> None:
+    source, target = Path(source).resolve(strict=True), Path(target).resolve()
+    if source.suffix.lower().lstrip(".") not in LIBREOFFICE_FORMATS or target.suffix.lower().lstrip(".") not in {"docx", "odt", "rtf", "xlsx", "ods", "pptx", "odp"}:
+        raise ValueError("LibreOffice cannot convert this format pair.")
+    if target.exists() or source == target:
+        raise FileExistsError("Choose a new output path.")
+    if _libreoffice_executable() is None:
+        raise RuntimeError("LibreOffice is not installed.")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="freeconvert-office-") as temporary:
+        workdir = Path(temporary)
+        output = workdir / f"converted{target.suffix}"
+        _libreoffice_convert(source, output, workdir)
+        if not output.is_file() or not output.stat().st_size:
+            raise RuntimeError("LibreOffice did not produce a file.")
+        if target.suffix.lower() in {".docx", ".odt", ".xlsx", ".ods", ".pptx", ".odp"}:
+            with ZipFile(output) as archive:
+                if "mimetype" not in archive.namelist() and "[Content_Types].xml" not in archive.namelist():
+                    raise RuntimeError("LibreOffice did not produce a valid Office package.")
+        created = False
+        try:
+            with target.open("xb") as destination, output.open("rb") as generated:
+                created = True
+                shutil.copyfileobj(generated, destination)
+        except Exception:
+            if created:
+                target.unlink(missing_ok=True)
+            raise
+
+
 def _microsoft_modern(source: Path, output: Path) -> None:
     import pythoncom
     import win32com.client

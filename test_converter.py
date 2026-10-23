@@ -14,6 +14,7 @@ from pypdf import PdfReader
 from docx import Document
 from pptx import Presentation
 from openpyxl import load_workbook
+from reportlab.pdfgen import canvas
 from PySide6.QtCore import QMimeData, QPointF, Qt, QUrl
 from PySide6.QtGui import QDropEvent
 from PySide6.QtWidgets import QApplication
@@ -57,6 +58,17 @@ class ConversionTest(unittest.TestCase):
             visual = root / "visual.docx"
             convert(pdf, visual, "visual")
             self.assertEqual(len(Document(visual).inline_shapes), len(PdfReader(str(pdf)).pages))
+            app = QApplication.instance() or QApplication([])
+            window = Window()
+            window.output_dir = root
+            window._add_files([pdf])
+            window.formats[pdf.resolve()] = "docx"
+            window.engines[pdf.resolve()] = "visual"
+            window._convert()
+            self.assertTrue(window.worker.wait(10000))
+            app.processEvents()
+            self.assertEqual(len(Document(root / "source.docx").inline_shapes), len(PdfReader(str(pdf)).pages))
+            window.close()
 
     def test_animated_image_keeps_frames(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -70,6 +82,11 @@ class ConversionTest(unittest.TestCase):
                 convert(source, output)
                 with Image.open(output) as image:
                     self.assertEqual(image.n_frames, 2)
+            edited = root / "resized.gif"
+            edit_image(source, edited, "resize", (10, 10))
+            with Image.open(edited) as image:
+                self.assertEqual((image.n_frames, image.size), (2, (10, 10)))
+                self.assertEqual([image.seek(i) or image.info["duration"] for i in range(2)], [100, 150])
 
     def test_csv_xlsx_roundtrip(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -173,6 +190,35 @@ class ConversionTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "nontext slide shapes"):
                 convert(pptx, root / "shapes.odp")
 
+    @unittest.skipUnless("libreoffice" in available_engines(Path("sample.docx")), "LibreOffice is not installed")
+    def test_installed_libreoffice_keeps_image_on_cross_format_conversion(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            picture = root / "picture.png"
+            Image.new("RGB", (24, 24), "red").save(picture)
+            document = Document()
+            document.add_paragraph("Image and text")
+            document.add_picture(str(picture))
+            source = root / "rich.docx"
+            document.save(source)
+            target = root / "rich.odt"
+            convert(source, target, "libreoffice")
+            with ZipFile(target) as archive:
+                self.assertTrue(any(name.startswith("Pictures/") for name in archive.namelist()))
+                self.assertIn("Image and text", archive.read("content.xml").decode())
+            app = QApplication.instance() or QApplication([])
+            window = Window()
+            window.output_dir = root
+            window._add_files([source])
+            window.formats[source.resolve()] = "odt"
+            window.engines[source.resolve()] = "libreoffice"
+            with patch("app.convert") as run_conversion:
+                window._convert()
+                self.assertTrue(window.worker.wait(10000))
+            app.processEvents()
+            self.assertEqual(run_conversion.call_args.args[2], "libreoffice")
+            window.close()
+
     def test_zip_compression(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -186,6 +232,15 @@ class ConversionTest(unittest.TestCase):
                 self.assertEqual(opened.read("one.txt"), first.read_bytes())
             with self.assertRaises(FileExistsError):
                 compress([first], archive)
+            other = root / "other"
+            other.mkdir()
+            duplicate = other / "one.txt"
+            duplicate.write_text("different", encoding="utf-8")
+            numbered = root / "numbered.zip"
+            compress([first, duplicate], numbered)
+            with ZipFile(numbered) as opened:
+                self.assertEqual(opened.namelist(), ["one.txt", "one (2).txt"])
+                self.assertEqual(opened.read("one (2).txt"), b"different")
 
     def test_target_size_image(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -197,6 +252,26 @@ class ConversionTest(unittest.TestCase):
             self.assertLessEqual(target.stat().st_size, int(0.02 * 1024 * 1024))
             with Image.open(target) as image:
                 self.assertEqual(image.format, "WEBP")
+            animated = root / "large.gif"
+            frames = [Image.effect_noise((256, 256), seed).convert("RGB") for seed in (90, 110)]
+            frames[0].save(animated, save_all=True, append_images=frames[1:], duration=[100, 150])
+            smaller = root / "animated-smaller.webp"
+            reduce_size(animated, smaller, 0.08)
+            with Image.open(smaller) as image:
+                self.assertEqual(image.n_frames, 2)
+            self.assertLessEqual(smaller.stat().st_size, int(0.08 * 1024 * 1024))
+
+    def test_pdf_size_reduction_keeps_text_when_lossless_fits(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "large.pdf"
+            document = canvas.Canvas(str(source), pageCompression=0)
+            for line in range(100):
+                document.drawString(30, 800 - line * 7, "SELECTABLE TEXT " * 8)
+            document.save()
+            output = root / "small.pdf"
+            reduce_size(source, output, source.stat().st_size * 0.8 / 1024 / 1024)
+            self.assertIn("SELECTABLE TEXT", PdfReader(str(output)).pages[0].extract_text())
 
     def test_batch_runs_two_files_concurrently(self):
         barrier = threading.Barrier(2, timeout=3)
@@ -359,6 +434,16 @@ class ConversionTest(unittest.TestCase):
             convert(image, pdf)
             ocr_to_text(pdf, root / "pages.txt")
             self.assertIn("HELLO", (root / "pages.txt").read_text())
+            mixed = root / "mixed.pdf"
+            document = canvas.Canvas(str(mixed))
+            document.drawString(40, 700, "DIGITAL TEXT")
+            document.showPage()
+            document.drawImage(str(image), 0, 500, width=600, height=160)
+            document.save()
+            ocr_to_text(mixed, root / "mixed.txt")
+            result = (root / "mixed.txt").read_text()
+            self.assertIn("DIGITAL TEXT", result)
+            self.assertIn("HELLO", result)
 
     def test_ocr_multilingual_models(self):
         fixtures = Path(__file__).parent / "test_data"
