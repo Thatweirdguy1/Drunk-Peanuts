@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.20.0"
+VERSION = "0.20.1"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -137,6 +137,8 @@ class DropArea(QFrame):
 
     def _drop_feedback(self,active):
         self._drop_animation.stop()
+        if not active:
+            self._drop_level=0;self.update();return
         self._drop_animation.setStartValue(self._drop_level)
         self._drop_animation.setEndValue(1.0 if active else 0.0)
         self._drop_animation.start()

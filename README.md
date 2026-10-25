@@ -8,7 +8,7 @@
 
 A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with Play.
 
-**Version 0.20.0** brings a Microsoft 365-style ribbon to Pages, Tables, Dazzle, Sketch, Organize and Formulaic. Commands are grouped into tabs with compact icons, quick access, command search and scrolling groups for smaller windows. The converter drop area now has its own expanding hover/drag highlight.
+**Version 0.20.1** brings a Microsoft 365-style ribbon to Pages, Tables, Dazzle, Sketch, Organize and Formulaic. Commands are grouped into tabs with compact icons, quick access, command search and scrolling groups for smaller windows. The converter drop area now has its own expanding hover/drag highlight.
 
 This batch adds document headings/numbering/spacing, find and replace and page setup; native spreadsheet cell formatting and clipboard tools; and independent slide duplication/alignment. It keeps the black/yellow theme and existing conversion, compression, OCR, media and PDF page tools.
 
@@ -24,7 +24,7 @@ Get the app from the [latest release](https://github.com/Thatweirdguy1/FreeConve
 
 | Platform | Download | How to open |
 | --- | --- | --- |
-| **Windows x64 — installer** | [FreeConvert Setup](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/FreeConvert-0.20.0-Setup.exe) | Run Setup, then use **FreeConvert on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
+| **Windows x64 — installer** | [FreeConvert Setup](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/FreeConvert-0.20.1-Setup.exe) | Run Setup, then use **FreeConvert on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
 | Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
 | macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-macOS-Apple-Silicon.zip) | Extract and open `LocalFileConverter.app`. |
 | macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-macOS-Intel.zip) | Extract and open `LocalFileConverter.app`. |

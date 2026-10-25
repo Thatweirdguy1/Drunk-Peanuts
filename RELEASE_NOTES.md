@@ -1,4 +1,4 @@
-## FreeConvert 0.20.0
+## FreeConvert 0.20.1
 
 A Microsoft 365-style tabbed ribbon now organizes the six Office workspaces, with compact icons, quick access, live command search and scrolling groups for narrow windows. The converter drop area has a distinct expanding hover/drag highlight that clears when the pointer leaves.
 
@@ -8,7 +8,7 @@ The README has fresh screenshots. See [batch coverage and remaining work](https:
 
 ### Downloads
 
-- `FreeConvert-0.20.0-Setup.exe`: Windows installer with Desktop/Start menu shortcuts.
+- `FreeConvert-0.20.1-Setup.exe`: Windows installer with Desktop/Start menu shortcuts.
 - `LocalFileConverter-Windows-x64.zip`: portable Windows app; extract the entire folder.
 - `LocalFileConverter-macOS-Apple-Silicon.zip`: Apple Silicon app.
 - `LocalFileConverter-macOS-Intel.zip`: Intel macOS app.

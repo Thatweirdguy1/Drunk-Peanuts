@@ -7,7 +7,7 @@ from zipfile import ZipFile
 from unittest.mock import patch
 from PySide6.QtCore import Qt,QPointF,QEvent,QCoreApplication
 from PySide6.QtGui import QEnterEvent,QTextCursor,QTextCharFormat,QColor
-from PySide6.QtTest import QTest
+from PySide6.QtTest import QTest,QSignalSpy
 from PySide6.QtWidgets import QApplication,QTableWidgetItem
 from docx import Document
 from openpyxl import Workbook,load_workbook
@@ -28,8 +28,8 @@ class RibbonBatchTest(unittest.TestCase):
     def test_drop_hover_resets_and_click_keyboard_choose_once(self):
         from app import DropArea
         drop=DropArea();chosen=[];drop.choose_requested.connect(lambda:chosen.append(True));drop.show()
-        drop.enterEvent(QEnterEvent(QPointF(20,20),QPointF(20,20),QPointF(20,20)));QTest.qWait(220);self.assertGreater(drop._drop_level,.95)
-        drop.leaveEvent(QEvent(QEvent.Leave));QTest.qWait(220);self.assertEqual(drop._drop_level,0)
+        finished=QSignalSpy(drop._drop_animation.finished);drop.enterEvent(QEnterEvent(QPointF(20,20),QPointF(20,20),QPointF(20,20)));self.assertTrue(finished.wait(2000));self.assertGreater(drop._drop_level,.95)
+        drop.leaveEvent(QEvent(QEvent.Leave));self.assertEqual(drop._drop_level,0)
         QTest.mouseClick(drop,Qt.LeftButton);QTest.keyClick(drop,Qt.Key_Space);self.assertEqual(len(chosen),2)
         drop.hide();self.assertEqual(drop._drop_level,0)
 

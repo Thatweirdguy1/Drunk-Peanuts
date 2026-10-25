@@ -1,6 +1,6 @@
 # Office expansion: batches and verification
 
-## 0.20.0 — ribbon and core editing batch
+## 0.20.1 — ribbon and core editing batch
 
 The six Office workspaces (Pages, Tables, Dazzle, Sketch, Organize and Formulaic) now use a native tabbed ribbon. Existing commands remain connected to their original actions, including shortcuts, check states, file pickers and template menus. A quick-access row provides Save/Undo/Redo where available. Command search executes actual commands. Narrow windows scroll the groups horizontally; controls are not stacked over one another. The black/yellow identity remains.
 
@@ -21,7 +21,7 @@ The converter drop area has a separate expanding outline and soft background ani
 - **REA/Ghidra historical observation:** the previous [0.19 investigation](OFFICE_FEATURES_019.md) recorded the LibreOffice launcher inspection. Repeating launcher decompilation would not establish editing behavior.
 - **Installed LibreOffice resources:** Writer's `soffice.cfg/modules/swriter/ui/notebookbar.ui` contains Home font/paragraph commands and Insert/Review command groups. Its existing tabbed interface is a relevant native UI reference.
 - **Native experiment:** generated DOCX/PPTX/XLSX files were reopened and exported through installed Word, PowerPoint and Excel. Word recognized the Heading 1 style; Excel recognized the bold header alongside the native chart and image. Tests additionally reopen native packages and verify layout/style data and independent chart values.
-- **Packaged Windows checks:** Office/VLC self-checks, native conversion and OCR passed. Installed executable SHA-256 matches the staged build; the Desktop shortcut launched 0.20.0. Pointer hover and leave were observed in the installed app.
+- **Packaged Windows checks:** Office/VLC self-checks, native conversion and OCR passed. Installed executable SHA-256 matches the staged build; the Desktop shortcut launched 0.20.1. Pointer hover and leave were observed in the installed app.
 - **Source checks:** 76 tests passed. The five batch checks exercise drop hover reset and activation, ribbon commands/shortcuts/font-widget ownership, DOCX style/layout/find undo, XLSX styles/blank cells/unrelated-sheet preservation, and duplicated PPTX charts/alignment/animation removal.
 - JADX, Apktool and ADB inspect Android artifacts/devices. No Android artifact is involved in this Windows UI work; they were not applied to Office executables.
 

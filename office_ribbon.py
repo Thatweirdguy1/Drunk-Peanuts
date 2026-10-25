@@ -87,7 +87,8 @@ def install_ribbon(window):
             for old,position in positions:grid.removeWidget(old);grid.addWidget(old,position[0]+1,position[1],position[2],position[3])
         for action in list(bar.actions()):
             if not isinstance(action,QWidgetAction):bar.removeAction(action)
-        window.removeToolBar(bar);bar.setParent(frame);bar.setMinimumWidth(0);bar.setStyleSheet('QToolBar {padding:0;border:0;}');grid.addWidget(bar,0,0,1,max(1,grid.columnCount()));bar.show()
+        width=sum(min(widget.maximumWidth(),widget.sizeHint().width()) for source,action,widget in widgets if source is bar)+32
+        window.removeToolBar(bar);bar.setParent(frame);bar.setMinimumWidth(width);bar.setStyleSheet('QToolBar {padding:0;border:0;}');grid.addWidget(bar,0,0,1,max(1,grid.columnCount()));bar.show()
     for title in order+[t for t in pages if t not in order]:
         if title in pages:
             area,row=pages[title];row.addStretch();tabs.addTab(area,title)
