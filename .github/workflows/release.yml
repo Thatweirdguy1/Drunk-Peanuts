@@ -38,16 +38,19 @@ jobs:
         run: brew install --cask vlc
       - name: Package app on Windows
         if: runner.os == 'Windows'
-        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name LocalFileConverter --collect-all imageio_ffmpeg --collect-data rapidocr --add-data "ocr_models;ocr_models" --add-data "C:/Program Files/VideoLAN/VLC/libvlc.dll;vlc_runtime" --add-data "C:/Program Files/VideoLAN/VLC/libvlccore.dll;vlc_runtime" --add-data "C:/Program Files/VideoLAN/VLC/plugins;vlc_runtime/plugins" app.py
+        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name LocalFileConverter --icon assets/app.ico --version-file version_info.txt --add-data "assets;assets" --collect-all imageio_ffmpeg --collect-data rapidocr --add-data "ocr_models;ocr_models" --add-data "C:/Program Files/VideoLAN/VLC/libvlc.dll;vlc_runtime" --add-data "C:/Program Files/VideoLAN/VLC/libvlccore.dll;vlc_runtime" --add-data "C:/Program Files/VideoLAN/VLC/plugins;vlc_runtime/plugins" app.py
       - name: Package app on macOS
         if: runner.os == 'macOS'
-        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name LocalFileConverter --collect-all imageio_ffmpeg --collect-data rapidocr --add-data "ocr_models:ocr_models" --add-binary "/Applications/VLC.app/Contents/MacOS/lib:vlc_runtime/lib" --add-binary "/Applications/VLC.app/Contents/MacOS/plugins:vlc_runtime/plugins" app.py
+        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name LocalFileConverter --add-data "assets:assets" --collect-all imageio_ffmpeg --collect-data rapidocr --add-data "ocr_models:ocr_models" --add-binary "/Applications/VLC.app/Contents/MacOS/lib:vlc_runtime/lib" --add-binary "/Applications/VLC.app/Contents/MacOS/plugins:vlc_runtime/plugins" app.py
       - name: Use Windows ICU for Qt
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           # PyInstaller may pick up an incompatible icuuc.dll from another app on PATH.
           Remove-Item -LiteralPath dist/LocalFileConverter/_internal/icuuc.dll -ErrorAction SilentlyContinue
+      - name: Rebuild bundled VLC plugin cache
+        if: runner.os == 'Windows'
+        run: python prepare_vlc_runtime.py dist/LocalFileConverter
       - name: Verify packaged OCR on Windows
         if: runner.os == 'Windows'
         run: python verify_release_ocr.py dist/LocalFileConverter/LocalFileConverter.exe
@@ -88,6 +91,15 @@ jobs:
           cp LICENSE THIRD_PARTY_NOTICES.md dist/LocalFileConverter.app/Contents/Resources/
           cp -R THIRD_PARTY_LICENSES dist/LocalFileConverter.app/Contents/Resources/
           cp THIRD_PARTY_LICENSES/VLC-GPL-2.0.txt dist/LocalFileConverter.app/Contents/Resources/VLC-COPYING.txt
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $compiler = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe", "$env:ProgramFiles\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $compiler) { throw 'Inno Setup compiler is missing from the Windows runner.' }
+          & $compiler.FullName /DPackageDir=dist\LocalFileConverter installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item dist/FreeConvert-*-Setup.exe -Destination .
       - name: Archive Windows app
         if: runner.os == 'Windows'
         shell: pwsh
@@ -95,16 +107,28 @@ jobs:
       - name: Archive macOS app
         if: runner.os == 'macOS'
         run: ditto -c -k --sequesterRsrc --keepParent dist/LocalFileConverter.app "LocalFileConverter-${{ matrix.name }}.zip"
+      - name: Checksum Windows downloads
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Get-FileHash "LocalFileConverter-${{ matrix.name }}.zip", FreeConvert-*-Setup.exe | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content "SHA256SUMS-${{ matrix.name }}.txt" -Encoding ascii
+      - name: Checksum macOS download
+        if: runner.os == 'macOS'
+        run: shasum -a 256 "LocalFileConverter-${{ matrix.name }}.zip" > "SHA256SUMS-${{ matrix.name }}.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
-          path: LocalFileConverter-${{ matrix.name }}.zip
+          path: |
+            LocalFileConverter-${{ matrix.name }}.zip
+            FreeConvert-*-Setup.exe
+            SHA256SUMS-${{ matrix.name }}.txt
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           pattern: '*'
@@ -112,4 +136,6 @@ jobs:
       - name: Publish downloads
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" ./*.zip --repo "${GITHUB_REPOSITORY}" --title "FreeConvert ${GITHUB_REF_NAME}" --verify-tag --notes "Adds optional LibreOffice cross-format conversion for richer Office files, frame-preserving animated image editing and size reduction, numbered ZIP entries for duplicate filenames, lossless-first PDF size reduction, and text-aware OCR for mixed PDFs. Fixes the visual PDF-to-DOCX choice in the desktop UI. Exact proprietary layout, full Office editing, and perfect OCR remain unavailable; see README." --generate-notes
+        run: |
+          cat SHA256SUMS-*.txt > SHA256SUMS.txt
+          gh release create "${GITHUB_REF_NAME}" ./*.zip ./*.exe SHA256SUMS.txt --repo "${GITHUB_REPOSITORY}" --title "FreeConvert ${GITHUB_REF_NAME}" --verify-tag --notes-file RELEASE_NOTES.md --draft

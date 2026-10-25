@@ -8,10 +8,11 @@ from html import escape
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZIP_STORED, BadZipFile, ZipFile
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer, QSize
 from PySide6.QtGui import QColor, QImage, QPainter, QTextDocument
 from PySide6.QtPrintSupport import QPrinter
-from PySide6.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton, QTextBrowser, QTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton, QTextBrowser, QTextEdit, QVBoxLayout, QWidget, QToolBar, QSplitter
+from ui import action as icon_action, editor_theme, refresh_icons
 
 
 MATH = "http://www.w3.org/1998/Math/MathML"
@@ -216,33 +217,41 @@ class Formulaic(QMainWindow):
         self.path = None
         area = QWidget()
         layout = QVBoxLayout(area)
-        toolbar = QHBoxLayout()
+        toolbar = QToolBar("Formula", self)
+        toolbar.setMovable(False)
+        toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        toolbar.setIconSize(QSize(18, 18))
+        self.addToolBar(toolbar)
+        file_menu = self.menuBar().addMenu("File")
         for title, callback in (("New", self.new), ("Open", self.open), ("Save", self.save), ("Save as", self.save_as), ("PDF", lambda: self.export("pdf")), ("PNG", lambda: self.export("png"))):
-            control = QPushButton(title)
-            control.clicked.connect(callback)
-            toolbar.addWidget(control)
-        layout.addLayout(toolbar)
-        layout.addWidget(QLabel("Formula source · use {a} over {b}, sqrt {x}, x^2, x_1, and Greek names such as alpha"))
+            file_menu.addAction(icon_action(toolbar, title, callback))
+        hint = QLabel("Formula source · {a} over {b} · sqrt {x} · x^2 · x_1 · alpha")
+        hint.setObjectName("sectionLabel")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        split = QSplitter()
         self.source = QTextEdit()
+        self.source.setObjectName("formulaSource")
         self.source.setPlaceholderText("{a+b} over {c+d}")
-        layout.addWidget(self.source)
-        layout.addWidget(QLabel("Preview"))
+        self.source.setFontFamily("Consolas")
+        split.addWidget(self.source)
         self.preview = QTextBrowser()
-        layout.addWidget(self.preview)
+        self.preview.setObjectName("mathPreview")
+        split.addWidget(self.preview)
+        layout.addWidget(split, 1)
         self.setCentralWidget(area)
-        self.source.textChanged.connect(self.refresh)
+        self.preview_timer = QTimer(self)
+        self.preview_timer.setSingleShot(True)
+        self.preview_timer.setInterval(200)
+        self.preview_timer.timeout.connect(self.refresh)
+        self.source.textChanged.connect(lambda: self.preview_timer.start())
         self._theme()
         QApplication.instance().styleHints().colorSchemeChanged.connect(self._theme)
         self.refresh()
 
     def _theme(self, *_):
-        dark = QApplication.instance().styleHints().colorScheme() == Qt.ColorScheme.Dark
-        bg, ink, card, border = (("#0b1520", "#edf5f6", "#17232e", "#304551") if dark else
-                                 ("#f6f9fb", "#14283d", "#ffffff", "#d8e4e9"))
-        self.setStyleSheet(f"QMainWindow,QWidget{{background:{bg};color:{ink};font-family:'Segoe UI','SF Pro Text';font-size:14px}}"
-                           f"QTextEdit,QTextBrowser{{background:{card};color:{ink};border:1px solid {border};border-radius:8px;padding:8px}}"
-                           f"QPushButton{{background:{card};color:{ink};border:1px solid {border};border-radius:7px;padding:7px}}"
-                           "QPushButton:hover,QPushButton:focus{border:2px solid #087e75}")
+        self.setStyleSheet(editor_theme())
+        refresh_icons(self)
 
     def refresh(self):
         try:
@@ -267,8 +276,8 @@ class Formulaic(QMainWindow):
     def closeEvent(self, event):
         event.accept() if self._can_discard() else event.ignore()
 
-    def open(self):
-        name, _ = QFileDialog.getOpenFileName(self, "Open formula", "", "Formulas (*.formulaic *.mml *.odf)")
+    def open(self, path=None):
+        name = str(path) if path else QFileDialog.getOpenFileName(self, "Open formula", "", "Formulas (*.formulaic *.mml *.odf)")[0]
         if name and self._can_discard():
             path = Path(name)
             try:

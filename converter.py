@@ -12,6 +12,8 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
+from contextlib import contextmanager
 import xml.etree.ElementTree as ET
 from zipfile import ZIP_DEFLATED, ZipFile
 from pathlib import Path
@@ -22,9 +24,6 @@ from office_pdf import (LEGACY_FORMATS, LIBREOFFICE_FORMATS, MODERN_FOR_LEGACY,
                         available_engines, convert_legacy, convert_with_libreoffice, export_pdf, resolve_engine)
 import pillow_heif
 import pypdfium2 as pdfium
-import rawpy
-import rapidocr
-from rapidocr import ModelType, OCRVersion, RapidOCR
 from docx import Document
 from openpyxl import Workbook, load_workbook
 from PIL import Image, ImageOps, ImageSequence, UnidentifiedImageError
@@ -45,6 +44,14 @@ AUDIO = {"mp3", "wav", "aiff", "m4a", "aac", "flac", "ogg"}
 OFFICE = ((DOCUMENTS | PRESENTATIONS | SPREADSHEETS) - {"txt", "csv"}) | LEGACY_FORMATS
 FFMPEG_VIDEO = {"mp4", "mov", "avi", "mpeg", "mkv", "webm", "gif", "mp3", "wav", "m4a", "aac", "flac", "ogg"}
 FFMPEG_AUDIO = {"mp3", "wav", "aiff", "m4a", "aac", "flac", "ogg"}
+_pdfium_lock = threading.RLock()
+
+
+@contextmanager
+def pdfium_guard():
+    # ponytail: PDFium is process-global; use separate processes for parallel PDF rendering.
+    with _pdfium_lock:
+        yield
 
 
 def kind(path: Path) -> str:
@@ -57,6 +64,8 @@ def kind(path: Path) -> str:
         return "Video"
     if suffix in AUDIO:
         return "Audio"
+    if suffix in SPREADSHEETS:
+        return "Spreadsheet"
     if suffix in OFFICE:
         return "Document"
     if suffix == "csv":
@@ -121,6 +130,7 @@ def _image(path: Path) -> Image.Image:
         picture.save(buffer, "PNG")
         return Image.open(io.BytesIO(bytes(buffer.data())))
     if ext in {"cr2", "nef", "arw"}:
+        import rawpy
         with rawpy.imread(str(path)) as raw:
             return Image.fromarray(raw.postprocess(use_camera_wb=True))
     return Image.open(path)
@@ -151,6 +161,7 @@ def _save_image(source: Path, target: Path, fmt: str) -> None:
             frame.save(target, {"jpg": "JPEG", "tiff": "TIFF"}.get(fmt, fmt.upper()))
 
 
+@pdfium_guard()
 def _pdf_to_image(source: Path, target: Path, fmt: str) -> None:
     pdf = pdfium.PdfDocument(str(source))
     try:
@@ -213,6 +224,7 @@ def _pdf_text(source: Path) -> str:
     return "\n\n".join(page.extract_text() or "" for page in PdfReader(str(source)).pages)
 
 
+@pdfium_guard()
 def _pdf_to_docx_visual(source: Path, target: Path) -> None:
     from docx.enum.section import WD_SECTION_START
     from docx.shared import Pt
@@ -592,7 +604,10 @@ OCR_LANGUAGES = {
 }
 
 
+@pdfium_guard()
 def ocr_to_text(source: Path, target: Path, language: str = "multilingual") -> None:
+    import rapidocr
+    from rapidocr import ModelType, OCRVersion, RapidOCR
     source, target = Path(source).resolve(strict=True), Path(target).resolve()
     if kind(source) not in {"Image", "PDF"}:
         raise ValueError("OCR supports images and PDFs.")
@@ -652,6 +667,7 @@ def _ocr_lines(lines: tuple[str, ...], language: str) -> tuple[str, ...]:
     return lines
 
 
+@pdfium_guard()
 def reduce_size(source: Path, target: Path, target_mb: float) -> None:
     """Try to meet a per-file upload limit without truncating media."""
     source, target = Path(source).resolve(strict=True), Path(target).resolve()

@@ -8,15 +8,16 @@ import time
 from collections import Counter
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtCore import QSettings, Qt, QTimer, QSize
 from PySide6.QtGui import QAction, QColor, QFont, QKeySequence, QSyntaxHighlighter, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout, QInputDialog, QLabel,
     QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit,
-    QPushButton, QSplitter, QTextBrowser, QVBoxLayout, QWidget,
+    QPushButton, QSplitter, QTextBrowser, QVBoxLayout, QWidget, QToolBar,
 )
 
 from screenplay import SCENE, TITLE_KEYS, export_script, from_fdx, merge_fdx, parse_fountain, to_html
+from ui import action as icon_action, icon_button, editor_theme, refresh_icons
 
 
 class FountainHighlighter(QSyntaxHighlighter):
@@ -72,6 +73,7 @@ class ScreenwriterWindow(QMainWindow):
         self.autosave.parent.mkdir(parents=True, exist_ok=True)
         self.deadline = 0.0
         self._building = False
+        self._autosave_ok = False
         self._build()
         self._theme()
         QApplication.instance().styleHints().colorSchemeChanged.connect(self._theme)
@@ -101,37 +103,34 @@ class ScreenwriterWindow(QMainWindow):
         self._refresh()
 
     def _theme(self, *_):
-        dark = QApplication.instance().styleHints().colorScheme() == Qt.ColorScheme.Dark
-        bg, card, ink, muted, border = (("#0b1520", "#17232e", "#edf5f6", "#a6bac3", "#304551") if dark else
-                                        ("#f6f9fb", "#ffffff", "#14283d", "#58717e", "#d8e4e9"))
-        self.setStyleSheet(f"""
-            QMainWindow, QWidget {{ background: {bg}; color: {ink}; font-family: 'Segoe UI', 'SF Pro Text'; font-size: 14px; }}
-            QPlainTextEdit, QTextBrowser, QListWidget {{ background: {card}; color: {ink}; border: 1px solid {border}; border-radius: 9px; padding: 8px; }}
-            QPushButton, QComboBox {{ background: {card}; color: {ink}; border: 1px solid {border}; border-radius: 8px; padding: 7px; }}
-            QPushButton:hover, QComboBox:hover {{ border-color: #087e75; }}
-            QPushButton:focus, QComboBox:focus, QPlainTextEdit:focus {{ border: 2px solid #087e75; }}
-            QComboBox QAbstractItemView {{ background: {card}; color: {ink}; selection-background-color: #087e75; }}
-            QLabel {{ color: {muted}; }}
-        """)
+        self.setStyleSheet(editor_theme())
+        refresh_icons(self)
 
     def _build(self):
         root = QWidget()
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
-        toolbar = QHBoxLayout()
+        toolbar = QToolBar("Writing", self)
+        toolbar.setMovable(False)
+        toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        toolbar.setIconSize(QSize(18, 18))
+        self.addToolBar(toolbar)
         for label, callback in (("New", self._new), ("Open", self._open), ("Save", self._save),
                                 ("Export", self._export), ("Title page", self._title_page),
                                 ("Find", self._find), ("Beat map", self._beat_map)):
-            button = QPushButton(label)
-            button.clicked.connect(callback)
-            toolbar.addWidget(button)
-        toolbar.addStretch()
+            item = icon_action(toolbar, label, callback)
+            item.setShortcut(QKeySequence())  # Existing writing shortcuts below own these keys.
         self.forward = QPushButton("Forward writing")
+        icon_button(self.forward, "Forward writing", "timer")
         self.forward.clicked.connect(self._forward_menu)
         toolbar.addWidget(self.forward)
-        layout.addLayout(toolbar)
 
-        second = QHBoxLayout()
+        self.addToolBarBreak()
+        second = QToolBar("Formatting", self)
+        second.setMovable(False)
+        second.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        second.setIconSize(QSize(18, 18))
+        self.addToolBar(second)
         second.addWidget(QLabel("Element"))
         self.element = QComboBox()
         self.element.addItems(["Scene Heading", "Action", "Character", "Dialogue", "Parenthetical", "Transition", "Shot", "General Text"])
@@ -139,12 +138,10 @@ class ScreenwriterWindow(QMainWindow):
         second.addWidget(self.element)
         for label, marker in (("B", "**"), ("I", "*"), ("U", "_")):
             button = QPushButton(label)
-            button.setFixedWidth(40)
+            icon_button(button, {"B": "Bold", "I": "Italic", "U": "Underline"}[label], {"B": "bold", "I": "italic", "U": "underline"}[label])
             button.clicked.connect(lambda _=False, value=marker: self._emphasize(value))
             second.addWidget(button)
-        second.addStretch()
-        second.addWidget(QLabel("Tab: cycle elements · Ctrl+1–8: choose · Ctrl+D: dual speech"))
-        layout.addLayout(second)
+        self.element.setToolTip("Tab: cycle elements · Ctrl+1–8: choose · Ctrl+D: dual speech")
 
         splitter = QSplitter(Qt.Horizontal)
         self.scenes = QListWidget()
@@ -165,6 +162,7 @@ class ScreenwriterWindow(QMainWindow):
         splitter.setSizes([210, 540, 570])
         layout.addWidget(splitter, 1)
         self.status = QLabel("Local draft")
+        self.status.setWordWrap(True)
         layout.addWidget(self.status)
 
         for key, callback in (("Ctrl+N", self._new), ("Ctrl+O", self._open), ("Ctrl+S", self._save),
@@ -214,10 +212,10 @@ class ScreenwriterWindow(QMainWindow):
             return self._save()
         return True
 
-    def _open(self):
+    def _open(self, path=None):
         if self.editor.document().isModified() and not self._ask_save():
             return
-        filename, _ = QFileDialog.getOpenFileName(self, "Open script", "", "Scripts (*.fountain *.fdx *.txt *.md);;All files (*)")
+        filename = str(path) if path else QFileDialog.getOpenFileName(self, "Open script", "", "Scripts (*.fountain *.fdx *.txt *.md);;All files (*)")[0]
         if not filename:
             return
         try:
@@ -430,11 +428,12 @@ class ScreenwriterWindow(QMainWindow):
             self.editor.forward_only = False
             self.editor.setUndoRedoEnabled(True)
             self.settings.remove("forward_deadline")
-            self.forward.setText("Forward writing")
+            self.forward.setToolTip("Forward writing")
         else:
-            self.forward.setText(f"Forward: {remaining // 60:02}:{remaining % 60:02}")
+            self.forward.setToolTip(f"Forward writing: {remaining // 60:02}:{remaining % 60:02} remaining")
 
     def _changed(self):
+        self._autosave_ok = False
         if self.editor.forward_only and not self.editor.toPlainText().startswith(self.editor.locked_prefix):
             self.editor.blockSignals(True)
             self.editor.setPlainText(self.editor.locked_prefix)
@@ -448,6 +447,8 @@ class ScreenwriterWindow(QMainWindow):
     def _autosave(self):
         try:
             self._atomic_write(self.autosave, self.editor.toPlainText())
+            self._autosave_ok = True
+            self.status.setText(self.status.text().replace("autosave pending", "autosaved locally"))
         except OSError:
             self.status.setText("Autosave failed; use Save to keep this draft.")
 
@@ -459,17 +460,22 @@ class ScreenwriterWindow(QMainWindow):
 
     def _refresh(self):
         text = self.editor.toPlainText()
-        _, elements = parse_fountain(text)
+        # ponytail: bound live preview work; exports always use the complete draft.
+        preview_text = text[:150000]
+        _, elements = parse_fountain(preview_text)
         self.scenes.clear()
         for element in elements:
             if element.kind == "scene":
                 item = QListWidgetItem(element.text)
                 item.setData(Qt.UserRole, element.line)
                 self.scenes.addItem(item)
-        self.preview.setHtml(to_html(text))
+        scroll = self.preview.verticalScrollBar().value()
+        self.preview.setHtml(to_html(preview_text))
+        self.preview.verticalScrollBar().setValue(scroll)
         words = len(re.findall(r"\b\w+\b", text))
         pages = max(1, (sum(max(1, len(element.text) // 65 + 1) for element in elements) + 54) // 55)
-        self.status.setText(f"{self.path or 'Unsaved local draft'} · {self.scenes.count()} scenes · ~{pages} pages · {words} words · autosaved locally")
+        note = " · preview and scene list limited to first 150,000 characters; export includes full draft" if len(text) > len(preview_text) else ""
+        self.status.setText(f"{self.path or 'Unsaved local draft'} · {self.scenes.count()} scenes · ~{pages} preview pages · {words} words · {'autosaved locally' if self._autosave_ok else 'autosave pending'}{note}")
 
     def _jump(self, item: QListWidgetItem):
         line = item.data(Qt.UserRole)
@@ -483,6 +489,14 @@ class ScreenwriterWindow(QMainWindow):
         if self.editor.document().isModified() and not self._ask_save():
             event.ignore()
         else:
+            self.refresh.stop()
+            self.clock.stop()
             self.autosave_timer.stop()
             self.autosave.unlink(missing_ok=True)
             event.accept()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if hasattr(self, "clock"):
+            self.clock.start(1000)
+            self.refresh.start()

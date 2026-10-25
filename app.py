@@ -11,21 +11,21 @@ from typing import Callable
 import pypdfium2 as pdfium
 from PIL import Image
 from pypdf import PdfReader
-from PySide6.QtCore import QPoint, QSettings, Qt, QThread, Signal
-from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPixmap
+from PySide6.QtCore import QPoint, QSettings, Qt, QThread, Signal, QTimer, QSize
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPixmap, QAction
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QComboBox, QFileDialog, QFrame,
     QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow,
     QDoubleSpinBox, QInputDialog, QMenu, QMessageBox, QProgressBar, QPushButton, QSizePolicy,
-    QSplitter, QVBoxLayout, QWidget,
+    QSplitter, QVBoxLayout, QWidget, QScrollArea, QLayout, QToolBar, QTabBar,
 )
 
 from converter import (available_formats, compress, convert, edit_image, extract_zip, kind, ocr_to_text,
                        pdf_merge, pdf_reorder, pdf_rotate, pdf_split, reduce_size, reduced_extension,
-                       trim_media, zip_entries)
+                       trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.14.1"
+VERSION = "0.16.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -44,12 +44,14 @@ def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pa
 
 def preferred_format(path: Path) -> str:
     choices = available_formats(path)
-    preferred = {"Image": "webp", "PDF": "png", "Video": "mp4", "Audio": "mp3",
-                 "Document": "pdf", "Spreadsheet": "xlsx", "Text": "pdf"}.get(kind(path))
-    return preferred if preferred in choices else choices[0]
+    preferences = {"Image": ("webp", "png"), "PDF": ("png",), "Video": ("mp4", "mkv"),
+                   "Audio": ("mp3", "wav"), "Document": ("pdf",), "Spreadsheet": ("xlsx", "csv"),
+                   "Text": ("pdf",)}.get(kind(path), ())
+    return next((fmt for fmt in preferences if fmt in choices), choices[0] if choices else "")
 
 
-def image_preview(path: Path) -> QPixmap | None:
+@pdfium_guard()
+def image_preview(path: Path) -> QImage | None:
     try:
         if path.suffix.lower() == ".pdf":
             pdf = pdfium.PdfDocument(str(path))
@@ -57,21 +59,40 @@ def image_preview(path: Path) -> QPixmap | None:
                 if not len(pdf):
                     return None
                 page = pdf[0]
-                picture = page.render(scale=1.4).to_pil()
-                page.close()
+                try:
+                    scale = min(540 / page.get_width(), 420 / page.get_height(), 1.4)
+                    bitmap = page.render(scale=scale)
+                    try:
+                        picture = bitmap.to_pil().copy()
+                    finally:
+                        bitmap.close()
+                finally:
+                    page.close()
             finally:
                 pdf.close()
         elif kind(path) == "Image" and path.suffix.lower() not in {".svg", ".cr2", ".nef", ".arw"}:
             with Image.open(path) as source:
+                source.thumbnail((540, 420))
                 picture = source.copy()
         else:
             return None
         picture.thumbnail((540, 420))
         picture = picture.convert("RGBA")
         data = picture.tobytes("raw", "RGBA")
-        return QPixmap.fromImage(QImage(data, picture.width, picture.height, QImage.Format_RGBA8888).copy())
+        return QImage(data, picture.width, picture.height, QImage.Format_RGBA8888).copy()
     except Exception:
         return None
+
+
+class PreviewWorker(QThread):
+    ready = Signal(object, object)
+
+    def __init__(self, path, parent):
+        super().__init__(parent)
+        self.path = path
+
+    def run(self):
+        self.ready.emit(self.path, image_preview(self.path))
 
 
 class DropArea(QFrame):
@@ -82,9 +103,10 @@ class DropArea(QFrame):
         super().__init__()
         self.setObjectName("dropArea")
         self.setAcceptDrops(True)
-        layout = QVBoxLayout(self)
+        layout = QHBoxLayout(self)
         layout.setAlignment(Qt.AlignCenter)
-        layout.setSpacing(7)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
         mark = QLabel("+")
         mark.setObjectName("dropMark")
         mark.setAlignment(Qt.AlignCenter)
@@ -95,8 +117,10 @@ class DropArea(QFrame):
         detail.setObjectName("muted")
         detail.setAlignment(Qt.AlignCenter)
         layout.addWidget(mark)
-        layout.addWidget(title)
-        layout.addWidget(detail)
+        text = QVBoxLayout()
+        text.addWidget(title)
+        text.addWidget(detail)
+        layout.addLayout(text)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls() and any(url.isLocalFile() for url in event.mimeData().urls()):
@@ -173,34 +197,55 @@ class Window(QMainWindow):
         super().__init__()
         self.setWindowTitle(f"FreeConvert {VERSION}")
         self.resize(1080, 830)
-        self.setMinimumSize(780, 700)
+        self.setMinimumSize(760, 540)
+        self.preview_worker = None
+        self.preview_pending = None
         self.paths: list[Path] = []
         self.formats: dict[Path, str] = {}
         self.engines: dict[Path, str] = {}
         self.worker: Worker | None = None
         self.screenwriter = None
         self.watchit = None
+        self.watchit_loader = None
+        self.pending_media = []
         self.workspaces = {}
         self.last_error = ""
         self.settings = QSettings("Local File Converter", "Local File Converter")
         self.output_dir = Path(self.settings.value("output_dir", str(Path.home() / "Downloads")))
         self._build()
         self._theme()
+        self._refresh_formats()
         QApplication.instance().styleHints().colorSchemeChanged.connect(self._theme)
 
     def _build(self):
         root = QWidget()
-        self.setCentralWidget(root)
+        shell = QWidget()
+        shell_layout = QVBoxLayout(shell)
+        shell_layout.setContentsMargins(12, 8, 12, 8)
+        shell_layout.setSpacing(8)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setWidget(root)
+        self.scroll.setMinimumHeight(120)
+        shell_layout.addWidget(self.scroll, 1)
+        self.setCentralWidget(shell)
         page = QVBoxLayout(root)
-        page.setContentsMargins(34, 22, 34, 22)
-        page.setSpacing(14)
+        page.setSizeConstraint(QLayout.SetMinimumSize)
+        page.setContentsMargins(12, 8, 12, 8)
+        page.setSpacing(12)
 
-        header = QHBoxLayout()
+        header_panel = QWidget()
+        header_panel.setObjectName("brandBar")
+        header = QHBoxLayout(header_panel)
+        header.setContentsMargins(10, 3, 10, 3)
         brand = QVBoxLayout()
         eyebrow = QLabel("LOCAL  /  PRIVATE  /  FREE")
         eyebrow.setObjectName("eyebrow")
-        title = QLabel("FreeConvert")
+        title = QLabel()
         title.setObjectName("title")
+        title.setPixmap(QPixmap(str(Path(__file__).resolve().parent / 'assets' / 'logo.png')).scaledToHeight(48, Qt.SmoothTransformation))
+        title.setAccessibleName("FreeConvert.")
         brand.addWidget(eyebrow)
         brand.addWidget(title)
         header.addLayout(brand)
@@ -209,34 +254,41 @@ class Window(QMainWindow):
         self.add_button.setObjectName("primaryButton")
         self.add_button.clicked.connect(self._choose_files)
         header.addWidget(self.add_button)
-        page.addLayout(header)
+        page.addWidget(header_panel)
 
         subtitle = QLabel("Convert files and create documents, tables, slides, formulas, drawings, databases, and scripts on your computer.")
         subtitle.setObjectName("muted")
+        subtitle.setWordWrap(True)
+        self.subtitle = subtitle
         page.addWidget(subtitle)
 
-        spaces = QFrame()
+        spaces = QToolBar("Workspaces", self)
+        spaces.setMovable(False)
+        spaces.setToolButtonStyle(Qt.ToolButtonTextOnly)
         spaces.setObjectName("workspaces")
-        spaces_layout = QHBoxLayout(spaces)
-        spaces_layout.setContentsMargins(8, 8, 8, 8)
-        spaces_layout.setSpacing(5)
         for name in ("Pages", "Tables", "Dazzle", "Sketch", "Organize", "Formulaic"):
-            control = QPushButton(name)
-            control.setObjectName("workspaceButton")
-            control.clicked.connect(lambda checked=False, workspace=name: self._open_workspace(workspace))
-            spaces_layout.addWidget(control)
-        drafts = QPushButton("Writer's Drafts")
-        drafts.setObjectName("workspaceButton")
-        drafts.clicked.connect(self._screenwriter)
-        spaces_layout.addWidget(drafts)
-        watch = QPushButton("WatchIT")
-        watch.setObjectName("workspaceButton")
-        watch.clicked.connect(self._watchit)
-        spaces_layout.addWidget(watch)
-        page.addWidget(spaces)
+            spaces.addAction(name, lambda checked=False, workspace=name: self._open_workspace(workspace))
+        spaces.addAction("Writer's Drafts", self._screenwriter)
+        spaces.addAction("WatchIT", self._watchit)
+        self.addToolBar(spaces)
+        file_menu = self.menuBar().addMenu("File")
+        file_menu.addAction("Add files…", self._choose_files)
+        file_menu.addAction("Output folder…", self._choose_directory)
+        file_menu.addSeparator()
+        file_menu.addAction("Exit", self.close)
+        tools_menu = self.menuBar().addMenu("Tools")
+        for index, name in enumerate(("Convert files", "Reduce file size", "Create ZIP", "Extract ZIP")):
+            tools_menu.addAction(name, lambda checked=False, i=index: self.task_tabs.setCurrentIndex(i))
+        from office_templates import TEMPLATES
+        templates = self.menuBar().addMenu("Templates")
+        for workspace, names in TEMPLATES.items():
+            menu = templates.addMenu(workspace)
+            for name in names:
+                menu.addAction(Path(name).stem, lambda checked=False, w=workspace, n=name: self._choose_template(w, n))
 
         self.drop = DropArea()
-        self.drop.setFixedHeight(115)
+        self.drop.setMinimumHeight(72)
+        self.drop.setMaximumHeight(90)
         self.drop.files_dropped.connect(self._add_files)
         self.drop.quick_files_dropped.connect(self._quick_drop)
         self.drop.mousePressEvent = lambda event: self._choose_files()
@@ -254,6 +306,11 @@ class Window(QMainWindow):
         clear_button.setObjectName("textButton")
         clear_button.clicked.connect(self._clear)
         section.addWidget(clear_button)
+        self.clear_button = clear_button
+        self.remove_button = QPushButton("Remove selected")
+        self.remove_button.setObjectName("textButton")
+        self.remove_button.clicked.connect(self._remove_selected)
+        section.addWidget(self.remove_button)
         page.addLayout(section)
 
         splitter = QSplitter(Qt.Horizontal)
@@ -284,39 +341,54 @@ class Window(QMainWindow):
         preview_layout.addWidget(self.details)
         splitter.addWidget(preview)
         splitter.setSizes([620, 360])
-        splitter.setMinimumHeight(260)
+        splitter.setMinimumHeight(190)
         page.addWidget(splitter, 1)
 
         controls = QFrame()
         controls.setObjectName("controls")
         controls_layout = QVBoxLayout(controls)
-        controls_layout.setContentsMargins(20, 18, 20, 18)
-        controls_layout.setSpacing(12)
+        controls_layout.setContentsMargins(16, 12, 16, 12)
+        controls_layout.setSpacing(8)
+        self.task_tabs = QTabBar()
+        self.task_tabs.setExpanding(False)
+        for name in ("Convert", "Reduce size", "Create ZIP", "Extract ZIP"):
+            self.task_tabs.addTab(name)
+        controls_layout.addWidget(self.task_tabs)
         controls_top = QHBoxLayout()
         format_label = QLabel("Convert to")
+        self.format_label = format_label
         format_label.setObjectName("fieldLabel")
         controls_top.addWidget(format_label)
         self.format = QComboBox()
         self.format.setMinimumWidth(140)
         self.format.currentTextChanged.connect(self._set_format)
         controls_top.addWidget(self.format)
-        controls_top.addSpacing(15)
+        controls_top.addStretch()
+        controls_layout.addLayout(controls_top)
+        destination_row = QHBoxLayout()
         destination_label = QLabel("Save in")
         destination_label.setObjectName("fieldLabel")
-        controls_top.addWidget(destination_label)
+        destination_row.addWidget(destination_label)
         self.destination = QPushButton(str(self.output_dir))
         self.destination.setObjectName("directoryButton")
+        self.destination.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        self.destination.setToolTip(str(self.output_dir))
         self.destination.clicked.connect(self._choose_directory)
-        controls_top.addWidget(self.destination, 1)
+        destination_row.addWidget(self.destination, 1)
         self.convert_button = QPushButton("Convert files")
         self.convert_button.setObjectName("primaryButton")
         self.convert_button.clicked.connect(self._convert)
+        quick_convert = QAction("Convert queued files", self)
+        quick_convert.setShortcut("Shift+Return")
+        quick_convert.triggered.connect(self.convert_button.click)
+        self.addAction(quick_convert)
+        self.convert_button.setToolTip("Convert queued files (Shift+Enter). Shift-drop files for the quick-format menu.")
         controls_top.addWidget(self.convert_button)
         self.compress_button = QPushButton("Compress to ZIP")
         self.compress_button.setObjectName("secondaryButton")
         self.compress_button.clicked.connect(self._compress)
         controls_top.addWidget(self.compress_button)
-        controls_layout.addLayout(controls_top)
+        controls_layout.addLayout(destination_row)
         self.pdf_engine_panel = QWidget()
         engine_row = QHBoxLayout(self.pdf_engine_panel)
         engine_row.setContentsMargins(0, 0, 0, 0)
@@ -332,8 +404,10 @@ class Window(QMainWindow):
         engine_row.addStretch()
         controls_layout.addWidget(self.pdf_engine_panel)
         self.pdf_engine_panel.hide()
-        reduce_row = QHBoxLayout()
-        reduce_label = QLabel("Upload limit per file")
+        self.reduce_panel = QWidget()
+        reduce_row = QHBoxLayout(self.reduce_panel)
+        reduce_row.setContentsMargins(0, 0, 0, 0)
+        reduce_label = QLabel("Target size per file")
         reduce_label.setObjectName("fieldLabel")
         reduce_row.addWidget(reduce_label)
         self.target_size = QDoubleSpinBox()
@@ -349,30 +423,31 @@ class Window(QMainWindow):
         self.reduce_button.setObjectName("secondaryButton")
         self.reduce_button.clicked.connect(self._reduce)
         reduce_row.addWidget(self.reduce_button)
-        controls_layout.addLayout(reduce_row)
+        controls_layout.addWidget(self.reduce_panel)
         tools_row = QHBoxLayout()
         self.pdf_button = QPushButton("PDF tools")
-        self.pdf_button.setObjectName("secondaryButton")
+        self.pdf_button.setObjectName("textButton")
         self.pdf_button.clicked.connect(self._pdf_tools)
         tools_row.addWidget(self.pdf_button)
         self.image_button = QPushButton("Image tools")
-        self.image_button.setObjectName("secondaryButton")
+        self.image_button.setObjectName("textButton")
         self.image_button.clicked.connect(self._image_tools)
         tools_row.addWidget(self.image_button)
         self.media_button = QPushButton("Media trim")
-        self.media_button.setObjectName("secondaryButton")
+        self.media_button.setObjectName("textButton")
         self.media_button.clicked.connect(self._media_tools)
         tools_row.addWidget(self.media_button)
         self.zip_button = QPushButton("Open ZIP")
         self.zip_button.setObjectName("secondaryButton")
         self.zip_button.clicked.connect(self._zip_tools)
-        tools_row.addWidget(self.zip_button)
+        controls_top.addWidget(self.zip_button)
         self.ocr_button = QPushButton("OCR to text")
-        self.ocr_button.setObjectName("secondaryButton")
+        self.ocr_button.setObjectName("textButton")
         self.ocr_button.clicked.connect(self._ocr_tools)
         tools_row.addWidget(self.ocr_button)
-        tools_row.addStretch()
         controls_layout.addLayout(tools_row)
+        self.task_tabs.currentChanged.connect(self._set_task)
+        self._set_task(0)
         self.progress = QProgressBar()
         self.progress.setValue(0)
         self.progress.setTextVisible(False)
@@ -381,7 +456,14 @@ class Window(QMainWindow):
         self.status.setObjectName("muted")
         self.status.setWordWrap(True)
         controls_layout.addWidget(self.status)
-        page.addWidget(controls)
+        shell_layout.addWidget(controls)
+
+    def _set_task(self, index):
+        for widget in (self.format_label, self.format, self.convert_button):
+            widget.setVisible(index == 0)
+        self.reduce_panel.setVisible(index == 1)
+        self.compress_button.setVisible(index == 2)
+        self.zip_button.setVisible(index == 3)
 
     def _theme(self, *_):
         dark = QApplication.instance().styleHints().colorScheme() == Qt.ColorScheme.Dark
@@ -390,26 +472,36 @@ class Window(QMainWindow):
             ("#f6f9fb", "#ffffff", "#14283d", "#58717e", "#d8e4e9", "#eaf8f7")
         )
         self.setStyleSheet(f"""
-            QWidget {{ background: {bg}; color: {text}; font-family: 'Segoe UI', 'SF Pro Text', sans-serif; font-size: 14px; }}
+            QWidget {{ background: {bg}; color: {text}; font-family: 'Segoe UI', 'SF Pro Text', sans-serif; font-size: 13px; }}
+            QWidget#brandBar {{ background: black; }}
+            QWidget#brandBar QLabel {{ background: transparent; }}
+            QMenuBar, QMenu {{ background: {card}; color: {text}; }}
+            QMenu::item {{ padding: 5px 20px; }}
+            QMenu::item:selected {{ background: {drop}; }}
+            QTabBar::tab {{ background: transparent; padding: 7px 14px; color: {muted}; border-bottom: 2px solid transparent; }}
+            QTabBar::tab:selected {{ color: {text}; border-bottom-color: #0d9488; }}
             QLabel#title {{ font-size: 32px; font-weight: 750; }}
             QLabel#eyebrow {{ color: #087e75; font-size: 10px; font-weight: 700; letter-spacing: 2px; }}
-            QLabel#sectionTitle {{ font-size: 19px; font-weight: 700; }}
+            QLabel#sectionTitle {{ font-size: 15px; font-weight: 650; }}
             QLabel#dropTitle {{ font-size: 17px; font-weight: 700; }}
             QLabel#dropMark {{ font-size: 34px; font-weight: 300; color: #087e75; }}
             QLabel#muted {{ color: {muted}; }}
             QLabel#fieldLabel {{ font-weight: 700; }}
-            QFrame#dropArea {{ background: {drop}; border: 2px dashed #69aaa3; border-radius: 14px; }}
+            QFrame#dropArea {{ background: transparent; border: 1px dashed #69aaa3; border-radius: 3px; }}
             QFrame#workspaces {{ background: {card}; border: 1px solid {border}; border-radius: 12px; }}
+            QToolBar {{ background: {card}; border: none; padding: 3px 6px; spacing: 2px; }}
+            QToolButton {{ background: transparent; color: {text}; padding: 6px; border-radius: 3px; }}
+            QToolButton:hover {{ background: {drop}; }}
             QPushButton#workspaceButton {{ background: transparent; border: none; color: {text}; padding: 8px 6px; }}
             QPushButton#workspaceButton:hover {{ background: {'#20524f' if dark else '#d9f2ec'}; }}
             QFrame#dropArea QLabel {{ background: transparent; }}
-            QFrame#previewPanel, QFrame#controls {{ background: {card}; border: 1px solid {border}; border-radius: 12px; }}
+            QFrame#previewPanel, QFrame#controls {{ background: {card}; border: none; border-radius: 3px; }}
             QFrame#previewPanel QLabel, QFrame#controls QLabel {{ background: transparent; }}
-            QLabel#previewImage {{ background: {drop}; border: 1px solid {border}; border-radius: 8px; color: {muted}; }}
-            QListWidget#fileList {{ background: {card}; border: 1px solid {border}; border-radius: 12px; padding: 8px; outline: none; }}
-            QListWidget::item {{ padding: 12px; margin: 3px; border-radius: 7px; }}
+            QLabel#previewImage {{ background: {drop}; border: none; border-radius: 2px; color: {muted}; }}
+            QListWidget#fileList {{ background: {card}; border: none; border-radius: 2px; padding: 3px; outline: none; }}
+            QListWidget::item {{ padding: 7px; margin: 1px; border-radius: 2px; }}
             QListWidget::item:selected {{ background: {'#20524f' if dark else '#d9f2ec'}; color: {text}; }}
-            QPushButton {{ min-height: 36px; padding: 3px 15px; border-radius: 8px; font-weight: 650; }}
+            QPushButton {{ min-height: 28px; padding: 2px 11px; border-radius: 3px; font-weight: 500; }}
             QPushButton#primaryButton {{ background: #087e75; color: white; border: 1px solid #087e75; }}
             QPushButton#primaryButton:hover {{ background: #096b63; }}
             QPushButton#primaryButton:disabled {{ background: #719994; border-color: #719994; }}
@@ -417,12 +509,17 @@ class Window(QMainWindow):
             QPushButton#secondaryButton:hover, QPushButton#directoryButton:hover {{ border-color: #087e75; }}
             QPushButton#textButton {{ background: transparent; border: none; color: #087e75; }}
             QPushButton:focus, QComboBox:focus, QListWidget:focus {{ border: 2px solid #087e75; }}
-            QComboBox {{ background: {card}; border: 1px solid {border}; border-radius: 8px; min-height: 36px; padding: 2px 12px; }}
-            QDoubleSpinBox {{ background: {card}; border: 1px solid {border}; border-radius: 8px; min-height: 36px; padding: 2px 12px; min-width: 100px; }}
+            QComboBox {{ background: {card}; border: 1px solid {border}; border-radius: 3px; min-height: 28px; padding: 2px 8px; }}
+            QDoubleSpinBox {{ background: {card}; border: 1px solid {border}; border-radius: 3px; min-height: 28px; padding: 2px 8px; min-width: 90px; }}
             QComboBox QAbstractItemView {{ background: {card}; color: {text}; selection-background-color: #087e75; }}
             QProgressBar {{ height: 7px; background: {drop}; border: none; border-radius: 3px; }}
             QProgressBar::chunk {{ background: #0d9488; border-radius: 3px; }}
         """)
+        from ui import icon
+        for button, name in ((self.pdf_button, "export"), (self.image_button, "pen"),
+                             (self.media_button, "cut"), (self.ocr_button, "find")):
+            button.setIcon(icon(name, muted))
+            button.setIconSize(QSize(18, 18))
 
     def _choose_files(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Choose files")
@@ -435,17 +532,41 @@ class Window(QMainWindow):
         self.screenwriter.show()
         self.screenwriter.raise_()
         self.screenwriter.activateWindow()
+        return self.screenwriter
 
     def _watchit(self):
-        try:
-            from watchit import WatchIT
-            if self.watchit is None:
-                self.watchit = WatchIT()
+        if self.watchit is not None:
             self.watchit.show()
             self.watchit.raise_()
             self.watchit.activateWindow()
+            return
+        from watchit import EngineLoader, WatchIT
+        self.watchit = WatchIT(deferred=True)
+        self.watchit.show()
+        self.watchit.raise_()
+        self.watchit.activateWindow()
+        if self.watchit_loader is not None:
+            return
+        self.status.setText("Starting WatchIT playback engine… You can continue using the converter.")
+        self.watchit_loader = EngineLoader(self)
+        self.watchit_loader.ready.connect(self._watchit_ready)
+        self.watchit_loader.failed.connect(lambda message: QMessageBox.warning(self, "WatchIT", message))
+        self.watchit_loader.finished.connect(self._watchit_loader_finished)
+        self.watchit_loader.start()
+
+    def _watchit_ready(self, engine):
+        try:
+            self.watchit.set_engine(engine)
+            if self.pending_media:
+                self.watchit.add_media(self.pending_media)
+                self.pending_media = []
         except Exception as error:
             QMessageBox.warning(self, "WatchIT", str(error))
+
+    def _watchit_loader_finished(self):
+        self.watchit_loader.deleteLater()
+        self.watchit_loader = None
+        self.status.setText("WatchIT ready." if self.watchit is not None and self.watchit.player is not None else "WatchIT could not start. Close its window and try opening it again.")
 
     def _open_workspace(self, name: str):
         from office_suite import WORKSPACES
@@ -455,13 +576,66 @@ class Window(QMainWindow):
         window.show()
         window.raise_()
         window.activateWindow()
+        return window
+
+    def create_from_template(self, workspace, name, destination):
+        from office_templates import ASSETS, create_document
+        from office_suite import WORKSPACES
+        from screenwriter import ScreenwriterWindow
+        target = create_document(workspace, name, destination)
+        window = ScreenwriterWindow() if workspace == "Writer's Drafts" else WORKSPACES[workspace]()
+        self.workspaces[f"template:{target}"] = window
+        (window._open if workspace == "Writer's Drafts" else window.open)(target)
+        if workspace == 'Pages':
+            window.editor.setHtml((ASSETS / 'templates' / Path(name).with_suffix('.html')).read_text(encoding='utf-8'))
+            window.imported_docx = None
+            window.original_paragraphs = []
+            window.editor.document().setModified(False)
+        window.path = target
+        window.show()
+        window.raise_()
+        window.activateWindow()
+        return window
+
+    def _choose_template(self, workspace, name):
+        destination, _ = QFileDialog.getSaveFileName(self, "Create document from template",
+            str(self.output_dir / name), f"{workspace} (*{Path(name).suffix})")
+        if not destination:
+            return
+        target = Path(destination)
+        if not target.suffix:
+            target = target.with_suffix(Path(name).suffix)
+        try:
+            self.create_from_template(workspace, name, target)
+        except Exception as error:
+            QMessageBox.warning(self, "Could not create document", str(error))
+
+    def open_arguments(self, arguments):
+        from windows_integration import MEDIA_EXTENSIONS
+        play = arguments[:1] == ["--play"]
+        files = [Path(name).resolve() for name in (arguments[1:] if play else arguments)
+                 if not name.startswith("--") and Path(name).is_file()]
+        media = [path for path in files if path.suffix.lower() in MEDIA_EXTENSIONS]
+        if media:
+            self.pending_media.extend(media)
+            self._watchit()
+            if self.watchit.player is not None:
+                self.watchit.add_media(self.pending_media)
+                self.pending_media = []
+        other = [path for path in files if path not in media]
+        if other and not play:
+            self._add_files(other)
 
     def _add_files(self, files: list[Path]):
         if self.worker and self.worker.isRunning():
             return
         rejected = 0
         for path in files:
-            if not path.is_file() or not (available_formats(path) or path.suffix.lower() == ".zip"):
+            try:
+                supported = path.is_file() and (available_formats(path) or path.suffix.lower() == ".zip")
+            except (OSError, ValueError):
+                supported = False
+            if not supported:
                 rejected += 1
                 continue
             path = path.resolve()
@@ -473,6 +647,8 @@ class Window(QMainWindow):
             label = f"{path.name}\n{kind(path).upper() if path.suffix.lower() != '.zip' else 'ZIP'} → {self.formats[path].upper() if self.formats[path] else 'EXTRACT'}  ·  {path.stat().st_size / 1024 / 1024:.1f} MB  ·  Waiting"
             self.list.addItem(QListWidgetItem(label))
         self.count.setText(f"{len(self.paths)} file{'s' if len(self.paths) != 1 else ''}")
+        self.drop.setVisible(not self.paths)
+        self.subtitle.setVisible(not self.paths)
         if self.paths and self.list.currentRow() < 0:
             self.list.setCurrentRow(0)
         if rejected:
@@ -483,6 +659,7 @@ class Window(QMainWindow):
         if self.worker and self.worker.isRunning():
             return
         self.paths.clear()
+        self.preview_pending = None
         self.formats.clear()
         self.engines.clear()
         self.list.clear()
@@ -493,19 +670,57 @@ class Window(QMainWindow):
         self.count.setText("0 files")
         self.progress.setValue(0)
         self.status.setText("Ready. Your files stay on this device.")
+        self.drop.show()
+        self.subtitle.show()
+        self._refresh_formats()
+
+    def _remove_selected(self):
+        if self.worker and self.worker.isRunning():
+            return
+        row = self.list.currentRow()
+        if 0 <= row < len(self.paths):
+            path = self.paths.pop(row)
+            self.formats.pop(path, None)
+            self.engines.pop(path, None)
+            self.list.takeItem(row)
+            if not self.paths:
+                self._clear()
+            else:
+                self.count.setText(f"{len(self.paths)} file{'s' if len(self.paths) != 1 else ''}")
+                self._select(self.list.currentRow())
 
     def _select(self, row: int):
         if row < 0 or row >= len(self.paths):
             return
         path = self.paths[row]
-        picture = image_preview(path)
-        if picture:
-            self.preview.setPixmap(picture.scaled(500, 112, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        else:
-            self.preview.setPixmap(QPixmap())
-            self.preview.setText(f"{path.suffix.upper().lstrip('.')}  ·  {kind(path)}")
+        self.preview.setPixmap(QPixmap())
+        self.preview.setText(f"{path.suffix.upper().lstrip('.')}  ·  {kind(path)}")
+        self.preview_pending = path
+        self._start_preview()
         self._refresh_formats()
         self._refresh_details()
+
+    def _start_preview(self):
+        if self.preview_worker is not None or self.preview_pending is None:
+            return
+        path, self.preview_pending = self.preview_pending, None
+        if kind(path) not in {"Image", "PDF"}:
+            return
+        self.preview_worker = PreviewWorker(path, self)
+        self.preview_worker.ready.connect(self._preview_ready)
+        self.preview_worker.finished.connect(self._preview_finished)
+        self.preview_worker.start()
+
+    def _preview_ready(self, path, picture):
+        row = self.list.currentRow()
+        if 0 <= row < len(self.paths) and self.paths[row] == path and picture is not None:
+            self.preview.setPixmap(QPixmap.fromImage(picture).scaled(
+                max(1, self.preview.width() - 16), 112, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
+    def _preview_finished(self):
+        self.preview_worker.deleteLater()
+        self.preview_worker = None
+        self._start_preview()
 
     def _set_format(self, fmt: str):
         row = self.list.currentRow()
@@ -596,6 +811,11 @@ class Window(QMainWindow):
         self.media_button.setEnabled(any(kind(path) in {"Video", "Audio"} for path in self.paths) and idle)
         self.zip_button.setEnabled(any(path.suffix.lower() == ".zip" for path in self.paths) and idle)
         self.ocr_button.setEnabled(any(kind(path) in {"Image", "PDF"} for path in self.paths) and idle)
+        self.clear_button.setEnabled(bool(self.paths) and idle)
+        self.remove_button.setEnabled(path is not None and idle)
+        self.format.setEnabled(path is not None and idle)
+        self.destination.setEnabled(idle)
+        self.pdf_engine.setEnabled(idle)
         self._refresh_details()
 
     def _choose_directory(self):
@@ -604,6 +824,7 @@ class Window(QMainWindow):
             self.output_dir = Path(directory)
             self.settings.setValue("output_dir", directory)
             self.destination.setText(directory)
+            self.destination.setToolTip(directory)
 
     def _quick_drop(self, files: list[Path], position: QPoint):
         if self.worker and self.worker.isRunning():
@@ -665,7 +886,9 @@ class Window(QMainWindow):
         self.worker = worker
         worker.update.connect(self._job_update)
         worker.finished_batch.connect(self._done)
+        worker.finished.connect(self._refresh_formats)
         worker.start()
+        self._refresh_formats()
 
     def _pdf_tools(self):
         pdfs = [path for path in self.paths if path.suffix.lower() == ".pdf"]
@@ -866,8 +1089,28 @@ class Window(QMainWindow):
             summary += f" Saved in {location}."
         self.status.setText(f"{summary}. {self.last_error}" if self.last_error else summary)
 
+    def closeEvent(self, event):
+        if ((self.worker and self.worker.isRunning()) or self.preview_worker is not None
+                or self.watchit_loader is not None):
+            self.status.setText("Please wait for the current operation to finish before closing.")
+            event.ignore()
+            return
+        for window in (self.screenwriter, self.watchit, *self.workspaces.values()):
+            if window is not None and not window.close():
+                event.ignore()
+                return
+        event.accept()
+
 
 def main():
+    if sys.argv[1:] == ["--register-windows"]:
+        from windows_integration import register
+        register()
+        return
+    if sys.argv[1:] == ["--unregister-windows"]:
+        from windows_integration import unregister
+        unregister()
+        return
     if len(sys.argv) == 5 and sys.argv[1] == "--convert-with":
         convert(Path(sys.argv[3]), Path(sys.argv[4]), sys.argv[2])
         return
@@ -895,21 +1138,39 @@ def main():
             import win32com.client
         print(", ".join(available_engines(Path("sample.docx"))))
         return
-    if sys.argv[1:] == ["--watchit-self-check"]:
-        from watchit import vlc_runtime
-        vlc = vlc_runtime()
-        engine = vlc.Instance("--quiet", "--no-video")
-        if engine is None:
-            raise RuntimeError("VLC playback engine failed to load")
+    if sys.argv[1:2] == ["--watchit-self-check"] and len(sys.argv) in {2, 3}:
+        import json
+        import time
+        from watchit import create_playback_engine, WatchIT
+        shell_seconds = None
+        if len(sys.argv) == 3:
+            application = QApplication([])
+            started = time.perf_counter()
+            player_window = WatchIT(deferred=True)
+            player_window.show()
+            application.processEvents()
+            shell_seconds = time.perf_counter() - started
+        started = time.perf_counter()
+        vlc, engine, player = create_playback_engine()
+        engine_seconds = time.perf_counter() - started
+        if len(sys.argv) == 3:
+            player_window.set_engine((vlc, engine, player))
+            report = {"version": VERSION, "shell_seconds": shell_seconds, "engine_seconds": engine_seconds,
+                      "engine_version": vlc.libvlc_get_version().decode(), "controls_enabled": player_window.transport.isEnabled()}
+            Path(sys.argv[2]).write_text(json.dumps(report, indent=2), encoding="utf-8")
+            player_window.close()
         print(vlc.libvlc_get_version().decode())
+        player.release()
         engine.release()
         return
     app = QApplication(sys.argv)
     app.setApplicationName("FreeConvert")
     app.setApplicationVersion(VERSION)
     app.setOrganizationName("Local File Converter")
+    app.setWindowIcon(QIcon(str(Path(__file__).resolve().parent / "assets" / "app.ico")))
     window = Window()
     window.show()
+    QTimer.singleShot(0, lambda: window.open_arguments(sys.argv[1:]))
     sys.exit(app.exec())
 
 

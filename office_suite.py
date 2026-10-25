@@ -16,12 +16,13 @@ from openpyxl import Workbook, load_workbook
 from pptx import Presentation
 from native_office import advanced_content, csv_delimiter
 from office_surgery import edit_xlsx_cells, replace_runs, replace_text_frame
-from PySide6.QtCore import QSignalBlocker, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QImage, QPainter, QPen, QTextListFormat
+from PySide6.QtCore import QSignalBlocker, Qt, Signal, QPoint, QRect, QSize, Slot, QEvent
+from PySide6.QtGui import QAction, QColor, QFont, QFontDatabase, QImage, QPainter, QPen, QTextListFormat
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QColorDialog, QFileDialog, QHBoxLayout, QInputDialog, QLabel,
     QListWidget, QMainWindow, QMessageBox, QPushButton, QSplitter, QTableWidget,
-    QTableWidgetItem, QTextEdit, QToolBar, QVBoxLayout, QWidget)
+    QTableWidgetItem, QTextEdit, QToolBar, QVBoxLayout, QWidget, QComboBox, QSpinBox, QLineEdit, QFrame)
+from ui import action as icon_action, editor_theme, refresh_icons
 
 
 def calculate_cell(rows, address):
@@ -112,10 +113,17 @@ def calculate_cell(rows, address):
 
 
 def button(bar, label, callback):
-    action = QAction(label, bar)
-    action.triggered.connect(callback)
-    bar.addAction(action)
-    return action
+    files = {"New", "Open", "Save", "Save as", "PDF", "New database", "Open database", "Save changes", "Import CSV", "Export CSV"}
+    group = "file" if label in files else "edit" if label in {"Undo", "Redo", "Cut", "Copy", "Paste"} else "tools"
+    previous = [item for item in bar.actions() if item.property("iconGroup")]
+    if previous and previous[-1].property("iconGroup") != group:
+        bar.addSeparator()
+    item = icon_action(bar, label, callback)
+    item.setProperty("iconGroup", group)
+    window = bar.parentWidget()
+    if isinstance(window, Workspace):
+        window.menus["File" if group == "file" else "Edit"].addAction(item)
+    return item
 
 
 def pick_open(parent, label, filters):
@@ -137,22 +145,16 @@ class Workspace(QMainWindow):
         self.dirty = False
         self.toolbar = QToolBar(name)
         self.toolbar.setMovable(False)
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.toolbar.setIconSize(QSize(18, 18))
         self.addToolBar(self.toolbar)
+        self.menus = {name: self.menuBar().addMenu(name) for name in ("File", "Edit")}
         self._theme()
         QApplication.instance().styleHints().colorSchemeChanged.connect(self._theme)
 
     def _theme(self, *_):
-        dark = QApplication.instance().styleHints().colorScheme() == Qt.ColorScheme.Dark
-        bg, card, ink, border, accent = (("#0b1520", "#17232e", "#edf5f6", "#304551", "#61d8d0") if dark else
-                                         ("#f6f9fb", "#ffffff", "#14283d", "#d8e4e9", "#087e75"))
-        self.setStyleSheet(f"""
-            QMainWindow, QWidget {{ background: {bg}; color: {ink}; font-family: 'Segoe UI'; font-size: 14px; }}
-            QTextEdit, QTableWidget, QListWidget {{ background: {card}; color: {ink}; border: 1px solid {border}; border-radius: 9px; padding: 8px; }}
-            QToolBar {{ background: {card}; border-bottom: 1px solid {border}; spacing: 5px; padding: 8px; }}
-            QToolButton {{ color: {ink}; background: {card}; border: 1px solid {border}; border-radius: 7px; padding: 6px; }}
-            QToolButton:hover {{ border-color: {accent}; }}
-            QHeaderView::section {{ background: {card}; color: {ink}; border: 1px solid {border}; padding: 4px; }}
-        """)
+        self.setStyleSheet(editor_theme())
+        refresh_icons(self)
 
     def report(self, operation):
         try:
@@ -179,16 +181,83 @@ class Pages(Workspace):
         self.editor = QTextEdit()
         self.editor.setAcceptRichText(True)
         self.editor.setPlaceholderText("Start writing…")
-        self.setCentralWidget(self.editor)
+        self.editor.setObjectName("paper")
+        self.editor.setFont(QFont("Calibri", 12))
+        self.editor.document().setDocumentMargin(56)
+        self.editor.setMaximumWidth(850)
+        area = QWidget()
+        layout = QHBoxLayout(area)
+        layout.setContentsMargins(28, 24, 28, 20)
+        layout.addStretch(1)
+        layout.addWidget(self.editor, 10)
+        layout.addStretch(1)
+        self.setCentralWidget(area)
         for label, method in [("New", self.new), ("Open", self.open), ("Save", self.save),
                               ("Save as", self.save_as), ("PDF", self.export_pdf),
+                              ("Undo", self.editor.undo), ("Redo", self.editor.redo),
+                              ("Cut", self.editor.cut), ("Copy", self.editor.copy), ("Paste", self.editor.paste)]:
+            button(self.toolbar, label, method)
+        self.addToolBarBreak()
+        formatting = QToolBar("Formatting", self)
+        formatting.setMovable(False)
+        formatting.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        formatting.setIconSize(QSize(18, 18))
+        self.addToolBar(formatting)
+        self.font_family = QComboBox()
+        self.font_family.addItems(QFontDatabase.families())
+        self.font_family.setCurrentText("Calibri")
+        self.font_family.setMaximumWidth(210)
+        self.font_family.setToolTip("Font family")
+        self.font_family.currentTextChanged.connect(self._set_editor_font)
+        formatting.addWidget(self.font_family)
+        self.font_size = QSpinBox()
+        self.font_size.setRange(6, 96)
+        self.font_size.setValue(12)
+        self.font_size.setSuffix(" pt")
+        self.font_size.setToolTip("Font size")
+        self.font_size.valueChanged.connect(self._set_font_size)
+        formatting.addWidget(self.font_size)
+        formatting.addSeparator()
+        self.format_actions = {}
+        for label, method in [
                               ("Bold", lambda: self.editor.setFontWeight(QFont.Bold if self.editor.fontWeight() < QFont.Bold else QFont.Normal)),
                               ("Italic", lambda: self.editor.setFontItalic(not self.editor.fontItalic())),
                               ("Underline", lambda: self.editor.setFontUnderline(not self.editor.fontUnderline())),
-                              ("Bullets", self.bullets)]:
-            button(self.toolbar, label, method)
+                              ("Bullets", self.bullets),
+                              ("Align left", lambda: self.editor.setAlignment(Qt.AlignLeft)),
+                              ("Align center", lambda: self.editor.setAlignment(Qt.AlignHCenter)),
+                              ("Align right", lambda: self.editor.setAlignment(Qt.AlignRight))]:
+            item = button(formatting, label, method)
+            if label in {"Bold", "Italic", "Underline", "Align left", "Align center", "Align right"}:
+                item.setCheckable(True)
+                self.format_actions[label] = item
+        self.editor.currentCharFormatChanged.connect(self._format_state)
+        self.editor.cursorPositionChanged.connect(self._format_state)
         self.editor.textChanged.connect(self._count)
         self._count()
+        self.editor.document().setModified(False)
+
+    @Slot(str)
+    def _set_editor_font(self, font):
+        self.editor.setFontFamily(font)
+
+    @Slot(int)
+    def _set_font_size(self, size):
+        self.editor.setFontPointSize(size)
+
+    @Slot()
+    def _format_state(self):
+        alignment = self.editor.alignment()
+        values = {"Bold": self.editor.fontWeight() >= QFont.Bold, "Italic": self.editor.fontItalic(),
+                  "Underline": self.editor.fontUnderline(), "Align left": bool(alignment & Qt.AlignLeft),
+                  "Align center": bool(alignment & Qt.AlignHCenter), "Align right": bool(alignment & Qt.AlignRight)}
+        for label, checked in values.items():
+            self.format_actions[label].setChecked(checked)
+        with QSignalBlocker(self.font_family), QSignalBlocker(self.font_size):
+            self.font_family.setCurrentText(self.editor.currentFont().family())
+            size = self.editor.fontPointSize()
+            if size > 0:
+                self.font_size.setValue(round(size))
 
     def _count(self):
         self.statusBar().showMessage(f"{len(self.editor.toPlainText().split())} words")
@@ -214,8 +283,8 @@ class Pages(Workspace):
     def closeEvent(self, event):
         event.accept() if self._can_close() else event.ignore()
 
-    def open(self):
-        path = pick_open(self, "Open document", "Documents (*.docx *.html *.htm *.txt)")
+    def open(self, path=None):
+        path = path or pick_open(self, "Open document", "Documents (*.docx *.html *.htm *.txt)")
         if not path or not self._can_close():
             return
         def read():
@@ -266,8 +335,27 @@ class Pages(Workspace):
                     if doc.tables or advanced_content(self.imported_docx):
                         raise ValueError("Paragraph count changed in a complex Word file; save as HTML or TXT to avoid dropping content")
                 doc = Document()
-                for line in lines:
-                    doc.add_paragraph(line)
+                block = self.editor.document().begin()
+                while block.isValid():
+                    paragraph = doc.add_paragraph(style="List Bullet" if block.textList() else None)
+                    from docx.enum.text import WD_ALIGN_PARAGRAPH
+                    from docx.shared import Pt
+                    alignment = block.blockFormat().alignment()
+                    paragraph.alignment = (WD_ALIGN_PARAGRAPH.CENTER if alignment & Qt.AlignHCenter else
+                                           WD_ALIGN_PARAGRAPH.RIGHT if alignment & Qt.AlignRight else WD_ALIGN_PARAGRAPH.LEFT)
+                    iterator = block.begin()
+                    while not iterator.atEnd():
+                        fragment = iterator.fragment()
+                        if fragment.isValid():
+                            run = paragraph.add_run(fragment.text())
+                            formatting = fragment.charFormat()
+                            run.bold = formatting.fontWeight() >= QFont.Bold
+                            run.italic = formatting.fontItalic()
+                            run.underline = formatting.fontUnderline()
+                            run.font.name = formatting.font().family() or self.font_family.currentText()
+                            run.font.size = Pt(formatting.fontPointSize() if formatting.fontPointSize() > 0 else self.font_size.value())
+                        iterator += 1
+                    block = block.next()
                 doc.save(path)
             self.imported_docx = path
             self.original_paragraphs = lines
@@ -302,14 +390,73 @@ class Tables(Workspace):
         self.csv_encoding = "utf-8-sig"
         self.grid = QTableWidget(100, 26)
         self.grid.setHorizontalHeaderLabels([chr(65 + i) for i in range(26)])
-        self.setCentralWidget(self.grid)
+        self.grid.setAlternatingRowColors(True)
+        self.grid.verticalHeader().setDefaultSectionSize(30)
+        self.grid.horizontalHeader().setDefaultSectionSize(112)
+        area = QWidget()
+        layout = QVBoxLayout(area)
+        layout.setContentsMargins(12, 12, 12, 12)
+        formula_row = QHBoxLayout()
+        self.cell_address = QLineEdit("A1")
+        self.cell_address.setReadOnly(True)
+        self.cell_address.setMaximumWidth(80)
+        self.cell_address.setAccessibleName("Selected cell")
+        formula_row.addWidget(self.cell_address)
+        mark = QLabel("fx")
+        mark.setObjectName("formulaMark")
+        formula_row.addWidget(mark)
+        self.formula = QLineEdit()
+        self.formula.setAccessibleName("Cell value or formula")
+        self.formula.setPlaceholderText("Cell value or formula · press Enter to apply")
+        self.formula.returnPressed.connect(self._apply_formula)
+        formula_row.addWidget(self.formula, 1)
+        layout.addLayout(formula_row)
+        layout.addWidget(self.grid, 1)
+        self.setCentralWidget(area)
+        self.grid.currentCellChanged.connect(self._show_formula)
+        self.grid.itemChanged.connect(self._show_formula)
         self.grid.itemChanged.connect(lambda _: setattr(self, "dirty", True))
         for label, method in [("New", self.new), ("Open", self.open), ("Save", self.save), ("Save as", self.save_as),
-                              ("Add row", lambda: self.grid.insertRow(self.grid.rowCount())),
-                              ("Add column", lambda: self.grid.insertColumn(self.grid.columnCount())),
+                              ("Add row", self.add_row),
+                              ("Add column", self.add_column),
                               ("Calculate selected", self.calculate_selected)]:
             button(self.toolbar, label, method)
         self.statusBar().showMessage("CSV and XLSX · formulas: arithmetic, SUM, AVERAGE, MIN, MAX, COUNT")
+        self.grid.setCurrentCell(0, 0)
+
+    def _show_formula(self, *_):
+        row, column = self.grid.currentRow(), self.grid.currentColumn()
+        if row < 0 or column < 0:
+            return
+        header = self.grid.horizontalHeaderItem(column)
+        self.cell_address.setText(f"{header.text() if header else column + 1}{row + 1}")
+        cell = self.grid.item(row, column)
+        self.formula.setText(cell.text() if cell else "")
+
+    def _apply_formula(self):
+        row, column = self.grid.currentRow(), self.grid.currentColumn()
+        if row >= 0 and column >= 0:
+            self.grid.setItem(row, column, QTableWidgetItem(self.formula.text()))
+
+    def add_row(self):
+        self.grid.insertRow(self.grid.rowCount())
+        self.dirty = True
+
+    def add_column(self):
+        self.grid.insertColumn(self.grid.columnCount())
+        self._headers()
+        self.dirty = True
+
+    def _headers(self):
+        names = []
+        for index in range(self.grid.columnCount()):
+            name = ""
+            while index >= 0:
+                index, remainder = divmod(index, 26)
+                name = chr(65 + remainder) + name
+                index -= 1
+            names.append(name)
+        self.grid.setHorizontalHeaderLabels(names)
 
     def calculate_selected(self):
         row, column = self.grid.currentRow(), self.grid.currentColumn()
@@ -338,8 +485,8 @@ class Tables(Workspace):
         self.original_rows = []
         self.dirty = False
 
-    def open(self):
-        path = pick_open(self, "Open table", "Spreadsheets (*.xlsx *.csv)")
+    def open(self, path=None):
+        path = path or pick_open(self, "Open table", "Spreadsheets (*.xlsx *.csv)")
         if path and self.discard_changes():
             delimiter = None
             if path.suffix.lower() == ".csv":
@@ -363,13 +510,18 @@ class Tables(Workspace):
                 rows = list(csv.reader(stream, delimiter=delimiter))
         else:
             raise ValueError("Choose XLSX or CSV")
+        self.grid.setUpdatesEnabled(False)
+        blocker = QSignalBlocker(self.grid)
         self.grid.clearContents()
         self.grid.setRowCount(max(100, len(rows)))
         self.grid.setColumnCount(max(26, max((len(row) for row in rows), default=0)))
+        self._headers()
         for i, row in enumerate(rows):
             for j, value in enumerate(row):
                 if value is not None:
                     self.grid.setItem(i, j, QTableWidgetItem(str(value)))
+        del blocker
+        self.grid.setUpdatesEnabled(True)
         self.imported_xlsx = path if path.suffix.lower() == ".xlsx" else None
         if path.suffix.lower() == ".csv":
             self.csv_delimiter = delimiter
@@ -458,17 +610,35 @@ class Dazzle(Workspace):
         self.index = -1
         self.list = QListWidget()
         self.title = QTextEdit()
+        self.title.setObjectName("slideTitle")
+        self.title.setFont(QFont("Calibri", 26, QFont.Bold))
         self.title.setPlaceholderText("Slide title")
         self.title.setMaximumHeight(90)
         self.body = QTextEdit()
+        self.body.setObjectName("slideBody")
+        self.body.setFont(QFont("Calibri", 16))
         self.body.setPlaceholderText("Slide body")
         area = QWidget()
+        area.setObjectName("slidePage")
+        area.setMaximumSize(960, 540)
         layout = QVBoxLayout(area)
+        layout.setContentsMargins(36, 28, 36, 28)
         layout.addWidget(self.title)
         layout.addWidget(self.body)
+        stage = QWidget()
+        stage_layout = QVBoxLayout(stage)
+        stage_layout.setContentsMargins(24, 24, 24, 24)
+        stage_row = QHBoxLayout()
+        stage_row.addStretch(1)
+        stage_row.addWidget(area, 12)
+        stage_row.addStretch(1)
+        stage_layout.addLayout(stage_row, 1)
+        self.slide_page = area
+        self.slide_stage = stage
+        stage.installEventFilter(self)
         split = QSplitter()
         split.addWidget(self.list)
-        split.addWidget(area)
+        split.addWidget(stage)
         split.setSizes([230, 800])
         self.setCentralWidget(split)
         self.list.currentRowChanged.connect(self.select)
@@ -478,6 +648,12 @@ class Dazzle(Workspace):
                               ("Open", self.open), ("Save", self.save), ("Save as", self.save_as), ("PDF", self.export_pdf)]:
             button(self.toolbar, label, method)
         self.new()
+
+    def eventFilter(self, watched, event):
+        if watched is getattr(self, "slide_stage", None) and event.type() == QEvent.Resize:
+            scale = min(1, max(1, watched.width() - 48) / 960, max(1, watched.height() - 48) / 540)
+            self.slide_page.setFixedSize(round(960 * scale), round(540 * scale))
+        return super().eventFilter(watched, event)
 
     def _store(self):
         if self.index >= 0:
@@ -524,8 +700,8 @@ class Dazzle(Workspace):
         self.list.setCurrentRow(min(index, len(self.slides) - 1))
         self.dirty = True
 
-    def open(self):
-        path = pick_open(self, "Open slides", "Presentations (*.pptx *.dazzle)")
+    def open(self, path=None):
+        path = path or pick_open(self, "Open slides", "Presentations (*.pptx *.dazzle)")
         if path and self.discard_changes():
             def read():
                 import json
@@ -644,31 +820,52 @@ class Canvas(QWidget):
         self.image = QImage(1200, 800, QImage.Format_ARGB32)
         self.image.fill(Qt.white)
         self.color = QColor("#102f39")
-        self.width = 4
+        self.pen_width = 4
         self.last = None
         self.eraser = False
-        self.setMinimumSize(700, 480)
+        self.setMinimumSize(240, 160)
+
+    def image_rect(self):
+        size = self.image.size().scaled(self.size(), Qt.KeepAspectRatio)
+        return QRect((self.width() - size.width()) // 2, (self.height() - size.height()) // 2, size.width(), size.height())
+
+    def image_point(self, event):
+        rect = self.image_rect()
+        point = event.position().toPoint()
+        if not rect.contains(point):
+            return None
+        return QPoint((point.x() - rect.x()) * self.image.width() // max(1, rect.width()),
+                      (point.y() - rect.y()) * self.image.height() // max(1, rect.height()))
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.fillRect(self.rect(), QColor("#d9e5e7"))
-        painter.drawImage(0, 0, self.image)
+        painter.drawImage(self.image_rect(), self.image)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            self.last = event.position().toPoint()
+            self.last = self.image_point(event)
+            if self.last is not None:
+                self._stroke(self.last)
+
+    def _stroke(self, point):
+        painter = QPainter(self.image)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(QPen(Qt.white if self.eraser else self.color, self.pen_width, Qt.SolidLine, Qt.RoundCap))
+        if self.last == point:
+            painter.drawPoint(point)
+        else:
+            painter.drawLine(self.last, point)
+        painter.end()
+        self.last = point
+        self.update()
+        self.changed.emit()
 
     def mouseMoveEvent(self, event):
-        if self.last and event.buttons() & Qt.LeftButton:
-            point = event.position().toPoint()
-            painter = QPainter(self.image)
-            painter.setRenderHint(QPainter.Antialiasing)
-            painter.setPen(QPen(Qt.white if self.eraser else self.color, self.width, Qt.SolidLine, Qt.RoundCap))
-            painter.drawLine(self.last, point)
-            painter.end()
-            self.last = point
-            self.update()
-            self.changed.emit()
+        if self.last is not None and event.buttons() & Qt.LeftButton:
+            point = self.image_point(event)
+            if point is not None:
+                self._stroke(point)
 
     def mouseReleaseEvent(self, event):
         self.last = None
@@ -684,10 +881,19 @@ class Sketch(Workspace):
                               ("Save as", self.save_as), ("Pen color", self.color),
                               ("Eraser", self.eraser), ("Clear", self.clear)]:
             button(self.toolbar, label, method)
+        self.toolbar.addSeparator()
+        self.pen_size = QSpinBox()
+        self.pen_size.setRange(1, 60)
+        self.pen_size.setValue(self.canvas.pen_width)
+        self.pen_size.setSuffix(" px")
+        self.pen_size.setToolTip("Pen / eraser width")
+        self.pen_size.valueChanged.connect(lambda width: setattr(self.canvas, "pen_width", width))
+        self.toolbar.addWidget(self.pen_size)
 
     def new(self):
         if not self.discard_changes():
             return
+        self.canvas.image = QImage(1200, 800, QImage.Format_ARGB32)
         self.canvas.image.fill(Qt.white)
         self.canvas.update()
         self.path = None
@@ -707,8 +913,8 @@ class Sketch(Workspace):
     def eraser(self):
         self.canvas.eraser = not self.canvas.eraser
 
-    def open(self):
-        path = pick_open(self, "Open image", "Images (*.png *.jpg *.jpeg *.bmp)")
+    def open(self, path=None):
+        path = path or pick_open(self, "Open image", "Images (*.png *.jpg *.jpeg *.bmp)")
         if path and self.discard_changes():
             image = QImage(str(path))
             if image.isNull():
@@ -743,15 +949,21 @@ class Organize(Workspace):
 
     def __init__(self):
         super().__init__("Organize")
+        self.loaded_table = None
+        self.original_records = {}
+        self.records_editable = False
         self.tables = QListWidget()
+        self.tables.setMinimumWidth(180)
         self.grid = QTableWidget()
+        self.grid.setAlternatingRowColors(True)
+        self.grid.verticalHeader().setDefaultSectionSize(30)
         self.grid.itemChanged.connect(lambda _: setattr(self, "dirty", True))
         split = QSplitter()
         split.addWidget(self.tables)
         split.addWidget(self.grid)
         split.setSizes([200, 900])
         self.setCentralWidget(split)
-        self.tables.currentTextChanged.connect(self.show_table)
+        self.tables.currentTextChanged.connect(self._select_table)
         for label, method in [("New database", self.new), ("Open database", self.open),
                               ("New table", self.new_table), ("Add record", self.add_record),
                               ("Delete record", self.delete_record), ("Save changes", self.save),
@@ -783,8 +995,8 @@ class Organize(Workspace):
             self.refresh()
             self.dirty = False
 
-    def open(self):
-        path = pick_open(self, "Open database", "SQLite database (*.sqlite *.db)")
+    def open(self, path=None):
+        path = path or pick_open(self, "Open database", "SQLite database (*.sqlite *.db)")
         if path and self.discard_changes():
             self.path = path
             self.report(self.refresh)
@@ -793,8 +1005,25 @@ class Organize(Workspace):
     def refresh(self):
         with self.connect() as db:
             names = [x[0] for x in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != '_freeconvert_meta' ORDER BY name")]
-        self.tables.clear()
-        self.tables.addItems(names)
+        with QSignalBlocker(self.tables):
+            self.tables.clear()
+            self.tables.addItems(names)
+        self.loaded_table = None
+        self.original_records = {}
+        self.grid.clear()
+        self.grid.setRowCount(0)
+        self.dirty = False
+        if names:
+            self.tables.setCurrentRow(0)
+
+    def _select_table(self, name):
+        if name != self.loaded_table and not self.discard_changes():
+            with QSignalBlocker(self.tables):
+                matches = self.tables.findItems(self.loaded_table or "", Qt.MatchExactly)
+                if matches:
+                    self.tables.setCurrentItem(matches[0])
+            return
+        self.show_table(name)
 
     def show_table(self, name):
         if not name:
@@ -803,16 +1032,34 @@ class Organize(Workspace):
         def read():
             with self.connect() as db:
                 cols = [x[1] for x in db.execute(f"PRAGMA table_info({quote(name)})")]
-                rows = db.execute(f"SELECT * FROM {quote(name)} LIMIT 1000").fetchall()
+                editable = self._editable()
+                # Organize tables use SQLite rowids; external tables stay read-only.
+                identity = next((key for key in ("rowid", "_rowid_", "oid") if key not in {col.lower() for col in cols}), None)
+                editable = editable and identity is not None
+                definition = db.execute("SELECT sql FROM sqlite_master WHERE name=?", (name,)).fetchone()[0] or ""
+                editable = editable and "WITHOUT ROWID" not in definition.upper()
+                rows = db.execute(f"SELECT {identity + ', ' if editable else ''}* FROM {quote(name)} LIMIT 1001").fetchall()
+            truncated = len(rows) > 1000
+            rows = rows[:1000]
+            self.rowid_name = identity
+            self.records_editable = editable
+            self.loaded_table = name
+            self.original_records = {row[0]: tuple(row[1:]) for row in rows} if editable else {}
+            self.grid.setUpdatesEnabled(False)
             self.grid.clear()
             self.grid.setRowCount(len(rows))
             self.grid.setColumnCount(len(cols))
             self.grid.setHorizontalHeaderLabels(cols)
             for i, row in enumerate(rows):
-                for j, value in enumerate(row):
-                    self.grid.setItem(i, j, QTableWidgetItem("" if value is None else str(value)))
-            self.grid.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed if self._editable() else QAbstractItemView.NoEditTriggers)
+                for j, value in enumerate(row[1:] if editable else row):
+                    item = QTableWidgetItem("" if value is None else str(value))
+                    if editable:
+                        item.setData(Qt.UserRole, row[0])
+                    self.grid.setItem(i, j, item)
+            self.grid.setUpdatesEnabled(True)
+            self.grid.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed if editable else QAbstractItemView.NoEditTriggers)
             self.dirty = False
+            self.statusBar().showMessage(f"{len(rows)} records" + (" · showing the first 1,000; other records are preserved" if truncated else "") + (" · read-only" if not editable else ""))
         self.report(read)
 
     def new_table(self):
@@ -820,6 +1067,8 @@ class Organize(Workspace):
             return
         if not self._editable():
             QMessageBox.warning(self, "Organize", "External databases are read-only. Create an Organize database to edit records.")
+            return
+        if not self.discard_changes():
             return
         name, ok = QInputDialog.getText(self, "New table", "Table name")
         if not ok or not name.strip():
@@ -835,17 +1084,17 @@ class Organize(Workspace):
             with self.connect() as db:
                 db.execute(f"CREATE TABLE {quote(name.strip())} ({', '.join(quote(x) + ' TEXT' for x in names)})")
             self.refresh()
-            self.tables.setCurrentRow(self.tables.count() - 1)
+            self.tables.setCurrentItem(self.tables.findItems(name.strip(), Qt.MatchExactly)[0])
         self.report(create)
 
     def add_record(self):
-        if self.tables.currentItem() and self._editable():
+        if self.tables.currentItem() and self.records_editable and self._editable():
             self.grid.insertRow(self.grid.rowCount())
             self.dirty = True
 
     def delete_record(self):
         row = self.grid.currentRow()
-        if row >= 0 and self._editable():
+        if row >= 0 and self.records_editable and self._editable():
             self.grid.removeRow(row)
             self.dirty = True
 
@@ -853,23 +1102,47 @@ class Organize(Workspace):
         name = self.tables.currentItem().text() if self.tables.currentItem() else None
         if not name:
             return
-        if not self._editable():
+        if not self.records_editable or not self._editable():
             QMessageBox.warning(self, "Organize", "External databases are read-only")
             return
         def write():
             with self.connect() as db:
+                db.execute("BEGIN IMMEDIATE")
                 columns = [self.grid.horizontalHeaderItem(j).text() for j in range(self.grid.columnCount())]
-                db.execute(f"DELETE FROM {quote(name)}")
+                quoted_table = quote(name)
+                identity = quote(self.rowid_name)
+                remaining = set(self.original_records)
                 placeholders = ",".join("?" for _ in columns)
                 for i in range(self.grid.rowCount()):
+                    first = self.grid.item(i, 0)
+                    record_id = first.data(Qt.UserRole) if first else None
                     values = [self.grid.item(i, j).text() if self.grid.item(i, j) else None for j in range(len(columns))]
-                    db.execute(f"INSERT INTO {quote(name)} VALUES ({placeholders})", values)
+                    if record_id in self.original_records:
+                        original = self.original_records[record_id]
+                        remaining.discard(record_id)
+                        current = db.execute(f"SELECT * FROM {quoted_table} WHERE {identity}=?", (record_id,)).fetchone()
+                        if current != original:
+                            raise ValueError("The database changed since it was opened. Reopen it before saving.")
+                        changed = [j for j, value in enumerate(values) if value != ("" if original[j] is None else str(original[j]))]
+                        if changed:
+                            assignments = ", ".join(f"{quote(columns[j])}=?" for j in changed)
+                            db.execute(f"UPDATE {quoted_table} SET {assignments} WHERE {identity}=?", [values[j] for j in changed] + [record_id])
+                    else:
+                        db.execute(f"INSERT INTO {quoted_table} ({', '.join(map(quote, columns))}) VALUES ({placeholders})", values)
+                for record_id in remaining:
+                    current = db.execute(f"SELECT * FROM {quoted_table} WHERE {identity}=?", (record_id,)).fetchone()
+                    if current != self.original_records[record_id]:
+                        raise ValueError("The database changed since it was opened. Reopen it before saving.")
+                    db.execute(f"DELETE FROM {quoted_table} WHERE {identity}=?", (record_id,))
+            self.show_table(name)
             self.statusBar().showMessage("Changes saved")
             self.dirty = False
         self.report(write)
 
     def import_csv(self):
         if not self.path or not self._editable():
+            return
+        if not self.discard_changes():
             return
         path = pick_open(self, "Import CSV", "CSV (*.csv)")
         if not path:

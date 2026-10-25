@@ -1,12 +1,49 @@
 # FreeConvert
 
+<p align="center"><img src="assets/logo.png" alt="FreeConvert." width="480"></p>
+
+[![Desktop builds](https://github.com/Thatweirdguy1/FreeConvert/actions/workflows/release.yml/badge.svg)](https://github.com/Thatweirdguy1/FreeConvert/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+[![Local and offline](https://img.shields.io/badge/files-local%20%26%20offline-087e75)](#privacy-and-security)
+
 A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with WatchIT.
 
-![FreeConvert desktop app](docs/screenshot.png)
+**Version 0.16.0** adds smaller 18px icons, flatter toolbars, separate conversion/compression task tabs, 11 Office templates, and a Windows installer with Desktop/Start menu shortcuts and WatchIT **Open with** registration. It also includes the WatchIT startup, fullscreen, responsiveness, and data-preservation repairs since 0.14.1. See [release notes](RELEASE_NOTES.md) and the [desktop verification report](docs/DESKTOP_016.md).
+
+![FreeConvert desktop app](docs/desktop-016.jpg)
 
 ## Download
 
-Download the zip for your system from the [latest release](https://github.com/Thatweirdguy1/FreeConvert/releases/latest). Extract it, then open `LocalFileConverter.exe` on Windows or `LocalFileConverter.app` on macOS. The macOS builds are unsigned; your system may require **Open Anyway** in Privacy & Security after the first launch. The app is free and needs no account.
+Get the app from the [latest release](https://github.com/Thatweirdguy1/FreeConvert/releases/latest). **No Python installation, terminal, or account is needed.**
+
+| Platform | Download | How to open |
+| --- | --- | --- |
+| **Windows x64 — installer** | [FreeConvert Setup](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/FreeConvert-0.16.0-Setup.exe) | Run Setup, then use **FreeConvert on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
+| Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
+| macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-macOS-Apple-Silicon.zip) | Extract and open `LocalFileConverter.app`. |
+| macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-macOS-Intel.zip) | Extract and open `LocalFileConverter.app`. |
+
+Downloads include FFmpeg, the VLC playback runtime, OCR models, and Office templates. Microsoft Office and LibreOffice are optional external applications. SHA-256 checksums are included with the release.
+
+Windows downloads are **unsigned** and macOS builds are **not notarized**. Your operating system may show a publisher warning or block a download according to its policy. See [installation and signing](docs/WINDOWS_INSTALL_AND_SIGNING.md) for the current status and distribution options.
+
+## Office templates
+
+Choose **Templates** in the main menu, select a workspace and starter, then choose a new filename. The app opens a separate workspace and preserves existing unsaved work. Bundled originals and existing destination files are never overwritten.
+
+| Workspace | Included starters |
+| --- | --- |
+| Pages | Report, Letter, Meeting notes |
+| Tables | Budget, Task tracker |
+| Dazzle | Presentation, Project update |
+| Sketch | Blank canvas |
+| Organize | Contacts |
+| Formulaic | Equations |
+| Writer's Drafts | Screenplay |
+
+![Pages with an editable report starter](docs/pages-template-016.jpg)
+
+## Included engines
 
 Basic Office conversions run inside FreeConvert using included Python format libraries. For a more faithful PDF, choose **Automatic** or select an installed Microsoft Office or LibreOffice renderer. For cross-format Office conversion, choose installed LibreOffice when available to retain more advanced content. These applications are optional and are **not bundled**. On Windows, automatic PDF rendering prefers installed Word for DOCX, Excel for XLSX, and PowerPoint for PPTX; it then tries installed LibreOffice and finally the built-in basic renderer. On macOS, installed LibreOffice is the optional external renderer. The app reports a failure if a selected external export fails; it does not silently substitute a different PDF.
 
@@ -53,9 +90,9 @@ The office workspaces are focused editors, not copies of Microsoft Office or Lib
 
 ### WatchIT
 
-![WatchIT media player](docs/watchit.png)
+![WatchIT playing a local demonstration video](docs/watchit-016.jpg)
 
-Select **WatchIT** from the workspace bar, then **Open** one or more local media files. Double-click a playlist item to play it. Use the timeline to seek, choose a playback speed from 0.25× to 4×, set the display aspect ratio, pick embedded subtitle and audio tracks, or load an external subtitle file. Audio and subtitle sync controls adjust timing in milliseconds; the output selector lists audio devices exposed by the current VLC module. Some devices may not enumerate or work. The player also has volume, mute, loop, previous/next, and fullscreen controls. **Space** pauses or resumes, **Left/Right** skips 10 seconds, **F** toggles fullscreen, and **Ctrl+O** opens files. Media stays local.
+Select **WatchIT** from the workspace bar, then **Open** one or more local media files. Double-click a playlist item to play it. **Playback options** opens the speed, aspect, audio/subtitle track, sync and output-device settings. Use the timeline to seek and select **Load subtitles** for an external subtitle file. Audio and subtitle sync controls adjust timing in milliseconds; the output selector lists audio devices exposed by the current VLC module. Some devices may not enumerate or work. The player also has volume, mute, loop and previous/next controls. **Space** pauses or resumes, **Left/Right** skips 10 seconds, **F/F11** or video double-click toggles fullscreen, **Escape** exits fullscreen, **M** toggles mute, and **Ctrl+O** opens files. Fullscreen hides the playlist and settings; playback controls hide after inactivity and return when the mouse moves. Media stays local.
 
 The bundled VLC build supports the formats its installed decoding and demux plugins provide, including common MP4, MKV, MOV, AVI, WebM, MP3, AAC, FLAC, and OGG media. No player can guarantee every file with one of these extensions will decode: codec variations, corruption, DRM, and platform decoders affect playback. WatchIT is a player; the separate conversion tools still use FFmpeg and have their own format list above.
 
@@ -74,7 +111,7 @@ Select an element in the toolbar or press **Ctrl+1–8**. **Tab** and **Shift+Ta
 1. Drag files into the window or select **Add files**.
 2. Select each file for a visual image/PDF preview and choose its output format. Mixed formats can share one batch.
 3. For an Office file going to PDF, choose its **PDF renderer**. Automatic uses the best installed engine available for that file; Built-in keeps the basic offline converter. For PDF to DOCX, choose editable text or visual pages. Visual pages preserve appearance but are images, so their text is not editable.
-4. Choose a save folder and select **Convert files**.
+4. Choose a save folder and select **Convert files**, or press **Shift+Enter**.
 
 The external PDF renderer supports DOC, DOCX, XLS, XLSX, PPT, and PPTX through installed Microsoft Office on Windows, and those formats plus ODT, ODS, ODP, and RTF through installed LibreOffice on Windows or macOS. Legacy DOC/XLS/PPT can also be converted to DOCX/XLSX/PPTX through those applications. Installed LibreOffice can also convert between supported modern Office formats, including DOCX/ODT, XLSX/ODS, and PPTX/ODP; choose it per file in **Conversion engine**. Microsoft Office export uses COM automation; LibreOffice uses its documented headless conversion interface. Existing outputs and source files are not replaced. Running from source on Windows needs the `pywin32` package in `requirements.txt`; release downloads include that support. To select an engine from a terminal, use `LocalFileConverter.exe --convert-with auto input.docx output.pdf` (or `microsoft`, `libreoffice`, or `built-in`). Use `--convert-with libreoffice input.docx output.odt` for cross-format conversion or `--convert-with visual input.pdf output.docx` for visual pages. Plain `--convert` retains the built-in Office renderer; for legacy files it selects an installed application because there is no built-in legacy parser.
 
@@ -90,7 +127,7 @@ For a shortcut, hold **Shift** while dropping files into the app's drop area. A 
 
 For command-line OCR, run `LocalFileConverter.exe --ocr input.png output.txt` on Windows or `LocalFileConverter.app/Contents/MacOS/LocalFileConverter --ocr input.png output.txt` on macOS. Use `--ocr-with cyrillic|hindi|korean|arabic input.png output.txt` to choose a dedicated model. Existing output files are not replaced.
 
-Select **Compress to ZIP** to save the queued files in one lossless archive. Files with the same name receive numbered archive names.
+Choose the **Create ZIP** tab and select **Compress to ZIP** to save the queued files in one lossless archive. Files with the same name receive numbered archive names. The **Extract ZIP** tab previews and extracts a selected archive; the **Reduce size** tab exposes the target-size controls.
 
 For upload limits, enter a per-file size in MB and select **Reduce file size**. This creates WebP images, MP4 videos, MP3 audio, or a smaller PDF. The app checks the completed output and reports a failure if it cannot meet the limit. This mode may reduce image quality or dimensions. It first tries lossless PDF stream compression to retain selectable text; if that cannot meet the target, it rasterizes PDF pages and their text is no longer selectable. Animated images retain their frames in reduced WebP output. Office documents are excluded.
 
@@ -108,7 +145,7 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-Run the conversion checks with `python -m unittest -q`. If you have local Office test files in `test docs`, run `python verify_office_fixtures.py` to check one text edit per DOCX, XLSX, and PPTX against copies. Tagged commits build Windows x64, macOS Intel, and macOS Apple Silicon downloads through GitHub Actions.
+Run the conversion checks with `python -m unittest -q`. If you have local Office test files in `test docs`, run `python verify_office_fixtures.py` to check one text edit per DOCX, XLSX, and PPTX against copies. Tagged commits build Windows x64, macOS Intel, and macOS Apple Silicon downloads through GitHub Actions. Successful builds create a release draft with installers, archives and checksums; publish it after verifying the downloads. Update `RELEASE_NOTES.md` before tagging.
 
 ## Privacy and security
 

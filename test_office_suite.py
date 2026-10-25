@@ -10,6 +10,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QTableWidgetItem
+from PySide6.QtCore import QCoreApplication, QEvent
 from openpyxl import Workbook, load_workbook
 from pptx import Presentation
 from pptx.dml.color import RGBColor
@@ -22,6 +23,12 @@ class OfficeSuiteTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
+
+    def tearDown(self):
+        # Dispose native widgets while QApplication is alive, not during Python shutdown.
+        for widget in self.app.topLevelWidgets():
+            widget.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
     def test_roundtrips(self):
         with tempfile.TemporaryDirectory() as folder:
