@@ -1,8 +1,8 @@
 #ifndef AppVersion
-  #define AppVersion "0.18.0"
+  #define AppVersion "0.19.0"
 #endif
 #ifndef PackageDir
-  #define PackageDir "dist\ui-018\LocalFileConverter"
+  #define PackageDir "dist\ui-019\LocalFileConverter"
 #endif
 [Setup]
 AppId={{61E4A40A-4EB0-4C4F-8D5E-95FC31F7C825}

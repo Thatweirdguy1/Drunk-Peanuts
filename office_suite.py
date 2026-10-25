@@ -113,63 +113,7 @@ def calculate_cell(rows, address):
     return value(address)
 
 
-def button(bar, label, callback):
-    files = {"New", "Open", "Save", "Save as", "PDF", "New database", "Open database", "Save changes", "Import CSV", "Export CSV"}
-    group = "file" if label in files else "edit" if label in {"Undo", "Redo", "Cut", "Copy", "Paste"} else "tools"
-    previous = [item for item in bar.actions() if item.property("iconGroup")]
-    if previous and previous[-1].property("iconGroup") != group:
-        bar.addSeparator()
-    item = icon_action(bar, label, callback)
-    item.setProperty("iconGroup", group)
-    window = bar.parentWidget()
-    if isinstance(window, Workspace):
-        window.menus["File" if group == "file" else "Edit"].addAction(item)
-    return item
-
-
-def pick_open(parent, label, filters):
-    name, _ = QFileDialog.getOpenFileName(parent, label, "", filters)
-    return Path(name) if name else None
-
-
-def pick_save(parent, label, filters):
-    name, _ = QFileDialog.getSaveFileName(parent, label, "", filters)
-    return Path(name) if name else None
-
-
-class Workspace(QMainWindow):
-    def __init__(self, name):
-        super().__init__()
-        self.setWindowTitle(f"{name} · FreeConvert")
-        self.resize(1100, 750)
-        self.path = None
-        self.dirty = False
-        self.toolbar = QToolBar(name)
-        self.toolbar.setMovable(False)
-        self.toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        self.toolbar.setIconSize(QSize(18, 18))
-        self.addToolBar(self.toolbar)
-        self.menus = {name: self.menuBar().addMenu(name) for name in ("File", "Edit")}
-        self._theme()
-        QApplication.instance().styleHints().colorSchemeChanged.connect(self._theme)
-
-    def _theme(self, *_):
-        self.setStyleSheet(editor_theme())
-        refresh_icons(self)
-
-    def report(self, operation):
-        try:
-            operation()
-        except Exception as error:
-            QMessageBox.warning(self, self.windowTitle(), str(error))
-
-    def discard_changes(self):
-        return not self.dirty or QMessageBox.question(
-            self, "Unsaved changes", "Discard unsaved changes?", QMessageBox.Yes | QMessageBox.No
-        ) == QMessageBox.Yes
-
-    def closeEvent(self, event):
-        event.accept() if self.discard_changes() else event.ignore()
+from office_base import Workspace, button, pick_open, pick_save
 
 
 class Pages(Workspace):
@@ -236,14 +180,18 @@ class Pages(Workspace):
         self.editor.cursorPositionChanged.connect(self._format_state)
         self.editor.textChanged.connect(self._count)
         self._count()
+        from office_documents import setup_pages
+        setup_pages(self)
         self.editor.document().setModified(False)
 
     @Slot(str)
     def _set_editor_font(self, font):
+        self.rich_changed=True
         self.editor.setFontFamily(font)
 
     @Slot(int)
     def _set_font_size(self, size):
+        self.rich_changed=True
         self.editor.setFontPointSize(size)
 
     @Slot()
@@ -273,6 +221,7 @@ class Pages(Workspace):
         self.imported_docx = None
         self.original_paragraphs = []
         self.editor.clear()
+        self.rich_changed=False
         self.editor.document().setModified(False)
 
     def _can_close(self):
@@ -292,7 +241,10 @@ class Pages(Workspace):
             if path.suffix.lower() == ".docx":
                 doc = Document(path)
                 self.original_paragraphs = [p.text for p in doc.paragraphs]
-                self.editor.setPlainText("\n".join(self.original_paragraphs))
+                from office_documents import docx_html
+                self.editor.setHtml(docx_html(doc))
+                self.rich_changed=False
+                self.docx_loaded_rich=True
                 self.imported_docx = path
             elif path.suffix.lower() in {".html", ".htm"}:
                 self.editor.setHtml(path.read_text(encoding="utf-8"))
@@ -317,6 +269,16 @@ class Pages(Workspace):
             self.report(lambda: self._write(path))
 
     def _write(self, path):
+        if path.suffix.lower()=='.docx' and self.imported_docx and self.docx_loaded_rich and not self.editor.document().isModified() and not self.rich_changed:
+            if path.resolve()==self.imported_docx.resolve() and self.path is None:raise ValueError('Save an imported Word document to a new file')
+            if path.resolve()!=self.imported_docx.resolve():shutil.copyfile(self.imported_docx,path)
+            self.path=self.imported_docx=path
+            return
+        if self.imported_docx and self.docx_loaded_rich and self.editor.document().isModified():self.rich_changed=True
+        if path.suffix.lower() == ".docx" and self.rich_changed:
+            from office_documents import write_rich_docx
+            write_rich_docx(self,path)
+            return
         if path.suffix.lower() == ".docx":
             lines = self.editor.toPlainText().split("\n")
             if self.imported_docx and path.resolve() == self.imported_docx.resolve() and self.path is None:
@@ -424,6 +386,8 @@ class Tables(Workspace):
             button(self.toolbar, label, method)
         self.statusBar().showMessage("CSV and XLSX · formulas: arithmetic, SUM, AVERAGE, MIN, MAX, COUNT")
         self.grid.setCurrentCell(0, 0)
+        from office_spreadsheets import setup_tables
+        setup_tables(self)
 
     def _show_formula(self, *_):
         row, column = self.grid.currentRow(), self.grid.currentColumn()
@@ -481,6 +445,7 @@ class Tables(Workspace):
         if not self.discard_changes():
             return
         self.grid.clearContents()
+        self.inserted_objects=[];self.object_list.clear();self.object_preview.clear()
         self.path = None
         self.imported_xlsx = None
         self.original_rows = []
@@ -511,6 +476,7 @@ class Tables(Workspace):
                 rows = list(csv.reader(stream, delimiter=delimiter))
         else:
             raise ValueError("Choose XLSX or CSV")
+        self.inserted_objects=[];self.object_list.clear();self.object_preview.clear()
         self.grid.setUpdatesEnabled(False)
         blocker = QSignalBlocker(self.grid)
         self.grid.clearContents()
@@ -530,6 +496,9 @@ class Tables(Workspace):
         # Imported XLSX requires a new path, preserving the original file.
         self.path = None if path.suffix.lower() == ".xlsx" else path
         self.dirty = False
+        if path.suffix.lower()==".xlsx":
+            from office_spreadsheets import load_objects
+            load_objects(self,path)
 
     def save(self):
         if self.path:
@@ -568,7 +537,7 @@ class Tables(Workspace):
         if path.suffix.lower() == ".xlsx":
             if self.imported_xlsx and path.resolve() == self.imported_xlsx.resolve() and self.path is None:
                 raise ValueError("Save an imported workbook to a new file")
-            if self.imported_xlsx and rows == self.original_rows:
+            if self.imported_xlsx and rows == self.original_rows and not any(not obj.get("saved") for obj in self.inserted_objects):
                 if path.resolve() != self.imported_xlsx.resolve():
                     shutil.copyfile(self.imported_xlsx, path)
                 self.imported_xlsx = path
@@ -587,9 +556,12 @@ class Tables(Workspace):
                     book.save(path)
                 finally:
                     book.close()
+            from office_spreadsheets import save_objects
+            save_objects(self,path,rows)
             self.imported_xlsx = path
             self.original_rows = rows
         elif path.suffix.lower() == ".csv":
+            if any(not obj.get("saved") for obj in self.inserted_objects):raise ValueError("Save as XLSX to retain inserted charts, images and media links.")
             with path.open("w", newline="", encoding=encoding or self.csv_encoding) as stream:
                 csv.writer(stream, delimiter=delimiter or self.csv_delimiter).writerows(rows)
             self.csv_delimiter = delimiter or self.csv_delimiter
@@ -598,264 +570,6 @@ class Tables(Workspace):
             raise ValueError("Choose XLSX or CSV")
         self.path = path
         self.dirty = False
-
-
-class Dazzle(Workspace):
-    """Local slide authoring with editable text and HTML presentation output."""
-
-    def __init__(self):
-        super().__init__("Dazzle")
-        self.imported_pptx = None
-        self.original_slides = []
-        self.slides = []
-        self.slide_styles = []
-        self.index = -1
-        self.list = QListWidget()
-        self.title = QTextEdit()
-        self.title.setObjectName("slideTitle")
-        self.title.setFont(QFont("Calibri", 26, QFont.Bold))
-        self.title.setPlaceholderText("Slide title")
-        self.title.setMaximumHeight(90)
-        self.body = QTextEdit()
-        self.body.setObjectName("slideBody")
-        self.body.setFont(QFont("Calibri", 16))
-        self.body.setPlaceholderText("Slide body")
-        area = QWidget()
-        area.setObjectName("slidePage")
-        area.setMaximumSize(960, 540)
-        layout = QVBoxLayout(area)
-        layout.setContentsMargins(36, 28, 36, 28)
-        layout.addWidget(self.title)
-        layout.addWidget(self.body)
-        stage = QWidget()
-        stage_layout = QVBoxLayout(stage)
-        stage_layout.setContentsMargins(24, 24, 24, 24)
-        stage_row = QHBoxLayout()
-        stage_row.addStretch(1)
-        stage_row.addWidget(area, 12)
-        stage_row.addStretch(1)
-        stage_layout.addLayout(stage_row, 1)
-        self.slide_page = area
-        self.slide_stage = stage
-        stage.installEventFilter(self)
-        split = QSplitter()
-        split.addWidget(self.list)
-        split.addWidget(stage)
-        split.setSizes([230, 800])
-        self.setCentralWidget(split)
-        self.list.currentRowChanged.connect(self.select)
-        self.title.textChanged.connect(lambda: setattr(self, "dirty", True))
-        self.body.textChanged.connect(lambda: setattr(self, "dirty", True))
-        for label, method in [("New", self.new), ("Add slide", self.add), ("Delete slide", self.delete),
-                              ("Open", self.open), ("Save", self.save), ("Save as", self.save_as), ("PDF", self.export_pdf)]:
-            button(self.toolbar, label, method)
-        self.new()
-
-    def eventFilter(self, watched, event):
-        if watched is getattr(self, "slide_stage", None) and event.type() == QEvent.Resize:
-            scale = min(1, max(1, watched.width() - 48) / 960, max(1, watched.height() - 48) / 540)
-            self.slide_page.setFixedSize(round(960 * scale), round(540 * scale))
-        return super().eventFilter(watched, event)
-
-    def _store(self):
-        if self.index >= 0:
-            self.slides[self.index] = (self.title.toPlainText(), self.body.toPlainText())
-            self.list.item(self.index).setText(self.title.toPlainText() or f"Slide {self.index + 1}")
-
-    def select(self, index):
-        if index == self.index:
-            return
-        self._store()
-        self.index = index
-        if index >= 0:
-            colors = self.slide_styles[index]
-            self.slide_page.setStyleSheet(f"QWidget#slidePage {{ background: {colors['background']}; border: 1px solid #393831; }}")
-            self.title.setStyleSheet(f"QTextEdit#slideTitle {{ background: transparent; color: {colors['title']}; }}")
-            self.body.setStyleSheet(f"QTextEdit#slideBody {{ background: transparent; color: {colors['body']}; }}")
-            title, body = self.slides[index]
-            with QSignalBlocker(self.title), QSignalBlocker(self.body):
-                self.title.setPlainText(title)
-                self.body.setPlainText(body)
-
-    def new(self):
-        if not self.discard_changes():
-            return
-        self.index = -1
-        self.slides = []
-        self.slide_styles = []
-        self.list.clear()
-        self.path = None
-        self.imported_pptx = None
-        self.original_slides = []
-        self.add()
-        self.dirty = False
-
-    def add(self):
-        self._store()
-        self.slides.append(("", ""))
-        self.slide_styles.append(dict(self.slide_styles[self.index] if self.index >= 0 else SLIDE_COLORS))
-        self.list.addItem(f"Slide {len(self.slides)}")
-        self.list.setCurrentRow(len(self.slides) - 1)
-        self.dirty = True
-
-    def delete(self):
-        if len(self.slides) <= 1:
-            return
-        index = self.list.currentRow()
-        self.index = -1
-        del self.slides[index]
-        del self.slide_styles[index]
-        self.list.takeItem(index)
-        self.list.setCurrentRow(min(index, len(self.slides) - 1))
-        self.dirty = True
-
-    @staticmethod
-    def _read_slide_colors(slide):
-        from pptx.enum.dml import MSO_FILL, MSO_COLOR_TYPE
-        colors = dict(background='#ffffff', title='#202b3d', body='#202b3d')
-        fill = slide.background.fill
-        if fill.type == MSO_FILL.SOLID and fill.fore_color.type == MSO_COLOR_TYPE.RGB:
-            colors['background'] = '#' + str(fill.fore_color.rgb).lower()
-            if QColor(colors['background']).lightness() < 128:
-                colors.update(title='#f2f2ed', body='#f2f2ed')
-        shapes = [shape for shape in slide.shapes if shape.has_text_frame and shape.text.strip()]
-        for role, shape in zip(('title', 'body'), shapes):
-            fonts = [font for paragraph in shape.text_frame.paragraphs
-                     for font in [*(run.font for run in paragraph.runs), paragraph.font]]
-            rgb = next((font.color.rgb for font in fonts if font.color.type == MSO_COLOR_TYPE.RGB), None)
-            if rgb is not None:
-                colors[role] = '#' + str(rgb).lower()
-        return colors
-
-    def open(self, path=None):
-        path = path or pick_open(self, "Open slides", "Presentations (*.pptx *.dazzle)")
-        if path and self.discard_changes():
-            def read():
-                import json
-                if path.suffix.lower() == ".pptx":
-                    prs = Presentation(path)
-                    slides = []
-                    styles = []
-                    for slide in prs.slides:
-                        parts = [shape.text for shape in slide.shapes if shape.has_text_frame and shape.text.strip()]
-                        slides.append([parts[0] if parts else "", "\n".join(parts[1:])])
-                        styles.append(self._read_slide_colors(slide))
-                else:
-                    data = json.loads(path.read_text(encoding="utf-8"))
-                    slides = data["slides"]
-                    styles = data.get('styles', [dict(SLIDE_COLORS) for _ in slides])
-                if not isinstance(slides, list) or not slides or not all(isinstance(s, list) and len(s) == 2 and all(isinstance(v, str) for v in s) for s in slides):
-                    raise ValueError("Invalid Dazzle document")
-                if not isinstance(styles, list) or len(styles) != len(slides) or any(
-                    not isinstance(style, dict) or set(style) != set(SLIDE_COLORS) or
-                    any(not isinstance(value, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', value) for value in style.values())
-                    for style in styles):
-                    raise ValueError('Invalid slide colors')
-                self.index = -1
-                self.slides = [tuple(s) for s in slides]
-                self.slide_styles = styles
-                self.list.clear()
-                for i, slide in enumerate(self.slides):
-                    self.list.addItem(slide[0] or f"Slide {i + 1}")
-                self.list.setCurrentRow(0)
-                self.imported_pptx = path if path.suffix.lower() == ".pptx" else None
-                self.original_slides = [tuple(s) for s in slides]
-                # PPTX import keeps text only, so never overwrite the imported deck via Save.
-                self.path = None if path.suffix.lower() == ".pptx" else path
-                self.dirty = False
-            self.report(read)
-
-    def save(self):
-        if self.path:
-            self.report(lambda: self._write(self.path))
-        else:
-            self.save_as()
-
-    def save_as(self):
-        path = pick_save(self, "Save slides", "PowerPoint (*.pptx);;Dazzle slides (*.dazzle)")
-        if path:
-            self.report(lambda: self._write(path))
-
-    def _write(self, path):
-        import json
-        self._store()
-        if path.suffix.lower() == ".pptx":
-            if self.imported_pptx and path.resolve() == self.imported_pptx.resolve() and self.path is None:
-                raise ValueError("Save an imported presentation to a new file")
-            if self.imported_pptx and self.slides == self.original_slides:
-                if path.resolve() != self.imported_pptx.resolve():
-                    shutil.copyfile(self.imported_pptx, path)
-                self.imported_pptx = path
-                self.path = path
-                self.dirty = False
-                return
-            if self.imported_pptx and len(self.slides) == len(self.original_slides):
-                prs = Presentation(self.imported_pptx)
-                for slide, (title, body), original in zip(prs.slides, self.slides, self.original_slides):
-                    if (title, body) == original:
-                        continue
-                    shapes = [shape for shape in slide.shapes if shape.has_text_frame and shape.text.strip()]
-                    if title != original[0]:
-                        if shapes:
-                            replace_text_frame(shapes[0], title)
-                        else:
-                            slide.shapes.add_textbox(914400, 914400, prs.slide_width - 1828800, 685800).text = title
-                    if body != original[1]:
-                        if len(shapes) > 1:
-                            old_shapes = shapes[1:]
-                            lines = body.split("\n")
-                            counts = [len(shape.text_frame.paragraphs) for shape in old_shapes]
-                            if sum(counts) != len(lines):
-                                raise ValueError("Text box structure changed; save a Dazzle copy to keep the text")
-                            offset = 0
-                            for shape, count in zip(old_shapes, counts):
-                                replace_text_frame(shape, "\n".join(lines[offset:offset + count]))
-                                offset += count
-                        else:
-                            slide.shapes.add_textbox(914400, 1828800, prs.slide_width - 1828800, 3657600).text = body
-            else:
-                if self.imported_pptx and advanced_content(self.imported_pptx):
-                    raise ValueError("Slide structure changed in a complex presentation; save a Dazzle copy to keep the text")
-                prs = Presentation()
-                from pptx.util import Inches
-                prs.slide_width, prs.slide_height = Inches(13.333333), Inches(7.5)
-                for index, (title, body) in enumerate(self.slides):
-                    slide = prs.slides.add_slide(prs.slide_layouts[1])
-                    slide.shapes.title.text = title
-                    slide.placeholders[1].text = body
-                    style_slide(slide, self.slide_styles[index])
-            prs.save(path)
-            self.imported_pptx = path
-            self.original_slides = list(self.slides)
-        elif path.suffix.lower() == ".dazzle":
-            path.write_text(json.dumps({"slides": self.slides, "styles": self.slide_styles}, ensure_ascii=False, indent=2), encoding="utf-8")
-        else:
-            raise ValueError("Choose PPTX or Dazzle format")
-        self.path = path
-        self.dirty = False
-
-    def export_pdf(self):
-        path = pick_save(self, "Export slides", "PDF (*.pdf)")
-        if path:
-            def write():
-                from reportlab.pdfgen import canvas
-                self._store()
-                pdf = canvas.Canvas(str(path), pagesize=(960, 540))
-                from reportlab.lib.colors import HexColor
-                for index, (title, body) in enumerate(self.slides):
-                    colors = self.slide_styles[index]
-                    pdf.setFillColor(HexColor(colors['background']))
-                    pdf.rect(0, 0, 960, 540, fill=1, stroke=0)
-                    pdf.setFillColor(HexColor(colors['title']))
-                    pdf.setFont("Helvetica-Bold", 36)
-                    pdf.drawString(60, 465, title[:48])
-                    pdf.setFillColor(HexColor(colors['body']))
-                    pdf.setFont("Helvetica", 22)
-                    for i, line in enumerate(body.splitlines()[:15]):
-                        pdf.drawString(70, 390 - i * 27, line[:75])
-                    pdf.showPage()
-                pdf.save()
-            self.report(write)
 
 
 class Canvas(QWidget):
@@ -1236,5 +950,7 @@ def quote(identifier):
 
 
 from formulaic import Formulaic
+
+from dazzle import Dazzle
 
 WORKSPACES = {"Pages": Pages, "Tables": Tables, "Dazzle": Dazzle, "Sketch": Sketch, "Organize": Organize, "Formulaic": Formulaic}

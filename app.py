@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.18.0"
+VERSION = "0.19.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -270,6 +270,7 @@ class Window(QMainWindow):
             spaces.addAction(name, lambda checked=False, workspace=name: self._open_workspace(workspace))
         spaces.addAction("Writer's Drafts", self._screenwriter)
         spaces.addAction("Play", self._watchit)
+        self.menuBar().addAction("Document pages", self._document_pages)
         self.addToolBar(spaces)
         file_menu = self.menuBar().addMenu("File")
         file_menu.addAction("Add files…", self._choose_files)
@@ -906,17 +907,33 @@ class Window(QMainWindow):
         worker.start()
         self._refresh_formats()
 
+    def _document_pages(self):
+        row=self.list.currentRow()
+        path=self.paths[row] if 0<=row<len(self.paths) and self.paths[row].suffix.lower()=='.pdf' else None
+        if path is None:
+            name,_=QFileDialog.getOpenFileName(self,'Organize document pages','','PDF documents (*.pdf)')
+            if not name:return
+            path=Path(name)
+        try:
+            from pdf_pages import PdfPages
+            dialog=PdfPages(path,self);dialog.exec()
+        except Exception as error:QMessageBox.warning(self,'Document pages',str(error))
+
     def _pdf_tools(self):
         pdfs = [path for path in self.paths if path.suffix.lower() == ".pdf"]
         row = self.list.currentRow()
         selected = self.paths[row] if 0 <= row < len(self.paths) else None
         menu = QMenu(self)
+        organize = menu.addAction("Organize pages visually…")
         merge = menu.addAction("Merge queued PDFs")
         split = menu.addAction("Split selected PDF into pages")
         reorder = menu.addAction("Reorder selected PDF pages")
         rotate = menu.addAction("Rotate selected PDF pages")
         chosen = menu.exec(self.pdf_button.mapToGlobal(self.pdf_button.rect().bottomLeft()))
         if not chosen:
+            return
+        if chosen == organize:
+            self._document_pages()
             return
         if chosen == merge:
             if len(pdfs) < 2:

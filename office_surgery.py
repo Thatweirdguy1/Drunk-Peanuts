@@ -33,7 +33,7 @@ def replace_runs(paragraph, value: str) -> None:
         raise ValueError("This text contains a structure that cannot be mapped safely.")
     if not runs:
         if value:
-            paragraph.add_run(value)
+            paragraph.add_run().text = value
         return
     ends = list(accumulate(len(run.text) for run in runs))
     pieces = [""] * len(runs)

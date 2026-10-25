@@ -8,11 +8,11 @@
 
 A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with Play.
 
-**Version 0.18.0** brings consistent black/yellow styling, animated hover feedback on buttons, the four conversion/compression tabs, and format dropdowns. Highlights clear when the pointer leaves; hovering never changes the selected task. Disabled tools stay visibly inactive until a compatible file is selected.
+**Version 0.19.0** adds an object-based Dazzle editor, rich content insertion in Pages and Tables, and a visual PDF page organizer. Dazzle now has fonts, colors, text boxes, images, shapes, editable charts and tables, embedded videos, fade animations, slide transitions, layering, undo/redo and fullscreen presenting.
 
-The media player is now **Play**. The Office Suite includes **15 original starters**, with six styled Dazzle presentations and a Templates menu inside each editor. Slide colors are retained in PPTX, Dazzle projects and PDF exports. No account or template subscription is required. See the [release notes](RELEASE_NOTES.md) and [verification report](docs/DESKTOP_018.md).
+Use **Document pages** in the main menu to split, extract, reorder, rotate, remove pages from a new output, or combine PDFs. Source files stay intact. See the [Office feature report](docs/OFFICE_FEATURES_019.md) for coverage, interoperability checks and limits.
 
-![FreeConvert 0.18.0 with local image conversion and task tabs](docs/desktop-018.jpg)
+![Dazzle object editor](docs/dazzle-019.jpg)
 
 ## Download
 
@@ -20,7 +20,7 @@ Get the app from the [latest release](https://github.com/Thatweirdguy1/FreeConve
 
 | Platform | Download | How to open |
 | --- | --- | --- |
-| **Windows x64 — installer** | [FreeConvert Setup](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/FreeConvert-0.18.0-Setup.exe) | Run Setup, then use **FreeConvert on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
+| **Windows x64 — installer** | [FreeConvert Setup](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/FreeConvert-0.19.0-Setup.exe) | Run Setup, then use **FreeConvert on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
 | Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
 | macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-macOS-Apple-Silicon.zip) | Extract and open `LocalFileConverter.app`. |
 | macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-macOS-Intel.zip) | Extract and open `LocalFileConverter.app`. |
@@ -45,9 +45,9 @@ The original bundled starters are covered by this repository's MIT license. No M
 | Formulaic | Equations |
 | Writer's Drafts | Screenplay |
 
-![Pages with an editable report starter](docs/pages-template-018.jpg)
+![Pages with rich images, charts and tables](docs/pages-019.jpg)
 
-![Dazzle with the original black/yellow Pitch deck starter](docs/dazzle-template-018.jpg)
+![Tables with native spreadsheet charts and images](docs/tables-019.jpg)
 
 ## Included engines
 
@@ -83,16 +83,32 @@ The workspace bar opens these built-in, offline tools:
 
 | Workspace | Create and edit | Local formats |
 | --- | --- | --- |
-| **Pages** | Rich text, bold, italic, underline, bullets, word count | DOCX, HTML, TXT; PDF export |
-| **Tables** | Editable spreadsheet grid; selected-cell calculation for arithmetic, references, ranges, SUM, AVERAGE, MIN, MAX, and COUNT | XLSX, CSV |
-| **Dazzle** | Slide titles and body text, add/delete slides | PPTX, Dazzle project; PDF export |
+| **Pages** | Rich text, fonts, images, tables, rendered charts/shapes, video links, page breaks | DOCX, HTML, TXT; PDF export |
+| **Tables** | Editable cells and formulas; native charts, anchored images, previews and video links | XLSX, CSV |
+| **Dazzle** | Object canvas, fonts, images, shapes, charts, tables, embedded video, animations, slide order and fullscreen presenting | PPTX, Dazzle project; PDF export |
 | **Formulaic** | Local equation source and preview: fractions, roots, scripts, Greek names | Formulaic source, MathML, OpenDocument Formula; PDF and PNG export |
 | **Sketch** | Freehand pen, color, eraser | PNG, JPEG, BMP |
 | **Organize** | SQLite tables and records; CSV import/export | SQLite, CSV |
 | **Writer's Drafts** | Screenplay writing and preview | Fountain, FDX, PDF, TXT, HTML, Markdown |
 | **Play** | Video and audio playback with a playlist, seeking, speed, volume, mute, loop, fullscreen, aspect ratio, audio and subtitle track choices, external subtitles, sync offsets, and audio output selection | Local files supported by the bundled VLC build |
 
-The office workspaces are focused editors, not copies of Microsoft Office or LibreOffice. Pages, Tables, and Dazzle copy unchanged imported DOCX, XLSX, and PPTX files byte-for-byte when saved to a new file. Pages edits text in existing paragraphs while retaining unchanged runs and their formatting; complex fields and structural edits can still be refused. Tables edits the active XLSX worksheet without rewriting other package parts, preserving other sheets, charts, metadata, and unsupported extension parts on a cell edit. **Calculate selected** displays a result for common formulas without changing the stored formula; full Excel calculation remains unavailable. CSV import can detect comma, semicolon, tab, or pipe separators, and Tables lets you choose a separator and UTF-8 BOM when saving CSV. Dazzle edits existing text boxes while retaining run formatting and nontext shapes; changes that alter text box paragraph structure are refused. Structural slide edits in complex imported decks are refused. These editors do not expose every advanced Office feature, and visual layout still needs checking in a full Office viewer. Formulaic supports `over`, `sqrt`, `nroot`, combined super/subscripts, and common Greek names; it is not a full StarMath parser. It opens supported MathML and OpenDocument Formula files and refuses elements it cannot edit. Organize can browse external SQLite databases read-only; it edits databases created by Organize. Back up important originals before importing them.
+The Office workspaces are local editors with explicit format limits. Unchanged DOCX, XLSX and PPTX imports can be copied byte-for-byte. Pages renders basic Word text formatting, inline images and tables; rich editing refuses unsupported fields/objects rather than silently discarding them. Its charts and decorative shapes are images, and video insertion creates a local link with a poster. Tables writes real XLSX charts and drawing parts while preserving unrelated package entries; video links refer to local files. CSV deliberately retains cell values only.
+
+### Dazzle
+
+Use **Insert** to add text boxes, images, video, shapes, tables, or a column/bar/line/pie/scatter chart. Select an object on the slide or in the **Objects** list. Drag to move it, drag its lower-right handle to resize, or use the position/size/rotation fields. **Object properties** edits text, font family, size and colors; double-click a text box, table or chart to edit its content. **Arrange** changes layering or removes the selected object.
+
+**Design** changes the background color/image and slide transition. Choose **Fade on click** and a duration for an object's entrance. **Slide** moves the current slide up/down; Undo/Redo keeps a bounded in-memory history. **F5** starts fullscreen presenting: Space/Right reveals the next fade or slide, Left returns to the previous slide, Escape exits, and clicking a video opens its embedded content in Play. PPTX and Dazzle projects retain the native presentation package, including inserted media. PDF exports use the editing canvas; animations do not run in a static PDF.
+
+Imported SmartArt, grouped objects, uncommon chart types and advanced animations are preserved in the PPTX package but are not fully editable/rendered by this canvas. Fonts must be installed on the machine. The supported animation authoring is currently on-click fade plus a fade slide transition; this is not full PowerPoint feature parity.
+
+### Document splitter and page organization
+
+Open **Document pages** from the main menu, or **PDF tools → Organize pages visually** with a PDF selected. Drag page cards to reorder; Ctrl/Shift selects several. Use Move up/down, Rotate left/right, or Remove from output, then **Save arranged PDF**. **Extract selection** saves only selected pages. **Split into pages** creates one PDF per page; **Split by ranges** accepts groups such as `1-3;4-6`. Range positions refer to the current arranged order. **Combine PDFs** merges selected PDFs into a new file. Existing output filenames are refused.
+
+This organizer works on PDF pages. Export a Word document, spreadsheet or presentation to PDF first when you need to split its printed pages. New PDF output rewrites document structure, so signatures and complex forms should be checked after organization.
+
+![Visual PDF page organizer](docs/document-pages-019.jpg)
 
 ### Play
 

@@ -1,30 +1,23 @@
-## FreeConvert 0.18.0
+## FreeConvert 0.19.0
 
-The conversion panel now gives animated yellow hover feedback on **Convert, Reduce size, Create ZIP and Extract ZIP**, as well as enabled format dropdowns and buttons. Moving the pointer away clears the feedback immediately; hovering does not select another task. Disabled tools remain inactive until the selected file supports them. Animations follow the platform's animation preference, and keyboard focus remains visible.
+Dazzle now edits actual slide objects instead of only a title/body pair. Insert text boxes, images, embedded videos, shapes, editable tables and column/bar/line/pie/scatter charts. Select, move, resize, rotate, format and layer objects; change backgrounds; add on-click fades and fade slide transitions; reorder slides; undo/redo; present fullscreen with F5. PPTX and Dazzle projects retain the native package and media.
 
-### Included in this update
+Pages adds rich image/table insertion, rendered charts and shapes, page breaks, paragraph colors and local video links. Tables adds real XLSX charts, anchored images, previews and local video hyperlinks while retaining unrelated workbook package parts.
 
-- **Play:** renamed from WatchIT across the interface and Windows Open with labels. The bundled VLC engine, playlist, fullscreen and keyboard controls remain available locally.
-- **Black and yellow:** consistent application styling, compact original 18px icons and the FreeConvert cursive wordmark. Document paper keeps its actual print colors.
-- **15 original Office starters:** Pages reports/letters/meeting notes, Tables budget/task tracker, six Dazzle decks, and starters for Sketch, Organize, Formulaic and Writer's Drafts.
-- **Dazzle templates:** Presentation, Project update, Pitch deck, Research presentation, Lesson plan and Portfolio. Each editor has a Templates menu. PPTX, Dazzle project and PDF outputs retain the supported slide background and text colors.
-- **Hover repairs:** toolbar buttons retain their animation state until Qt destroys them, preventing accumulated highlights. Feedback clears on pointer leave, disable, hide and window deactivation.
-- **Fresh documentation:** new screenshots of the converter, Pages, Dazzle and Play, plus updated installation, template and workflow guidance.
+The new **Document pages** entry provides a visual PDF organizer: drag reorder, move, rotate, remove from a new output, extract selected pages, split into individual pages or range groups, and combine PDFs. Source documents remain untouched.
+
+The existing black/yellow theme, compact icons, temporary hover feedback, Play media player and 15 Office templates remain available. See the updated [README](https://github.com/Thatweirdguy1/FreeConvert#readme) and [feature/verification report](https://github.com/Thatweirdguy1/FreeConvert/blob/main/docs/OFFICE_FEATURES_019.md).
 
 ### Downloads
 
-| Asset | Purpose |
-| --- | --- |
-| `FreeConvert-0.18.0-Setup.exe` | Windows x64 installer with Desktop/Start menu shortcuts and media-file registration |
-| `LocalFileConverter-Windows-x64.zip` | Portable Windows app; extract the entire folder |
-| `LocalFileConverter-macOS-Apple-Silicon.zip` | macOS Apple Silicon app |
-| `LocalFileConverter-macOS-Intel.zip` | macOS Intel app |
-| `SHA256SUMS.txt` | SHA-256 checksums for the downloads |
+- `FreeConvert-0.19.0-Setup.exe`: Windows installer with Desktop/Start menu shortcuts.
+- `LocalFileConverter-Windows-x64.zip`: portable Windows app; extract the whole folder.
+- `LocalFileConverter-macOS-Apple-Silicon.zip`: Apple Silicon app.
+- `LocalFileConverter-macOS-Intel.zip`: Intel macOS app.
+- `SHA256SUMS.txt`: download checksums.
 
-FFmpeg, VLC playback plugins, OCR models and Office starters are bundled. Microsoft Office and LibreOffice are optional installed applications for their rendering engines. The original templates are MIT licensed; saving only requires write access to the destination folder.
+### Scope and verification
 
-### Verification and limits
+The feature fixtures were opened/exported by installed PowerPoint, Word, Excel and LibreOffice. Regression tests cover native object persistence, selection/resizing/undo, charts, media, preservation and nondestructive page operations. GitHub Actions checks source and packaged OCR, Office, playback and conversion on all three build targets.
 
-The source suite has **62 tests**, including pointer movement between task tabs, unchanged task selection during hover, disabled tabs, clickable dropdowns, toolbar wrapper lifetime and animation cleanup. Platform-dependent checks may be skipped if their external dependency is unavailable. GitHub Actions checks source tests and packaged OCR, Office, playback and conversion on all three build targets before creating the release draft. Windows UI checks cover real pointer movement and launching from the Desktop shortcut; macOS UI was not manually exercised.
-
-Windows binaries are **unsigned** and macOS builds are **not notarized**. These focused Office editors do not reproduce every feature or layout of Microsoft Office. OCR, media decoding and document fidelity depend on the input and available engines. See the [README](https://github.com/Thatweirdguy1/FreeConvert#readme), [verification report](https://github.com/Thatweirdguy1/FreeConvert/blob/main/docs/DESKTOP_018.md), and [installation/signing guide](https://github.com/Thatweirdguy1/FreeConvert/blob/main/docs/WINDOWS_INSTALL_AND_SIGNING.md).
+This is a substantial local editor update, not full Microsoft Office parity. Fade effects are the supported authored animations. SmartArt/groups/advanced imported effects are preserved but not fully editable/rendered. Pages charts/shapes are images; Pages/Tables videos are local links, while Dazzle embeds media. The organizer works on PDF pages. Windows downloads remain unsigned and macOS apps unnotarized.
