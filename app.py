@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.16.0"
+VERSION = "0.18.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -269,7 +269,7 @@ class Window(QMainWindow):
         for name in ("Pages", "Tables", "Dazzle", "Sketch", "Organize", "Formulaic"):
             spaces.addAction(name, lambda checked=False, workspace=name: self._open_workspace(workspace))
         spaces.addAction("Writer's Drafts", self._screenwriter)
-        spaces.addAction("WatchIT", self._watchit)
+        spaces.addAction("Play", self._watchit)
         self.addToolBar(spaces)
         file_menu = self.menuBar().addMenu("File")
         file_menu.addAction("Add files…", self._choose_files)
@@ -466,11 +466,9 @@ class Window(QMainWindow):
         self.zip_button.setVisible(index == 3)
 
     def _theme(self, *_):
-        dark = QApplication.instance().styleHints().colorScheme() == Qt.ColorScheme.Dark
-        bg, card, text, muted, border, drop = (
-            ("#0b1520", "#17232e", "#edf5f6", "#a6bac3", "#304551", "#11222b") if dark else
-            ("#f6f9fb", "#ffffff", "#14283d", "#58717e", "#d8e4e9", "#eaf8f7")
-        )
+        from ui import palette
+        p = palette()
+        bg, card, text, muted, border, drop = (p[key] for key in ('bg', 'card', 'ink', 'muted', 'border', 'hover'))
         self.setStyleSheet(f"""
             QWidget {{ background: {bg}; color: {text}; font-family: 'Segoe UI', 'SF Pro Text', sans-serif; font-size: 13px; }}
             QWidget#brandBar {{ background: black; }}
@@ -479,46 +477,51 @@ class Window(QMainWindow):
             QMenu::item {{ padding: 5px 20px; }}
             QMenu::item:selected {{ background: {drop}; }}
             QTabBar::tab {{ background: transparent; padding: 7px 14px; color: {muted}; border-bottom: 2px solid transparent; }}
-            QTabBar::tab:selected {{ color: {text}; border-bottom-color: #0d9488; }}
+            QTabBar::tab:selected {{ color: #ffdd22; border-bottom-color: #ffdd22; }}
+            QTabBar::tab:hover:enabled {{ background: {drop}; color: #ffdd22; }}
             QLabel#title {{ font-size: 32px; font-weight: 750; }}
-            QLabel#eyebrow {{ color: #087e75; font-size: 10px; font-weight: 700; letter-spacing: 2px; }}
+            QLabel#eyebrow {{ color: #ffdd22; font-size: 10px; font-weight: 700; letter-spacing: 2px; }}
             QLabel#sectionTitle {{ font-size: 15px; font-weight: 650; }}
             QLabel#dropTitle {{ font-size: 17px; font-weight: 700; }}
-            QLabel#dropMark {{ font-size: 34px; font-weight: 300; color: #087e75; }}
+            QLabel#dropMark {{ font-size: 34px; font-weight: 300; color: #ffdd22; }}
             QLabel#muted {{ color: {muted}; }}
             QLabel#fieldLabel {{ font-weight: 700; }}
-            QFrame#dropArea {{ background: transparent; border: 1px dashed #69aaa3; border-radius: 3px; }}
+            QFrame#dropArea {{ background: transparent; border: 1px dashed #75671d; border-radius: 3px; }}
             QFrame#workspaces {{ background: {card}; border: 1px solid {border}; border-radius: 12px; }}
             QToolBar {{ background: {card}; border: none; padding: 3px 6px; spacing: 2px; }}
-            QToolButton {{ background: transparent; color: {text}; padding: 6px; border-radius: 3px; }}
-            QToolButton:hover {{ background: {drop}; }}
+            QToolButton {{ background: transparent; color: {text}; padding: 6px; border: 1px solid transparent; border-radius: 3px; }}
+            QToolButton:hover {{ background: {drop}; color: #ffdd22; border-color: #ffdd22; }}
             QPushButton#workspaceButton {{ background: transparent; border: none; color: {text}; padding: 8px 6px; }}
-            QPushButton#workspaceButton:hover {{ background: {'#20524f' if dark else '#d9f2ec'}; }}
+            QPushButton#workspaceButton:hover {{ background: {drop}; color: #ffdd22; }}
             QFrame#dropArea QLabel {{ background: transparent; }}
             QFrame#previewPanel, QFrame#controls {{ background: {card}; border: none; border-radius: 3px; }}
             QFrame#previewPanel QLabel, QFrame#controls QLabel {{ background: transparent; }}
             QLabel#previewImage {{ background: {drop}; border: none; border-radius: 2px; color: {muted}; }}
             QListWidget#fileList {{ background: {card}; border: none; border-radius: 2px; padding: 3px; outline: none; }}
             QListWidget::item {{ padding: 7px; margin: 1px; border-radius: 2px; }}
-            QListWidget::item:selected {{ background: {'#20524f' if dark else '#d9f2ec'}; color: {text}; }}
-            QPushButton {{ min-height: 28px; padding: 2px 11px; border-radius: 3px; font-weight: 500; }}
-            QPushButton#primaryButton {{ background: #087e75; color: white; border: 1px solid #087e75; }}
-            QPushButton#primaryButton:hover {{ background: #096b63; }}
-            QPushButton#primaryButton:disabled {{ background: #719994; border-color: #719994; }}
+            QListWidget::item:selected {{ background: {drop}; color: {text}; }}
+            QPushButton {{ min-height: 28px; padding: 2px 11px; border: 1px solid transparent; border-radius: 3px; font-weight: 500; }}
+            QPushButton:hover {{ background: {drop}; border-color: #ffdd22; }}
+            QPushButton:pressed, QToolButton:pressed {{ background: #d6b917; color: black; }}
+            QPushButton#primaryButton {{ background: #ffdd22; color: #0b0b0b; border: 1px solid #ffdd22; }}
+            QPushButton#primaryButton:hover {{ background: #fff176; border-color: #fff176; }}
+            QPushButton#primaryButton:disabled {{ background: #403b24; color: #aaa99f; border-color: #403b24; }}
             QPushButton#secondaryButton, QPushButton#directoryButton {{ background: {card}; border: 1px solid {border}; }}
-            QPushButton#secondaryButton:hover, QPushButton#directoryButton:hover {{ border-color: #087e75; }}
-            QPushButton#textButton {{ background: transparent; border: none; color: #087e75; }}
-            QPushButton:focus, QComboBox:focus, QListWidget:focus {{ border: 2px solid #087e75; }}
+            QPushButton#secondaryButton:hover, QPushButton#directoryButton:hover {{ background: {drop}; border-color: #ffdd22; }}
+            QPushButton#textButton {{ background: transparent; border: 1px solid transparent; color: #ffdd22; }}
+            QPushButton#textButton:hover {{ background: {drop}; border-color: #ffdd22; }}
+            QPushButton#textButton:disabled, QToolButton:disabled {{ color: #69695f; border-color: transparent; }}
+            QPushButton:focus, QComboBox:focus, QListWidget:focus {{ border: 2px solid #ffdd22; }}
             QComboBox {{ background: {card}; border: 1px solid {border}; border-radius: 3px; min-height: 28px; padding: 2px 8px; }}
             QDoubleSpinBox {{ background: {card}; border: 1px solid {border}; border-radius: 3px; min-height: 28px; padding: 2px 8px; min-width: 90px; }}
-            QComboBox QAbstractItemView {{ background: {card}; color: {text}; selection-background-color: #087e75; }}
+            QComboBox QAbstractItemView {{ background: {card}; color: {text}; selection-background-color: {drop}; }}
             QProgressBar {{ height: 7px; background: {drop}; border: none; border-radius: 3px; }}
-            QProgressBar::chunk {{ background: #0d9488; border-radius: 3px; }}
+            QProgressBar::chunk {{ background: #ffdd22; border-radius: 3px; }}
         """)
         from ui import icon
         for button, name in ((self.pdf_button, "export"), (self.image_button, "pen"),
                              (self.media_button, "cut"), (self.ocr_button, "find")):
-            button.setIcon(icon(name, muted))
+            button.setIcon(icon(name, p['accent'] if button.isEnabled() else muted))
             button.setIconSize(QSize(18, 18))
 
     def _choose_files(self):
@@ -529,6 +532,7 @@ class Window(QMainWindow):
         from screenwriter import ScreenwriterWindow
         if self.screenwriter is None:
             self.screenwriter = ScreenwriterWindow()
+            self._workspace_templates(self.screenwriter, "Writer's Drafts")
         self.screenwriter.show()
         self.screenwriter.raise_()
         self.screenwriter.activateWindow()
@@ -547,10 +551,10 @@ class Window(QMainWindow):
         self.watchit.activateWindow()
         if self.watchit_loader is not None:
             return
-        self.status.setText("Starting WatchIT playback engine… You can continue using the converter.")
+        self.status.setText("Starting Play playback engine… You can continue using the converter.")
         self.watchit_loader = EngineLoader(self)
         self.watchit_loader.ready.connect(self._watchit_ready)
-        self.watchit_loader.failed.connect(lambda message: QMessageBox.warning(self, "WatchIT", message))
+        self.watchit_loader.failed.connect(lambda message: QMessageBox.warning(self, "Play", message))
         self.watchit_loader.finished.connect(self._watchit_loader_finished)
         self.watchit_loader.start()
 
@@ -561,17 +565,18 @@ class Window(QMainWindow):
                 self.watchit.add_media(self.pending_media)
                 self.pending_media = []
         except Exception as error:
-            QMessageBox.warning(self, "WatchIT", str(error))
+            QMessageBox.warning(self, "Play", str(error))
 
     def _watchit_loader_finished(self):
         self.watchit_loader.deleteLater()
         self.watchit_loader = None
-        self.status.setText("WatchIT ready." if self.watchit is not None and self.watchit.player is not None else "WatchIT could not start. Close its window and try opening it again.")
+        self.status.setText("Play ready." if self.watchit is not None and self.watchit.player is not None else "Play could not start. Close its window and try opening it again.")
 
     def _open_workspace(self, name: str):
         from office_suite import WORKSPACES
         if name not in self.workspaces:
             self.workspaces[name] = WORKSPACES[name]()
+            self._workspace_templates(self.workspaces[name], name)
         window = self.workspaces[name]
         window.show()
         window.raise_()
@@ -584,6 +589,7 @@ class Window(QMainWindow):
         from screenwriter import ScreenwriterWindow
         target = create_document(workspace, name, destination)
         window = ScreenwriterWindow() if workspace == "Writer's Drafts" else WORKSPACES[workspace]()
+        self._workspace_templates(window, workspace)
         self.workspaces[f"template:{target}"] = window
         (window._open if workspace == "Writer's Drafts" else window.open)(target)
         if workspace == 'Pages':
@@ -597,8 +603,14 @@ class Window(QMainWindow):
         window.activateWindow()
         return window
 
-    def _choose_template(self, workspace, name):
-        destination, _ = QFileDialog.getSaveFileName(self, "Create document from template",
+    def _workspace_templates(self, window, workspace):
+        from office_templates import TEMPLATES
+        menu = window.menuBar().addMenu('Templates')
+        for name in TEMPLATES.get(workspace, ()):
+            menu.addAction(Path(name).stem, lambda checked=False, n=name: self._choose_template(workspace, n, window))
+
+    def _choose_template(self, workspace, name, parent=None):
+        destination, _ = QFileDialog.getSaveFileName(parent or self, "Create document from template",
             str(self.output_dir / name), f"{workspace} (*{Path(name).suffix})")
         if not destination:
             return
@@ -607,8 +619,12 @@ class Window(QMainWindow):
             target = target.with_suffix(Path(name).suffix)
         try:
             self.create_from_template(workspace, name, target)
+        except PermissionError:
+            QMessageBox.warning(parent or self, 'Cannot save here', 'Choose a folder where you have write access, such as Documents. Templates do not need administrator permission.')
+        except FileExistsError:
+            QMessageBox.warning(parent or self, 'File already exists', 'Choose a new filename. Your existing document has not been replaced.')
         except Exception as error:
-            QMessageBox.warning(self, "Could not create document", str(error))
+            QMessageBox.warning(parent or self, "Could not create document", str(error))
 
     def open_arguments(self, arguments):
         from windows_integration import MEDIA_EXTENSIONS

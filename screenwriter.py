@@ -25,15 +25,15 @@ class FountainHighlighter(QSyntaxHighlighter):
         stripped = text.strip()
         color = None
         if SCENE.match(stripped) or stripped.startswith(".") and not stripped.startswith(".."):
-            color = "#087e75"
+            color = "#ffdd22"
         elif stripped.startswith("#"):
-            color = "#6850a1"
+            color = "#f4d675"
         elif stripped.startswith("=") or stripped.startswith("[["):
-            color = "#79848b"
+            color = "#aaa99f"
         elif stripped.startswith("@") or stripped.isupper() and len(stripped) < 40:
-            color = "#344b8e"
+            color = "#ffeb8a"
         elif stripped.startswith(">") or stripped.endswith("TO:"):
-            color = "#996626"
+            color = "#e4b94f"
         if color:
             fmt = QTextCharFormat()
             fmt.setForeground(QColor(color))

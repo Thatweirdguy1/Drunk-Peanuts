@@ -8,6 +8,7 @@ from pptx.util import Inches
 import sqlite3
 from html import escape
 from contextlib import closing
+from office_templates import style_slide
 
 
 def build(folder=Path('assets')):
@@ -51,12 +52,21 @@ def build(folder=Path('assets')):
         for col in ('A','B','C','D'):
             sheet.column_dimensions[col].width=24
         book.save(templates/f'{name}.xlsx')
-    for name, slides in {'Presentation': [('Presentation title','Subtitle · Presenter'),('Agenda','Context\nKey points\nNext steps'),('Key points','Add your main message here.'),('Next steps','Action · Owner · Date')], 'Project update': [('Project update','Project · Date'),('Progress','Completed\nIn progress'),('Risks','Risk · Impact · Mitigation'),('Next milestone','Deliverable · Owner · Date')]}.items():
+    decks = {
+        'Presentation': [('Presentation title','Subtitle · Presenter'),('Agenda','Context\nKey points\nNext steps'),('Key points','Add your main message here.'),('Next steps','Action · Owner · Date')],
+        'Project update': [('Project update','Project · Date'),('Progress','Completed\nIn progress'),('Risks','Risk · Impact · Mitigation'),('Next milestone','Deliverable · Owner · Date')],
+        'Pitch deck': [('Your big idea','Company · Presenter · Date'),('The problem','Who experiences it?\nWhy does it matter?'),('Our solution','What we offer\nHow it solves the problem'),('Audience and opportunity','Target audience\nEvidence and market context'),('Plan and milestones','Milestone · Owner · Date\nResources required'),('The ask','Support needed\nNext conversation')],
+        'Research presentation': [('Research title','Author · Institution · Date'),('Research question','Question\nWhy it matters'),('Method','Participants or data\nProcedure\nAnalysis'),('Results','Key finding\nSupporting evidence'),('Discussion','Interpretation\nLimitations'),('Conclusion','Takeaway\nFuture work\nReferences')],
+        'Lesson plan': [('Lesson title','Subject · Level · Teacher'),('Learning objectives','By the end, learners can…\nPrior knowledge'),('Explore the topic','Key concept\nWorked example'),('Practice','Activity instructions\nTime and materials'),('Review and reflect','Check understanding\nKey takeaway\nNext lesson')],
+        'Portfolio': [('Your name','Role · Speciality · Contact'),('About me','Background\nWhat I bring'),('Selected work','Project title\nRole and contribution\nOutcome'),('Case study','Challenge\nApproach\nResult'),('Let’s connect','Skills\nAvailability\nContact details')],
+    }
+    for name, slides in decks.items():
         deck=Presentation()
         deck.slide_width=Inches(13.333333)
         deck.slide_height=Inches(7.5)
         for title, body in slides:
             slide=deck.slides.add_slide(deck.slide_layouts[1]); slide.shapes.title.text=title; slide.placeholders[1].text=body
+            style_slide(slide)
         deck.save(templates/f'{name}.pptx')
     (templates/'Equations.formulaic').write_text('x = {-b + sqrt {b^2 - 4 a c}} over {2 a}', encoding='utf-8')
     Image.new('RGB',(1600,900),'white').save(templates/'Blank canvas.png')

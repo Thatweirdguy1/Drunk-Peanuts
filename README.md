@@ -4,13 +4,15 @@
 
 [![Desktop builds](https://github.com/Thatweirdguy1/FreeConvert/actions/workflows/release.yml/badge.svg)](https://github.com/Thatweirdguy1/FreeConvert/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
-[![Local and offline](https://img.shields.io/badge/files-local%20%26%20offline-087e75)](#privacy-and-security)
+[![Local and offline](https://img.shields.io/badge/files-local%20%26%20offline-ffdd22)](#privacy-and-security)
 
-A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with WatchIT.
+A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with Play.
 
-**Version 0.16.0** adds smaller 18px icons, flatter toolbars, separate conversion/compression task tabs, 11 Office templates, and a Windows installer with Desktop/Start menu shortcuts and WatchIT **Open with** registration. It also includes the WatchIT startup, fullscreen, responsiveness, and data-preservation repairs since 0.14.1. See [release notes](RELEASE_NOTES.md) and the [desktop verification report](docs/DESKTOP_016.md).
+**Version 0.18.0** brings consistent black/yellow styling, animated hover feedback on buttons, the four conversion/compression tabs, and format dropdowns. Highlights clear when the pointer leaves; hovering never changes the selected task. Disabled tools stay visibly inactive until a compatible file is selected.
 
-![FreeConvert desktop app](docs/desktop-016.jpg)
+The media player is now **Play**. The Office Suite includes **15 original starters**, with six styled Dazzle presentations and a Templates menu inside each editor. Slide colors are retained in PPTX, Dazzle projects and PDF exports. No account or template subscription is required. See the [release notes](RELEASE_NOTES.md) and [verification report](docs/DESKTOP_018.md).
+
+![FreeConvert 0.18.0 with local image conversion and task tabs](docs/desktop-018.jpg)
 
 ## Download
 
@@ -18,7 +20,7 @@ Get the app from the [latest release](https://github.com/Thatweirdguy1/FreeConve
 
 | Platform | Download | How to open |
 | --- | --- | --- |
-| **Windows x64 — installer** | [FreeConvert Setup](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/FreeConvert-0.16.0-Setup.exe) | Run Setup, then use **FreeConvert on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
+| **Windows x64 — installer** | [FreeConvert Setup](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/FreeConvert-0.18.0-Setup.exe) | Run Setup, then use **FreeConvert on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
 | Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
 | macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-macOS-Apple-Silicon.zip) | Extract and open `LocalFileConverter.app`. |
 | macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-macOS-Intel.zip) | Extract and open `LocalFileConverter.app`. |
@@ -31,17 +33,21 @@ Windows downloads are **unsigned** and macOS builds are **not notarized**. Your 
 
 Choose **Templates** in the main menu, select a workspace and starter, then choose a new filename. The app opens a separate workspace and preserves existing unsaved work. Bundled originals and existing destination files are never overwritten.
 
+The original bundled starters are covered by this repository's MIT license. No Microsoft Office account, paid template subscription, or administrator permission is needed. Save to a folder where you have write access. Third-party templates you import may have their own licenses.
+
 | Workspace | Included starters |
 | --- | --- |
 | Pages | Report, Letter, Meeting notes |
 | Tables | Budget, Task tracker |
-| Dazzle | Presentation, Project update |
+| Dazzle | Presentation, Project update, Pitch deck, Research presentation, Lesson plan, Portfolio |
 | Sketch | Blank canvas |
 | Organize | Contacts |
 | Formulaic | Equations |
 | Writer's Drafts | Screenplay |
 
-![Pages with an editable report starter](docs/pages-template-016.jpg)
+![Pages with an editable report starter](docs/pages-template-018.jpg)
+
+![Dazzle with the original black/yellow Pitch deck starter](docs/dazzle-template-018.jpg)
 
 ## Included engines
 
@@ -51,7 +57,7 @@ OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) a
 
 The [OCR investigation](ocr-investigation/REPORT.md) records the REA package inspection, model sources, hashes, and recognition checks.
 
-**WatchIT** uses a bundled [libVLC](https://www.videolan.org/vlc/libvlc.html) runtime and plugins in release downloads. You do not need to install VLC separately to play media. When running from source, install VLC Media Player locally so the Python binding can find libVLC. Playback support depends on the VLC build and its plugins; protected media and some discs or streams may require external permissions or hardware.
+**Play** uses a bundled [libVLC](https://www.videolan.org/vlc/libvlc.html) runtime and plugins in release downloads. You do not need to install VLC separately to play media. When running from source, install VLC Media Player locally so the Python binding can find libVLC. Playback support depends on the VLC build and its plugins; protected media and some discs or streams may require external permissions or hardware.
 
 ## What it converts
 
@@ -84,17 +90,17 @@ The workspace bar opens these built-in, offline tools:
 | **Sketch** | Freehand pen, color, eraser | PNG, JPEG, BMP |
 | **Organize** | SQLite tables and records; CSV import/export | SQLite, CSV |
 | **Writer's Drafts** | Screenplay writing and preview | Fountain, FDX, PDF, TXT, HTML, Markdown |
-| **WatchIT** | Video and audio playback with a playlist, seeking, speed, volume, mute, loop, fullscreen, aspect ratio, audio and subtitle track choices, external subtitles, sync offsets, and audio output selection | Local files supported by the bundled VLC build |
+| **Play** | Video and audio playback with a playlist, seeking, speed, volume, mute, loop, fullscreen, aspect ratio, audio and subtitle track choices, external subtitles, sync offsets, and audio output selection | Local files supported by the bundled VLC build |
 
 The office workspaces are focused editors, not copies of Microsoft Office or LibreOffice. Pages, Tables, and Dazzle copy unchanged imported DOCX, XLSX, and PPTX files byte-for-byte when saved to a new file. Pages edits text in existing paragraphs while retaining unchanged runs and their formatting; complex fields and structural edits can still be refused. Tables edits the active XLSX worksheet without rewriting other package parts, preserving other sheets, charts, metadata, and unsupported extension parts on a cell edit. **Calculate selected** displays a result for common formulas without changing the stored formula; full Excel calculation remains unavailable. CSV import can detect comma, semicolon, tab, or pipe separators, and Tables lets you choose a separator and UTF-8 BOM when saving CSV. Dazzle edits existing text boxes while retaining run formatting and nontext shapes; changes that alter text box paragraph structure are refused. Structural slide edits in complex imported decks are refused. These editors do not expose every advanced Office feature, and visual layout still needs checking in a full Office viewer. Formulaic supports `over`, `sqrt`, `nroot`, combined super/subscripts, and common Greek names; it is not a full StarMath parser. It opens supported MathML and OpenDocument Formula files and refuses elements it cannot edit. Organize can browse external SQLite databases read-only; it edits databases created by Organize. Back up important originals before importing them.
 
-### WatchIT
+### Play
 
-![WatchIT playing a local demonstration video](docs/watchit-016.jpg)
+![Play playing a local demonstration video](docs/play-018.jpg)
 
-Select **WatchIT** from the workspace bar, then **Open** one or more local media files. Double-click a playlist item to play it. **Playback options** opens the speed, aspect, audio/subtitle track, sync and output-device settings. Use the timeline to seek and select **Load subtitles** for an external subtitle file. Audio and subtitle sync controls adjust timing in milliseconds; the output selector lists audio devices exposed by the current VLC module. Some devices may not enumerate or work. The player also has volume, mute, loop and previous/next controls. **Space** pauses or resumes, **Left/Right** skips 10 seconds, **F/F11** or video double-click toggles fullscreen, **Escape** exits fullscreen, **M** toggles mute, and **Ctrl+O** opens files. Fullscreen hides the playlist and settings; playback controls hide after inactivity and return when the mouse moves. Media stays local.
+Select **Play** (previously WatchIT) from the workspace bar, then **Open** one or more local media files. Double-click a playlist item to play it. **Playback options** opens the speed, aspect, audio/subtitle track, sync and output-device settings. Use the timeline to seek and select **Load subtitles** for an external subtitle file. Audio and subtitle sync controls adjust timing in milliseconds; the output selector lists audio devices exposed by the current VLC module. Some devices may not enumerate or work. The player also has volume, mute, loop and previous/next controls. **Space** pauses or resumes, **Left/Right** skips 10 seconds, **F/F11** or video double-click toggles fullscreen, **Escape** exits fullscreen, **M** toggles mute, and **Ctrl+O** opens files. Fullscreen hides the playlist and settings; playback controls hide after inactivity and return when the mouse moves. Media stays local.
 
-The bundled VLC build supports the formats its installed decoding and demux plugins provide, including common MP4, MKV, MOV, AVI, WebM, MP3, AAC, FLAC, and OGG media. No player can guarantee every file with one of these extensions will decode: codec variations, corruption, DRM, and platform decoders affect playback. WatchIT is a player; the separate conversion tools still use FFmpeg and have their own format list above.
+The bundled VLC build supports the formats its installed decoding and demux plugins provide, including common MP4, MKV, MOV, AVI, WebM, MP3, AAC, FLAC, and OGG media. No player can guarantee every file with one of these extensions will decode: codec variations, corruption, DRM, and platform decoders affect playback. Play is a player; the separate conversion tools still use FFmpeg and have their own format list above.
 
 ### Writer's Drafts
 

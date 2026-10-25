@@ -1,9 +1,103 @@
 """Shared, original vector icons and desktop editor styling."""
 
-from PySide6.QtCore import QByteArray, QRectF, QSize, Qt
-from PySide6.QtGui import QAction, QIcon, QPainter, QPixmap
+from weakref import ref
+
+from PySide6.QtCore import QByteArray, QRectF, QSize, Qt, QObject, QEvent, QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QAction, QIcon, QPainter, QPixmap, QCursor
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import QApplication, QAbstractButton
+from PySide6.QtWidgets import QApplication, QAbstractButton, QPushButton, QToolButton, QComboBox, QTabBar, QFrame, QGraphicsOpacityEffect, QStyle
+
+
+class HoverFeedback(QObject):
+    """Fade a mouse-transparent highlight without blurring button text or icons."""
+    def __init__(self, parent):
+        super().__init__(parent)
+        # Qt-created toolbar buttons otherwise lose their Python hover attributes.
+        self._buttons = set()
+
+    def _clear(self):
+        button = self._hovered() if getattr(self, '_hovered', None) else None
+        self._hovered = None
+        if button is not None:
+            try:
+                button._hover_animation.stop()
+                button._hover_animation.targetObject().setOpacity(0)
+                button._hover_frame.hide()
+                button.update()
+            except RuntimeError:  # Qt may already have destroyed the previous window.
+                pass
+
+    def eventFilter(self, button, event):
+        kind = event.type()
+        hovered = self._hovered() if getattr(self, '_hovered', None) else None
+        if kind in (QEvent.WindowDeactivate, QEvent.ApplicationDeactivate):
+            self._clear()
+        elif kind == QEvent.Enter and button is not hovered:
+            # Child overlays must not keep a previous button highlighted.
+            if not isinstance(button, QFrame) or button is not getattr(hovered, '_hover_frame', None):
+                self._clear()
+        if not isinstance(button, (QPushButton, QToolButton, QComboBox, QTabBar)):
+            return False
+        tabs = isinstance(button, QTabBar)
+        if kind in (QEvent.Polish, QEvent.EnabledChange):
+            button.setCursor(Qt.PointingHandCursor if button.isEnabled() else Qt.ArrowCursor)
+            if tabs:
+                button.setMouseTracking(True)
+        frame = getattr(button, '_hover_frame', None)
+        if kind == QEvent.Resize and frame is not None:
+            frame.setGeometry(button.tabRect(button._hover_index) if tabs else button.rect())
+        if kind not in (QEvent.Enter, QEvent.Leave, QEvent.Hide, QEvent.EnabledChange, QEvent.MouseMove):
+            return False
+        if kind == QEvent.MouseMove and not tabs:
+            return False
+        index = -1
+        active = button.isEnabled() and kind in (QEvent.Enter, QEvent.MouseMove)
+        if tabs and active:
+            point = event.position().toPoint() if hasattr(event, 'position') else button.mapFromGlobal(QCursor.pos())
+            index = button.tabAt(point)
+            active = index >= 0 and button.isTabEnabled(index)
+            button.setCursor(Qt.PointingHandCursor if active else Qt.ArrowCursor)
+            if active and button is hovered and index == button._hover_index:
+                return False
+            if button is hovered:
+                self._clear()
+        if not active:
+            if button is hovered:
+                self._clear()
+            return False
+        animation = getattr(button, '_hover_animation', None)
+        duration = min(160, max(0, button.style().styleHint(QStyle.SH_Widget_Animation_Duration, None, button)))
+        animate = duration and button.style().styleHint(QStyle.SH_Widget_Animate, None, button)
+        if not animate:
+            if animation is not None:
+                animation.stop()
+                frame.hide()
+            return False
+        if animation is None:
+            self._buttons.add(button)
+            button.destroyed.connect(lambda: self._buttons.discard(button))
+            frame = QFrame(button)
+            frame.setAttribute(Qt.WA_TransparentForMouseEvents)
+            frame.setStyleSheet('background: rgba(255, 221, 34, 24); border: 1px solid #ffdd22; border-radius: 3px;')
+            effect = QGraphicsOpacityEffect(frame)
+            effect.setOpacity(0)
+            frame.setGraphicsEffect(effect)
+            animation = QPropertyAnimation(effect, b'opacity', effect)
+            animation.setEasingCurve(QEasingCurve.OutCubic)
+            button._hover_animation = animation
+            button._hover_frame = frame
+        self._hovered = ref(button)
+        button._hover_index = index
+        effect = animation.targetObject()
+        animation.stop()
+        frame.setGeometry(button.tabRect(index) if tabs else button.rect())
+        frame.show()
+        frame.raise_()
+        animation.setDuration(duration)
+        animation.setStartValue(effect.opacity())
+        animation.setEndValue(1.0)
+        animation.start()
+        return False
 
 
 PATHS = {
@@ -64,8 +158,11 @@ SHORTCUTS = {"New": "Ctrl+N", "Open": "Ctrl+O", "Save": "Ctrl+S", "Save as": "Ct
 
 
 def palette():
-    dark = QApplication.instance().styleHints().colorScheme() == Qt.ColorScheme.Dark
-    return dict(bg="#121823", card="#1c2432", ink="#e8edf6", muted="#95a3b8", border="#303d50", accent="#53c5b0", hover="#2b394e") if dark else dict(bg="#e9edf3", card="#ffffff", ink="#253149", muted="#64748b", border="#ced7e3", accent="#087e75", hover="#e4f2f0")
+    app = QApplication.instance()
+    if not hasattr(app, '_hover_feedback'):
+        app._hover_feedback = HoverFeedback(app)
+        app.installEventFilter(app._hover_feedback)
+    return dict(bg="#0b0b0b", card="#181818", ink="#f2f2ed", muted="#aaa99f", border="#393831", accent="#ffdd22", hover="#39331a")
 
 
 def icon(name, color):
@@ -84,7 +181,7 @@ def icon(name, color):
 
 
 def action(bar, label, callback):
-    item = QAction(icon(NAMES[label], palette()["ink"]), label, bar)
+    item = QAction(icon(NAMES[label], palette()["accent"]), label, bar)
     item.setProperty("iconName", NAMES[label])
     if label in SHORTCUTS:
         item.setShortcut(SHORTCUTS[label])
@@ -97,7 +194,7 @@ def action(bar, label, callback):
 def icon_button(button, label, name):
     button.setProperty("iconName", name)
     button.setText("")
-    button.setIcon(icon(name, "#edf5f6" if button.objectName() == "playButton" else palette()["ink"]))
+    button.setIcon(icon(name, "#0b0b0b" if button.objectName() == "playButton" else palette()["accent"]))
     button.setIconSize(QSize(18, 18))
     button.setToolTip(label)
     button.setAccessibleName(label)
@@ -108,7 +205,7 @@ def refresh_icons(window):
     for item in window.findChildren(QAction) + window.findChildren(QAbstractButton):
         name = item.property("iconName")
         if name:
-            item.setIcon(icon(name, palette()["ink"]))
+            item.setIcon(icon(name, "#0b0b0b" if isinstance(item, QAbstractButton) and item.objectName() == 'playButton' else palette()["accent"]))
 
 
 def editor_theme():
@@ -122,12 +219,15 @@ def editor_theme():
         QToolBar {{ padding: 3px 8px; spacing: 2px; border: none; border-bottom: 1px solid {p['border']}; }}
         QToolBar::separator {{ width: 1px; background: {p['border']}; margin: 5px 6px; }}
         QToolButton {{ background: transparent; color: {p['ink']}; border: 1px solid transparent; border-radius: 3px; padding: 5px; }}
-        QToolButton:hover, QToolButton:checked {{ background: {p['hover']}; border-color: {p['border']}; }}
-        QToolButton:focus {{ border-color: {p['accent']}; }}
+        QPushButton, QToolButton {{ border: 1px solid transparent; border-radius: 3px; padding: 5px; }}
+        QPushButton:hover, QToolButton:hover, QToolButton:checked {{ background: {p['hover']}; border-color: {p['accent']}; color: {p['accent']}; }}
+        QPushButton:pressed, QToolButton:pressed {{ background: {p['accent']}; color: {p['bg']}; }}
+        QPushButton:disabled, QToolButton:disabled {{ color: #66665e; border-color: transparent; }}
+        QPushButton:focus, QToolButton:focus {{ border-color: {p['accent']}; }}
         QLineEdit, QComboBox, QSpinBox {{ background: {p['card']}; color: {p['ink']}; border: 1px solid {p['border']}; border-radius: 3px; padding: 4px; }}
-        QTextEdit, QPlainTextEdit, QTextBrowser, QTableWidget, QListWidget {{ background: {p['card']}; color: {p['ink']}; border: 1px solid {p['border']}; border-radius: 2px; selection-background-color: #286e69; selection-color: white; }}
+        QTextEdit, QPlainTextEdit, QTextBrowser, QTableWidget, QListWidget {{ background: {p['card']}; color: {p['ink']}; border: 1px solid {p['border']}; border-radius: 2px; selection-background-color: #6b5b10; selection-color: white; }}
         QTableWidget {{ gridline-color: {p['border']}; alternate-background-color: {p['bg']}; }}
-        QTableWidget::item:selected {{ background: #286e69; color: white; border: 1px solid {p['accent']}; }}
+        QTableWidget::item:selected {{ background: #6b5b10; color: white; border: 1px solid {p['accent']}; }}
         QHeaderView::section {{ background: {p['card']}; color: {p['muted']}; border: none; border-right: 1px solid {p['border']}; border-bottom: 1px solid {p['border']}; padding: 7px; }}
         QListWidget::item {{ padding: 6px; border-radius: 2px; }}
         QListWidget::item:selected {{ background: {p['hover']}; color: {p['ink']}; }}

@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QColorDialog, QF
     QListWidget, QMainWindow, QMessageBox, QPushButton, QSplitter, QTableWidget,
     QTableWidgetItem, QTextEdit, QToolBar, QVBoxLayout, QWidget, QComboBox, QSpinBox, QLineEdit, QFrame)
 from ui import action as icon_action, editor_theme, refresh_icons
+from office_templates import SLIDE_COLORS, style_slide
 
 
 def calculate_cell(rows, address):
@@ -607,6 +608,7 @@ class Dazzle(Workspace):
         self.imported_pptx = None
         self.original_slides = []
         self.slides = []
+        self.slide_styles = []
         self.index = -1
         self.list = QListWidget()
         self.title = QTextEdit()
@@ -666,6 +668,10 @@ class Dazzle(Workspace):
         self._store()
         self.index = index
         if index >= 0:
+            colors = self.slide_styles[index]
+            self.slide_page.setStyleSheet(f"QWidget#slidePage {{ background: {colors['background']}; border: 1px solid #393831; }}")
+            self.title.setStyleSheet(f"QTextEdit#slideTitle {{ background: transparent; color: {colors['title']}; }}")
+            self.body.setStyleSheet(f"QTextEdit#slideBody {{ background: transparent; color: {colors['body']}; }}")
             title, body = self.slides[index]
             with QSignalBlocker(self.title), QSignalBlocker(self.body):
                 self.title.setPlainText(title)
@@ -674,9 +680,10 @@ class Dazzle(Workspace):
     def new(self):
         if not self.discard_changes():
             return
-        self.slides = []
-        self.list.clear()
         self.index = -1
+        self.slides = []
+        self.slide_styles = []
+        self.list.clear()
         self.path = None
         self.imported_pptx = None
         self.original_slides = []
@@ -686,6 +693,7 @@ class Dazzle(Workspace):
     def add(self):
         self._store()
         self.slides.append(("", ""))
+        self.slide_styles.append(dict(self.slide_styles[self.index] if self.index >= 0 else SLIDE_COLORS))
         self.list.addItem(f"Slide {len(self.slides)}")
         self.list.setCurrentRow(len(self.slides) - 1)
         self.dirty = True
@@ -696,9 +704,28 @@ class Dazzle(Workspace):
         index = self.list.currentRow()
         self.index = -1
         del self.slides[index]
+        del self.slide_styles[index]
         self.list.takeItem(index)
         self.list.setCurrentRow(min(index, len(self.slides) - 1))
         self.dirty = True
+
+    @staticmethod
+    def _read_slide_colors(slide):
+        from pptx.enum.dml import MSO_FILL, MSO_COLOR_TYPE
+        colors = dict(background='#ffffff', title='#202b3d', body='#202b3d')
+        fill = slide.background.fill
+        if fill.type == MSO_FILL.SOLID and fill.fore_color.type == MSO_COLOR_TYPE.RGB:
+            colors['background'] = '#' + str(fill.fore_color.rgb).lower()
+            if QColor(colors['background']).lightness() < 128:
+                colors.update(title='#f2f2ed', body='#f2f2ed')
+        shapes = [shape for shape in slide.shapes if shape.has_text_frame and shape.text.strip()]
+        for role, shape in zip(('title', 'body'), shapes):
+            fonts = [font for paragraph in shape.text_frame.paragraphs
+                     for font in [*(run.font for run in paragraph.runs), paragraph.font]]
+            rgb = next((font.color.rgb for font in fonts if font.color.type == MSO_COLOR_TYPE.RGB), None)
+            if rgb is not None:
+                colors[role] = '#' + str(rgb).lower()
+        return colors
 
     def open(self, path=None):
         path = path or pick_open(self, "Open slides", "Presentations (*.pptx *.dazzle)")
@@ -708,15 +735,25 @@ class Dazzle(Workspace):
                 if path.suffix.lower() == ".pptx":
                     prs = Presentation(path)
                     slides = []
+                    styles = []
                     for slide in prs.slides:
                         parts = [shape.text for shape in slide.shapes if shape.has_text_frame and shape.text.strip()]
                         slides.append([parts[0] if parts else "", "\n".join(parts[1:])])
+                        styles.append(self._read_slide_colors(slide))
                 else:
-                    slides = json.loads(path.read_text(encoding="utf-8"))["slides"]
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                    slides = data["slides"]
+                    styles = data.get('styles', [dict(SLIDE_COLORS) for _ in slides])
                 if not isinstance(slides, list) or not slides or not all(isinstance(s, list) and len(s) == 2 and all(isinstance(v, str) for v in s) for s in slides):
                     raise ValueError("Invalid Dazzle document")
+                if not isinstance(styles, list) or len(styles) != len(slides) or any(
+                    not isinstance(style, dict) or set(style) != set(SLIDE_COLORS) or
+                    any(not isinstance(value, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', value) for value in style.values())
+                    for style in styles):
+                    raise ValueError('Invalid slide colors')
                 self.index = -1
                 self.slides = [tuple(s) for s in slides]
+                self.slide_styles = styles
                 self.list.clear()
                 for i, slide in enumerate(self.slides):
                     self.list.addItem(slide[0] or f"Slide {i + 1}")
@@ -780,15 +817,18 @@ class Dazzle(Workspace):
                 if self.imported_pptx and advanced_content(self.imported_pptx):
                     raise ValueError("Slide structure changed in a complex presentation; save a Dazzle copy to keep the text")
                 prs = Presentation()
-                for title, body in self.slides:
+                from pptx.util import Inches
+                prs.slide_width, prs.slide_height = Inches(13.333333), Inches(7.5)
+                for index, (title, body) in enumerate(self.slides):
                     slide = prs.slides.add_slide(prs.slide_layouts[1])
                     slide.shapes.title.text = title
                     slide.placeholders[1].text = body
+                    style_slide(slide, self.slide_styles[index])
             prs.save(path)
             self.imported_pptx = path
             self.original_slides = list(self.slides)
         elif path.suffix.lower() == ".dazzle":
-            path.write_text(json.dumps({"slides": self.slides}, ensure_ascii=False, indent=2), encoding="utf-8")
+            path.write_text(json.dumps({"slides": self.slides, "styles": self.slide_styles}, ensure_ascii=False, indent=2), encoding="utf-8")
         else:
             raise ValueError("Choose PPTX or Dazzle format")
         self.path = path
@@ -801,9 +841,15 @@ class Dazzle(Workspace):
                 from reportlab.pdfgen import canvas
                 self._store()
                 pdf = canvas.Canvas(str(path), pagesize=(960, 540))
-                for title, body in self.slides:
+                from reportlab.lib.colors import HexColor
+                for index, (title, body) in enumerate(self.slides):
+                    colors = self.slide_styles[index]
+                    pdf.setFillColor(HexColor(colors['background']))
+                    pdf.rect(0, 0, 960, 540, fill=1, stroke=0)
+                    pdf.setFillColor(HexColor(colors['title']))
                     pdf.setFont("Helvetica-Bold", 36)
                     pdf.drawString(60, 465, title[:48])
+                    pdf.setFillColor(HexColor(colors['body']))
                     pdf.setFont("Helvetica", 22)
                     for i, line in enumerate(body.splitlines()[:15]):
                         pdf.drawString(70, 390 - i * 27, line[:75])

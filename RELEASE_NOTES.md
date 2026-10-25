@@ -1,31 +1,30 @@
-## FreeConvert 0.16.0
+## FreeConvert 0.18.0
 
-This release brings the desktop usability repairs since 0.14.1 into a single update, with a Windows installer and a more compact local workspace.
+The conversion panel now gives animated yellow hover feedback on **Convert, Reduce size, Create ZIP and Extract ZIP**, as well as enabled format dropdowns and buttons. Moving the pointer away clears the feedback immediately; hovering does not select another task. Disabled tools remain inactive until the selected file supports them. Animations follow the platform's animation preference, and keyboard focus remains visible.
 
-### New and improved
+### Included in this update
 
-- **Windows installation:** a per-user Setup executable, branded Desktop and Start menu shortcuts, an Installed apps entry and uninstaller. No Python installation or terminal is needed.
-- **Open with:** WatchIT registers as an available audio/video handler. Opening a file queues playback until its engine is ready. Installation preserves your existing default player.
-- **Compact interface:** 18px original vector icons across the Office Suite and WatchIT, slimmer controls, and a black/yellow cursive FreeConvert wordmark.
-- **Clear conversion tools:** separate Convert, Reduce size, Create ZIP and Extract ZIP tabs; Shift+Enter converts the queue, while Shift-drop retains the quick-format menu.
-- **11 Office starters:** reports, letters, meeting notes, budgets, task tracking, presentations, project updates, a drawing canvas, contacts, equations and a screenplay. Templates open as new files in separate workspaces; existing unsaved documents are preserved.
-- **WatchIT:** the window appears while the playback engine loads; device enumeration is deferred, and Windows packaging regenerates VLC's plugin cache. Fullscreen supports F/F11, Escape and video double-click.
-- **Editing and responsiveness:** clearer document/slide canvases, a spreadsheet formula bar, background previews, queue controls that follow worker state, safer SQLite record updates, corrected drawing coordinates and debounced live previews.
+- **Play:** renamed from WatchIT across the interface and Windows Open with labels. The bundled VLC engine, playlist, fullscreen and keyboard controls remain available locally.
+- **Black and yellow:** consistent application styling, compact original 18px icons and the FreeConvert cursive wordmark. Document paper keeps its actual print colors.
+- **15 original Office starters:** Pages reports/letters/meeting notes, Tables budget/task tracker, six Dazzle decks, and starters for Sketch, Organize, Formulaic and Writer's Drafts.
+- **Dazzle templates:** Presentation, Project update, Pitch deck, Research presentation, Lesson plan and Portfolio. Each editor has a Templates menu. PPTX, Dazzle project and PDF outputs retain the supported slide background and text colors.
+- **Hover repairs:** toolbar buttons retain their animation state until Qt destroys them, preventing accumulated highlights. Feedback clears on pointer leave, disable, hide and window deactivation.
+- **Fresh documentation:** new screenshots of the converter, Pages, Dazzle and Play, plus updated installation, template and workflow guidance.
 
 ### Downloads
 
 | Asset | Purpose |
 | --- | --- |
-| `FreeConvert-0.16.0-Setup.exe` | Recommended Windows x64 installer with Desktop/Start menu and file integration |
-| `LocalFileConverter-Windows-x64.zip` | Portable Windows app; extract the whole folder |
+| `FreeConvert-0.18.0-Setup.exe` | Windows x64 installer with Desktop/Start menu shortcuts and media-file registration |
+| `LocalFileConverter-Windows-x64.zip` | Portable Windows app; extract the entire folder |
 | `LocalFileConverter-macOS-Apple-Silicon.zip` | macOS Apple Silicon app |
 | `LocalFileConverter-macOS-Intel.zip` | macOS Intel app |
 | `SHA256SUMS.txt` | SHA-256 checksums for the downloads |
 
-FFmpeg, VLC playback plugins, OCR models and Office starters are bundled. Microsoft Office and LibreOffice remain optional installed applications for their document-rendering engines.
+FFmpeg, VLC playback plugins, OCR models and Office starters are bundled. Microsoft Office and LibreOffice are optional installed applications for their rendering engines. The original templates are MIT licensed; saving only requires write access to the destination folder.
 
 ### Verification and limits
 
-The Windows build was installed and launched from its Desktop shortcut. Tests covered conversion, OCR, Office modules, playback/fullscreen, template formatting and save, and preservation of existing data. The source suite contains 57 checks; platform-dependent checks may be skipped when their external dependency is unavailable. GitHub Actions also verifies the packaged builds before creating the release draft.
+The source suite has **62 tests**, including pointer movement between task tabs, unchanged task selection during hover, disabled tabs, clickable dropdowns, toolbar wrapper lifetime and animation cleanup. Platform-dependent checks may be skipped if their external dependency is unavailable. GitHub Actions checks source tests and packaged OCR, Office, playback and conversion on all three build targets before creating the release draft. Windows UI checks cover real pointer movement and launching from the Desktop shortcut; macOS UI was not manually exercised.
 
-Windows binaries are **unsigned**; macOS apps are **not notarized**. The Office workspaces are focused editors rather than full Office replacements. OCR accuracy, media decoding and document layout depend on the input and available engines. See the [README](https://github.com/Thatweirdguy1/FreeConvert#readme), [desktop report](https://github.com/Thatweirdguy1/FreeConvert/blob/main/docs/DESKTOP_016.md), and [installation/signing guide](https://github.com/Thatweirdguy1/FreeConvert/blob/main/docs/WINDOWS_INSTALL_AND_SIGNING.md).
+Windows binaries are **unsigned** and macOS builds are **not notarized**. These focused Office editors do not reproduce every feature or layout of Microsoft Office. OCR, media decoding and document fidelity depend on the input and available engines. See the [README](https://github.com/Thatweirdguy1/FreeConvert#readme), [verification report](https://github.com/Thatweirdguy1/FreeConvert/blob/main/docs/DESKTOP_018.md), and [installation/signing guide](https://github.com/Thatweirdguy1/FreeConvert/blob/main/docs/WINDOWS_INSTALL_AND_SIGNING.md).

@@ -39,6 +39,207 @@ class UsabilityTest(unittest.TestCase):
             time.sleep(.001)
         self.assertTrue(condition())
 
+    def test_brand_hover_animates_without_moving_buttons_and_respects_no_motion(self):
+        from ui import palette
+        from PySide6.QtCore import QAbstractAnimation
+        from PySide6.QtWidgets import QStyle
+        window = Window()
+        self.assertEqual(palette()['accent'], '#ffdd22')
+        self.assertNotIn('#087e75', window.styleSheet())
+        button = window.add_button
+        geometry = button.geometry()
+        motion_style = SimpleNamespace(styleHint=lambda hint, *_: 160 if hint == QStyle.SH_Widget_Animation_Duration else 1)
+        with patch.object(button, 'style', return_value=motion_style):
+            QApplication.sendEvent(button, QEvent(QEvent.Enter))
+        animation = button._hover_animation
+        effect = animation.targetObject()
+        if not button._hover_frame.isHidden():
+            self.assertEqual(animation.endValue(), 1)
+            self.assertLessEqual(animation.duration(), 160)
+            animation.setCurrentTime(animation.duration() // 2)
+            self.assertGreater(effect.opacity(), 0)
+            self.assertLess(effect.opacity(), 1)
+            animation.setCurrentTime(animation.duration())
+            self.assertEqual(effect.opacity(), 1)
+        self.assertIsNone(button.graphicsEffect())
+        self.assertEqual(button.geometry(), geometry)
+        with patch.object(button, 'style', return_value=motion_style):
+            QApplication.sendEvent(button, QEvent(QEvent.Leave))
+        animation.setCurrentTime(animation.duration())
+        self.assertTrue(button._hover_frame.isHidden())
+        with patch.object(button, 'style', return_value=SimpleNamespace(styleHint=lambda *_: 0)):
+            QApplication.sendEvent(button, QEvent(QEvent.Enter))
+            self.assertEqual(animation.state(), QAbstractAnimation.Stopped)
+            self.assertTrue(button._hover_frame.isHidden())
+        button.setEnabled(False)
+        QApplication.sendEvent(button, QEvent(QEvent.Enter))
+        self.assertTrue(button._hover_frame.isHidden())
+        window.close()
+
+    def test_hover_clears_between_buttons_blank_space_and_window_deactivation(self):
+        from PySide6.QtCore import QPoint
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QWidget
+        from ui import editor_theme
+        window = QWidget()
+        window.setStyleSheet(editor_theme())
+        window.resize(400, 200)
+        buttons = [QPushButton(label, window) for label in ('First', 'Second')]
+        for index, button in enumerate(buttons):
+            button.setGeometry(10 + index * 100, 10, 80, 40)
+        window.show()
+        QTest.qWait(30)
+        for index, button in enumerate(buttons):
+            QTest.mouseMove(window, QPoint(40 + index * 100, 25))
+            QTest.qWait(180)
+            self.assertTrue(button._hover_frame.isVisible())
+            if index:
+                self.assertTrue(buttons[0]._hover_frame.isHidden())
+        QTest.mouseMove(window, QPoint(300, 150))
+        self.app.processEvents()
+        self.assertTrue(all(button._hover_frame.isHidden() for button in buttons))
+        QTest.mouseMove(window, QPoint(40, 25))
+        QTest.qWait(180)
+        QApplication.sendEvent(window, QEvent(QEvent.WindowDeactivate))
+        self.assertTrue(buttons[0]._hover_frame.isHidden())
+        # A popup can take the pointer without delivering Leave to its old button.
+        QApplication.sendEvent(buttons[0], QEvent(QEvent.Enter))
+        QApplication.sendEvent(buttons[1], QEvent(QEvent.Enter))
+        self.assertTrue(buttons[0]._hover_frame.isHidden())
+        self.assertEqual(buttons[0]._hover_animation.targetObject().opacity(), 0)
+        window.close()
+
+    def test_qt_created_toolbar_button_keeps_hover_state_until_destroyed(self):
+        import gc
+        import weakref
+        from PySide6.QtWidgets import QToolBar
+        from ui import palette
+        palette()
+        from PySide6.QtCore import QPoint
+        from PySide6.QtTest import QTest
+        toolbar = QToolBar()
+        toolbar.resize(200, 60)
+        action = toolbar.addAction('Open')
+        toolbar.show()
+        QTest.qWait(20)
+        QTest.mouseMove(toolbar, toolbar.actionGeometry(action).center())
+        QTest.qWait(20)
+        button = toolbar.widgetForAction(action)
+        self.assertTrue(hasattr(button, '_hover_frame'), 'Qt-created button must retain its hover state')
+        tracked = weakref.ref(button)
+        del button
+        gc.collect()
+        self.assertIsNotNone(tracked(), 'Qt-created button wrapper must survive between hover events')
+        button = toolbar.widgetForAction(action)
+        QApplication.sendEvent(button, QEvent(QEvent.Leave))
+        self.assertTrue(button._hover_frame.isHidden())
+        self.assertEqual(button._hover_animation.targetObject().opacity(), 0)
+        self.assertIn(button, self.app._hover_feedback._buttons)
+        toolbar.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        self.assertNotIn(button, self.app._hover_feedback._buttons)
+
+    def test_task_tab_and_format_hover_follows_pointer_without_selecting(self):
+        from PySide6.QtCore import QPoint
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QWidget, QTabBar, QComboBox, QStyle
+        from ui import editor_theme
+        window = QWidget()
+        window.setStyleSheet(editor_theme())
+        window.resize(900, 160)
+        tabs = QTabBar(window)
+        tabs.setExpanding(False)
+        for label in ('Convert', 'Reduce size', 'Create ZIP', 'Extract ZIP'):
+            tabs.addTab(label)
+        tabs.setGeometry(0, 0, 850, 40)
+        combo = QComboBox(window)
+        combo.addItems(['PNG', 'JPEG'])
+        combo.setGeometry(10, 60, 120, 35)
+        window.show()
+        QTest.qWait(20)
+        motion = SimpleNamespace(styleHint=lambda hint, *_: 160 if hint == QStyle.SH_Widget_Animation_Duration else 1)
+        with patch.object(tabs, 'style', return_value=motion), patch.object(combo, 'style', return_value=motion):
+            for index in range(tabs.count()):
+                QTest.mouseMove(tabs, tabs.tabRect(index).center())
+                self.app.processEvents()
+                self.assertEqual(tabs._hover_frame.geometry(), tabs.tabRect(index))
+                self.assertFalse(tabs._hover_frame.isHidden())
+                self.assertEqual(tabs._hover_animation.endValue(), 1)
+                self.assertEqual(tabs.currentIndex(), 0, 'Hover must not change the task')
+            QTest.mouseMove(combo, combo.rect().center())
+            self.app.processEvents()
+            self.assertTrue(tabs._hover_frame.isHidden())
+            self.assertFalse(combo._hover_frame.isHidden())
+            self.assertEqual(combo._hover_frame.geometry(), combo.rect())
+            QTest.mouseClick(combo, Qt.LeftButton, pos=combo.rect().center())
+            self.assertTrue(combo.view().isVisible(), 'Highlight must not intercept the dropdown click')
+            combo.hidePopup()
+            QTest.mouseMove(window, QPoint(880, 140))
+            self.app.processEvents()
+            self.assertTrue(combo._hover_frame.isHidden())
+            tabs.setTabEnabled(2, False)
+            QTest.mouseMove(tabs, tabs.tabRect(2).center())
+            self.app.processEvents()
+            self.assertTrue(tabs._hover_frame.isHidden())
+            self.assertEqual(tabs.cursor().shape(), Qt.ArrowCursor)
+            QTest.mouseMove(tabs, QPoint(tabs.width() - 1, 20))
+            self.assertTrue(tabs._hover_frame.isHidden())
+        window.close()
+
+    def test_dazzle_templates_preview_and_preserve_slide_colors(self):
+        from office_templates import TEMPLATES, create_document, SLIDE_COLORS
+        from office_suite import Dazzle
+        from pptx import Presentation
+        with tempfile.TemporaryDirectory() as folder:
+            for name in TEMPLATES['Dazzle']:
+                target = create_document('Dazzle', name, Path(folder)/name)
+                original = target.read_bytes()
+                editor = Dazzle()
+                editor.open(target)
+                self.assertTrue(all(colors == SLIDE_COLORS for colors in editor.slide_styles), name)
+                self.assertIn('#ffdd22', editor.title.styleSheet())
+                editor.title.setPlainText('Updated title')
+                saved = Path(folder)/('Edited ' + name)
+                editor._write(saved)
+                self.assertEqual(editor._read_slide_colors(Presentation(saved).slides[0]), SLIDE_COLORS)
+                self.assertEqual(target.read_bytes(), original)
+                editor._write(Path(folder)/'colors.dazzle')
+                editor.open(Path(folder)/'colors.dazzle')
+                self.assertEqual(editor.slide_styles[0], SLIDE_COLORS)
+                editor.add()
+                self.assertEqual(len(editor.slides), len(editor.slide_styles))
+                editor.delete()
+                self.assertEqual(len(editor.slides), len(editor.slide_styles))
+                editor.dirty = False
+                editor.close()
+            window = Window()
+            dazzle = window._open_workspace('Dazzle')
+            menu = next(action.menu() for action in dazzle.menuBar().actions() if action.text() == 'Templates')
+            self.assertIn('Pitch deck', [action.text() for action in menu.actions()])
+            pdf_path = Path(folder)/'themed.pdf'
+            dazzle.title.setPlainText('Themed export')
+            with patch('office_suite.pick_save', return_value=pdf_path):
+                dazzle.export_pdf()
+            import pypdfium2 as pdfium
+            with pdfium.PdfDocument(pdf_path) as pdf:
+                page = pdf[0]
+                bitmap = page.render(scale=.1)
+                try:
+                    self.assertEqual(bitmap.to_pil().getpixel((2, 2))[:3], (11, 11, 11))
+                finally:
+                    bitmap.close()
+                    page.close()
+            import json
+            bad = Path(folder)/'invalid.dazzle'
+            bad.write_text(json.dumps({'slides':[['Bad', 'Text']], 'styles':[dict(SLIDE_COLORS, background='red; border:0')]}))
+            before = list(dazzle.slides)
+            dazzle.dirty = False
+            with patch('office_suite.QMessageBox.warning') as warning:
+                dazzle.open(bad)
+                warning.assert_called_once()
+            self.assertEqual(dazzle.slides, before)
+            window.close()
+
     def test_windows_media_launch_waits_for_engine(self):
         with tempfile.TemporaryDirectory() as folder:
             media = Path(folder)/'video with spaces.mp4'

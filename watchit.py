@@ -1,4 +1,4 @@
-"""WatchIT: local media playback powered by the bundled libVLC runtime."""
+"""Play: local media playback powered by the bundled libVLC runtime."""
 
 from __future__ import annotations
 
@@ -35,9 +35,9 @@ def vlc_runtime():
     elif getattr(sys, "frozen", False):
         raise RuntimeError("The bundled VLC playback engine is missing.")
     elif sys.platform == "win32" and not (Path(os.environ.get("ProgramFiles", "")) / "VideoLAN/VLC/libvlc.dll").is_file():
-        raise RuntimeError("Install VLC to run WatchIT from source; downloads include the playback engine.")
+        raise RuntimeError("Install VLC to run Play from source; downloads include the playback engine.")
     elif sys.platform == "darwin" and not Path("/Applications/VLC.app/Contents/MacOS/lib/libvlc.dylib").is_file():
-        raise RuntimeError("Install VLC to run WatchIT from source; downloads include the playback engine.")
+        raise RuntimeError("Install VLC to run Play from source; downloads include the playback engine.")
     import vlc
     return vlc
 
@@ -77,7 +77,7 @@ class VideoSurface(QWidget):
         super().__init__()
         self.setAttribute(Qt.WA_NativeWindow)
         self.setObjectName("videoSurface")
-        self.setStyleSheet("background: #050b11;")
+        self.setStyleSheet("background: #000000;")
         self.setMinimumHeight(260)
 
     def mouseDoubleClickEvent(self, event):
@@ -88,7 +88,7 @@ class VideoSurface(QWidget):
 class WatchIT(QMainWindow):
     def __init__(self, engine=None, deferred=False):
         super().__init__()
-        self.setWindowTitle("WatchIT · FreeConvert")
+        self.setWindowTitle("Play · FreeConvert")
         self.resize(1060, 740)
         self.setMinimumSize(760, 520)
         self.vlc = self.instance = self.player = None
@@ -127,7 +127,7 @@ class WatchIT(QMainWindow):
         page = QVBoxLayout(root)
         page.setContentsMargins(16, 10, 16, 10)
         page.setSpacing(8)
-        heading = QLabel("WatchIT")
+        heading = QLabel("Play")
         self.heading = heading
         heading.setObjectName("title")
         page.addWidget(heading)
@@ -169,7 +169,7 @@ class WatchIT(QMainWindow):
         self.options_toggle.setCheckable(True)
         row.insertWidget(row.count() - 1, self.options_toggle)
         self.options_scroll = QDialog(self)
-        self.options_scroll.setWindowTitle("Playback options · WatchIT")
+        self.options_scroll.setWindowTitle("Playback options · Play")
         self.options_scroll.resize(560, 520)
         settings_layout = QVBoxLayout(self.options_scroll)
         settings_scroll = QScrollArea()
@@ -276,31 +276,33 @@ class WatchIT(QMainWindow):
         icon_button(self.mute, "Unmute (M)" if muted else "Mute (M)", "mute" if muted else "volume")
 
     def _theme(self, *_):
-        dark = QApplication.instance().styleHints().colorScheme() == Qt.ColorScheme.Dark
-        bg, card, ink, muted, border = (("#0b1520", "#17232e", "#edf5f6", "#a6bac3", "#304551") if dark else
-                                        ("#f6f9fb", "#ffffff", "#14283d", "#58717e", "#d8e4e9"))
+        p = palette()
+        bg, card, ink, muted, border = (p[key] for key in ('bg', 'card', 'ink', 'muted', 'border'))
         self.setStyleSheet(f"""
             QMainWindow, QWidget {{ background: {bg}; color: {ink}; font-family: 'Segoe UI', 'SF Pro Text'; font-size: 13px; }}
             QLabel#title {{ font-size: 17px; font-weight: 650; }}
             QPushButton, QComboBox {{ background: {card}; color: {ink}; border: 1px solid {border}; border-radius: 3px; padding: 4px 6px; min-height: 22px; }}
-            QPushButton:hover, QComboBox:hover {{ border-color: #087e75; }}
-            QPushButton:focus, QComboBox:focus, QListWidget:focus {{ border: 2px solid #087e75; }}
+            QPushButton:hover, QComboBox:hover {{ background: {p['hover']}; border-color: #ffdd22; }}
+            QPushButton:focus, QComboBox:focus, QListWidget:focus {{ border: 2px solid #ffdd22; }}
+            QPushButton:disabled {{ color: #69695f; border-color: transparent; }}
             QComboBox QAbstractItemView, QListWidget {{ background: {card}; color: {ink}; border: 1px solid {border}; border-radius: 3px; }}
             QListWidget::item {{ color: {ink}; }}
-            QListWidget::item:selected {{ background: {'#20524f' if dark else '#d9f2ec'}; color: {ink}; }}
+            QListWidget::item:selected {{ background: {p['hover']}; color: {ink}; }}
             QSpinBox {{ background: {card}; color: {ink}; border: 1px solid {border}; border-radius: 3px; padding: 3px; }}
             QSlider::groove:horizontal {{ height: 6px; background: {border}; border-radius: 3px; }}
-            QSlider::handle:horizontal {{ width: 16px; margin: -5px 0; border-radius: 8px; background: #087e75; }}
+            QSlider::handle:horizontal {{ width: 16px; margin: -5px 0; border-radius: 8px; background: #ffdd22; }}
             QStatusBar {{ color: {muted}; }}
             QWidget#videoSurface {{ background: #000000; }}
             QPushButton[iconName] {{ min-height: 0; padding: 4px; background: transparent; border-color: transparent; border-radius: 3px; }}
-            QPushButton[iconName]:hover, QPushButton[iconName]:checked {{ background: {border}; }}
-            QPushButton#playButton {{ background: #087e75; border-radius: 16px; }}
+            QPushButton[iconName]:hover, QPushButton[iconName]:checked {{ background: {p['hover']}; border-color: #ffdd22; }}
+            QPushButton[iconName]:pressed {{ background: #75671d; }}
+            QPushButton#playButton {{ background: #ffdd22; border-radius: 16px; }}
+            QPushButton#playButton:hover {{ background: #fff176; }}
         """)
         for button in self.findChildren(QPushButton):
             name = button.property("iconName")
             if name:
-                button.setIcon(icon(name, "#edf5f6" if button.objectName() == "playButton" else ink))
+                button.setIcon(icon(name, "#0b0b0b" if button.objectName() == "playButton" else p['accent']))
 
     def open_files(self):
         if self.player is None:
@@ -481,7 +483,7 @@ class WatchIT(QMainWindow):
         name, _ = QFileDialog.getOpenFileName(self, "Load subtitles", "", "Subtitle files (*.srt *.ass *.ssa *.sub *.vtt *.txt);;All files (*)")
         if name and self.index >= 0:
             if not self.player.video_set_subtitle_file(name):
-                QMessageBox.warning(self, "WatchIT", "VLC could not load this subtitle file.")
+                QMessageBox.warning(self, "Play", "VLC could not load this subtitle file.")
             QTimer.singleShot(300, self._tracks)
 
     def _refresh(self):
