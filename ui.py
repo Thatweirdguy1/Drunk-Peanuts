@@ -101,6 +101,11 @@ class HoverFeedback(QObject):
 
 
 PATHS = {
+    "strike": '<path d="M17 5c-8-5-15 4-5 7s4 12-5 6M2 12h20"/>',
+    "superscript": '<path d="M3 11l9 10M12 11L3 21M15 4c0-4 7-4 7 0 0 2-7 5-7 7h7"/>',
+    "subscript": '<path d="M3 4l9 10M12 4L3 14M15 14c0-4 7-4 7 0 0 2-7 5-7 7h7"/>',
+    "highlight": '<path d="M6 14L16 3l5 5-11 10zM6 14l4 4-5 3H2zM2 23h20"/>',
+    "chart": '<path d="M3 2v20h20M7 18v-5h3v5M13 18V8h3v10M19 18V4h3v14"/>',
     "new": '<path d="M14 3H5v18h14V8zM14 3v5h5M8 14h8M12 10v8"/>',
     "open": '<path d="M3 19V5h6l2 3h10l-3 11zM3 11h16"/>',
     "save": '<path d="M4 3h13l3 3v15H4zM8 3v6h8V3M8 21v-8h9v8"/>',
@@ -214,6 +219,12 @@ def editor_theme():
         QMainWindow, QWidget {{ background: {p['bg']}; color: {p['ink']}; font: 13px 'Segoe UI'; }}
         QMenuBar, QMenu, QToolBar {{ background: {p['card']}; color: {p['ink']}; }}
         QMenuBar {{ padding: 2px 8px; }}
+        QWidget#officeRibbon {{ background:{p['card']}; }}
+        QWidget#ribbonGroup {{ border-right:1px solid {p['border']}; }}
+        QLabel#ribbonCaption {{ color:{p['muted']};font-size:10px;padding:1px; }}
+        QTabWidget#ribbonTabs::pane {{ border:0;border-top:1px solid {p['border']}; }}
+        QTabBar::tab {{ color:{p['ink']};background:transparent;padding:6px 13px;border-bottom:2px solid transparent; }}
+        QTabBar::tab:selected {{ color:{p['accent']};border-bottom-color:{p['accent']}; }}
         QMenu::item {{ padding: 7px 28px; }}
         QMenu::item:selected, QMenuBar::item:selected {{ background: {p['hover']}; }}
         QToolBar {{ padding: 3px 8px; spacing: 2px; border: none; border-bottom: 1px solid {p['border']}; }}

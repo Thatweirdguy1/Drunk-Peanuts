@@ -1,23 +1,19 @@
-## FreeConvert 0.19.0
+## FreeConvert 0.20.0
 
-Dazzle now edits actual slide objects instead of only a title/body pair. Insert text boxes, images, embedded videos, shapes, editable tables and column/bar/line/pie/scatter charts. Select, move, resize, rotate, format and layer objects; change backgrounds; add on-click fades and fade slide transitions; reorder slides; undo/redo; present fullscreen with F5. PPTX and Dazzle projects retain the native package and media.
+A Microsoft 365-style tabbed ribbon now organizes the six Office workspaces, with compact icons, quick access, live command search and scrolling groups for narrow windows. The converter drop area has a distinct expanding hover/drag highlight that clears when the pointer leaves.
 
-Pages adds rich image/table insertion, rendered charts and shapes, page breaks, paragraph colors and local video links. Tables adds real XLSX charts, anchored images, previews and local video hyperlinks while retaining unrelated workbook package parts.
+This tested editing batch adds Pages headings, numbering, spacing, run formatting, find/replace and page setup; native XLSX cell formatting and clipboard tools in Tables; independent slide duplication/alignment in Dazzle; and formula insertion controls. It also fixes stale slide selection and retains native chart workbooks when duplicating slides.
 
-The new **Document pages** entry provides a visual PDF organizer: drag reorder, move, rotate, remove from a new output, extract selected pages, split into individual pages or range groups, and combine PDFs. Source documents remain untouched.
-
-The existing black/yellow theme, compact icons, temporary hover feedback, Play media player and 15 Office templates remain available. See the updated [README](https://github.com/Thatweirdguy1/FreeConvert#readme) and [feature/verification report](https://github.com/Thatweirdguy1/FreeConvert/blob/main/docs/OFFICE_FEATURES_019.md).
+The README has fresh screenshots. See [batch coverage and remaining work](https://github.com/Thatweirdguy1/FreeConvert/blob/main/docs/OFFICE_BATCHES.md). Full Office feature parity remains in progress; unfinished features are not represented by placeholder controls.
 
 ### Downloads
 
-- `FreeConvert-0.19.0-Setup.exe`: Windows installer with Desktop/Start menu shortcuts.
-- `LocalFileConverter-Windows-x64.zip`: portable Windows app; extract the whole folder.
+- `FreeConvert-0.20.0-Setup.exe`: Windows installer with Desktop/Start menu shortcuts.
+- `LocalFileConverter-Windows-x64.zip`: portable Windows app; extract the entire folder.
 - `LocalFileConverter-macOS-Apple-Silicon.zip`: Apple Silicon app.
 - `LocalFileConverter-macOS-Intel.zip`: Intel macOS app.
 - `SHA256SUMS.txt`: download checksums.
 
-### Scope and verification
+76 source tests passed, including native-format round trips for the new commands. Generated Office fixtures were opened/exported by installed Word, Excel and PowerPoint. Release builds check packaged OCR, native workspaces, playback and conversion on all three platforms.
 
-The feature fixtures were opened/exported by installed PowerPoint, Word, Excel and LibreOffice. Regression tests cover native object persistence, selection/resizing/undo, charts, media, preservation and nondestructive page operations. GitHub Actions checks source and packaged OCR, Office, playback and conversion on all three build targets.
-
-This is a substantial local editor update, not full Microsoft Office parity. Fade effects are the supported authored animations. SmartArt/groups/advanced imported effects are preserved but not fully editable/rendered. Pages charts/shapes are images; Pages/Tables videos are local links, while Dazzle embeds media. The organizer works on PDF pages. Windows downloads remain unsigned and macOS apps unnotarized.
+Windows builds remain unsigned and macOS apps unnotarized. Tables previews show raw values; numeric display formats persist in XLSX. Filters and auto-fit are view controls. Existing advanced-object and video-link limits are documented in the feature report.

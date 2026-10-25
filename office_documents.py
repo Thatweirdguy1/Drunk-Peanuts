@@ -9,7 +9,7 @@ from docx.oxml.ns import qn
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.shared import Inches, Pt, RGBColor
 from PySide6.QtCore import QUrl, Qt
-from PySide6.QtGui import QColor, QTextImageFormat, QTextCursor, QTextDocument, QTextTable, QTextTableFormat, QTextFormat
+from PySide6.QtGui import QColor, QTextImageFormat, QTextCursor, QTextDocument, QTextTable, QTextTableFormat, QTextFormat, QTextCharFormat
 from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 from office_insert import image_bytes, ask_chart, chart_png, video_poster
 
@@ -90,6 +90,9 @@ def _hyperlink(paragraph,text,url):
 def _block(paragraph,block,document):
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     fmt=block.blockFormat();paragraph.alignment=WD_ALIGN_PARAGRAPH.CENTER if fmt.alignment()&Qt.AlignHCenter else WD_ALIGN_PARAGRAPH.RIGHT if fmt.alignment()&Qt.AlignRight else WD_ALIGN_PARAGRAPH.LEFT
+    if fmt.headingLevel():paragraph.style=f'Heading {min(3,fmt.headingLevel())}'
+    if block.textList():paragraph.style='List Number' if block.textList().format().style().value<=-4 else 'List Bullet'
+    if fmt.lineHeightType()==1 and fmt.lineHeight():paragraph.paragraph_format.line_spacing=fmt.lineHeight()/100
     if fmt.pageBreakPolicy()&QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore:paragraph.paragraph_format.page_break_before=True
     if fmt.background().style()!=Qt.NoBrush:
         node=OxmlElement('w:shd');node.set(qn('w:fill'),fmt.background().color().name()[1:]);paragraph._p.get_or_add_pPr().append(node)
@@ -105,6 +108,9 @@ def _block(paragraph,block,document):
             elif char.isAnchor() and char.anchorHref():_hyperlink(paragraph,fragment.text(),char.anchorHref())
             else:
                 run=paragraph.add_run(fragment.text());run.bold=char.fontWeight()>=700;run.italic=char.fontItalic();run.underline=char.fontUnderline();run.font.name=char.font().family() or 'Calibri';run.font.size=Pt(char.fontPointSize() or 12)
+                run.font.strike=char.fontStrikeOut();run.font.superscript=char.verticalAlignment()==QTextCharFormat.AlignSuperScript;run.font.subscript=char.verticalAlignment()==QTextCharFormat.AlignSubScript
+                if char.background().style()!=Qt.NoBrush:
+                    shade=OxmlElement('w:shd');shade.set(qn('w:fill'),char.background().color().name()[1:]);run._r.get_or_add_rPr().append(shade)
                 if char.foreground().style()!=Qt.NoBrush:run.font.color.rgb=RGBColor.from_string(char.foreground().color().name()[1:])
         iterator+=1
 
@@ -112,6 +118,15 @@ def write_rich_docx(pages,path):
     original=Path(pages.imported_docx) if pages.imported_docx else None
     if original and path.resolve()==original.resolve() and pages.path is None:raise ValueError('Save an imported Word document to a new file.')
     doc=Document(original) if original else Document()
+    settings=getattr(pages,'page_settings',None)
+    if settings:
+        from docx.shared import Mm
+        from docx.enum.section import WD_ORIENT
+        width,height=(210,297) if settings['paper']=='A4' else (215.9,279.4)
+        for section in doc.sections:
+            section.orientation=WD_ORIENT.LANDSCAPE if settings['landscape'] else WD_ORIENT.PORTRAIT
+            section.page_width=Mm(height if settings['landscape'] else width);section.page_height=Mm(width if settings['landscape'] else height)
+            section.top_margin=section.bottom_margin=section.left_margin=section.right_margin=Mm(settings['margin'])
     if original:
         # Existing unsupported fields/objects must not disappear during rich editing.
         bad=[el for el in doc.element.body.iter() if el.tag.rsplit('}',1)[-1] in {'fldChar','instrText','object','sdt','chart'}]
@@ -150,8 +165,15 @@ def docx_html(doc):
                 if font.size:style+=f'font-size:{font.size.pt}pt;'
                 if font.bold:style+='font-weight:bold;'
                 if font.italic:style+='font-style:italic;'
-                if font.underline:style+='text-decoration:underline;'
+                decorations=('underline ' if font.underline else '')+('line-through' if font.strike else '')
+                if decorations:style+='text-decoration:'+decorations.strip()+';'
+                if font.superscript:style+='vertical-align:super;'
+                if font.subscript:style+='vertical-align:sub;'
                 if font.color.rgb:style+='color:#'+str(font.color.rgb)+';'
+                shades=run._r.xpath('./w:rPr/w:shd')
+                if shades:
+                    color=shades[0].get(qn('w:fill'),'')
+                    if len(color)==6 and all(c in '0123456789abcdefABCDEF' for c in color):style+='background-color:#'+color+';'
                 text=html.escape(run.text).replace('\n','<br>')
                 if hasattr(item,'url'):text='<a href="'+html.escape(item.url,quote=True)+'">'+text+'</a>'
                 parts.append('<span style="'+style+'">'+text+'</span>')
@@ -161,7 +183,13 @@ def docx_html(doc):
                         image=doc.part.related_parts[rid]
                         if image.content_type.startswith('image/'):
                             parts.append('<img width="420" src="data:'+image.content_type+';base64,'+base64.b64encode(image.blob).decode()+'">')
-        return '<p>'+(''.join(parts) or '<br>')+'</p>'
+        name=paragraph.style.name if paragraph.style else '';tag='h'+name[-1] if name in ('Heading 1','Heading 2','Heading 3') else 'p'
+        align={1:'center',2:'right',3:'justify'}.get(paragraph.alignment,'left');spacing=paragraph.paragraph_format.line_spacing
+        css='text-align:'+align+';'
+        if isinstance(spacing,float):css+=f'line-height:{spacing*100:g}%;'
+        content=''.join(parts) or '<br>'
+        if name.startswith('List '):return '<'+('ol' if name=='List Number' else 'ul')+'><li>'+content+'</li></'+('ol' if name=='List Number' else 'ul')+'>'
+        return '<'+tag+' style="'+css+'">'+content+'</'+tag+'>'
     result=[]
     for node in doc.element.body:
         if node.tag==qn('w:p'):result.append(paragraph_html(Paragraph(node,doc)))

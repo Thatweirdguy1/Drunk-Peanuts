@@ -272,6 +272,8 @@ class Dazzle(Workspace):
         for label,callback in [('New',self.new),('Open',self.open),('Save',self.save),('Save as',self.save_as),('PDF',self.export_pdf),('Add slide',self.add),('Delete slide',self.delete)]:button(self.toolbar,label,callback)
         self._tools();self.refresh();self.dirty=False
         self.title.textChanged.connect(self._primary_changed);self.body.textChanged.connect(self._primary_changed);self.list.currentRowChanged.connect(self.select);self.slide_stage.installEventFilter(self)
+        from office_editing import setup_slide_tools
+        setup_slide_tools(self)
     def eventFilter(self,watched,event):
         if watched is self.slide_stage and event.type()==QEvent.Resize:
             scale=min(max(1,watched.width()-24)/(self.deck.slide_width/EMU),max(1,watched.height()-24)/(self.deck.slide_height/EMU))
@@ -434,6 +436,7 @@ class Dazzle(Workspace):
                     with QSignalBlocker(self.object_list):self.object_list.setCurrentRow(i)
         finally:self.loading=False
     def choose(self,shape):
+        self.scene.clearSelection()
         for item in self.scene.items():
             if item.native_shape.shape_id==shape.shape_id:item.setSelected(True);break
     def new(self):
@@ -598,7 +601,8 @@ class Dazzle(Workspace):
         shape=self.selected_shape()
         if shape:self.report(lambda:self.change(lambda:set_effect(self.deck.slides[self.index],shape.shape_id,self.effect_duration.value() if self.animation.currentIndex() else None)))
     def animate_object(self,shape,seconds=.6):
-        if not .1<=seconds<=10:raise ValueError('Animation duration must be 0.1–10 seconds.')
+        if shape is None:raise ValueError('Select an object first.')
+        if seconds is not None and not .1<=seconds<=10:raise ValueError('Animation duration must be 0.1–10 seconds.')
         self.change(lambda:set_effect(self.deck.slides[self.index],shape.shape_id,seconds))
     def delete_object(self):
         shape=self.selected_shape()

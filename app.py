@@ -11,8 +11,8 @@ from typing import Callable
 import pypdfium2 as pdfium
 from PIL import Image
 from pypdf import PdfReader
-from PySide6.QtCore import QPoint, QSettings, Qt, QThread, Signal, QTimer, QSize
-from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPixmap, QAction
+from PySide6.QtCore import QPoint, QSettings, Qt, QThread, Signal, QTimer, QSize, QVariantAnimation, QEvent, QRectF
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPixmap, QAction, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QComboBox, QFileDialog, QFrame,
     QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow,
@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.19.0"
+VERSION = "0.20.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -96,6 +96,7 @@ class PreviewWorker(QThread):
 
 
 class DropArea(QFrame):
+    choose_requested = Signal()
     files_dropped = Signal(list)
     quick_files_dropped = Signal(list, QPoint)
 
@@ -103,6 +104,14 @@ class DropArea(QFrame):
         super().__init__()
         self.setObjectName("dropArea")
         self.setAcceptDrops(True)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setAccessibleName('Choose or drop local files')
+        self._drop_level=0.0
+        self._dragging=False
+        self._drop_animation=QVariantAnimation(self)
+        self._drop_animation.setDuration(180)
+        self._drop_animation.valueChanged.connect(self._animate_drop)
         layout = QHBoxLayout(self)
         layout.setAlignment(Qt.AlignCenter)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -121,12 +130,61 @@ class DropArea(QFrame):
         text.addWidget(title)
         text.addWidget(detail)
         layout.addLayout(text)
+        for label in self.findChildren(QLabel):label.setAttribute(Qt.WA_TransparentForMouseEvents)
+
+    def _animate_drop(self,value):
+        self._drop_level=float(value);self.update()
+
+    def _drop_feedback(self,active):
+        self._drop_animation.stop()
+        self._drop_animation.setStartValue(self._drop_level)
+        self._drop_animation.setEndValue(1.0 if active else 0.0)
+        self._drop_animation.start()
+
+    def enterEvent(self,event):
+        if self.isEnabled():self._drop_feedback(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self,event):
+        if not self._dragging:self._drop_feedback(False)
+        super().leaveEvent(event)
+
+    def hideEvent(self,event):
+        self._dragging=False;self._drop_animation.stop();self._drop_level=0;super().hideEvent(event)
+
+    def event(self,event):
+        if hasattr(self,'_drop_animation') and (event.type()==QEvent.WindowDeactivate or event.type()==QEvent.EnabledChange and not self.isEnabled()):
+            self._dragging=False;self._drop_animation.stop();self._drop_level=0;self.update()
+        return super().event(event)
+
+    def paintEvent(self,event):
+        super().paintEvent(event)
+        if self._drop_level:
+            painter=QPainter(self);painter.setRenderHint(QPainter.Antialiasing)
+            level=self._drop_level;painter.setBrush(QColor(255,221,34,round(18*level)))
+            painter.setPen(QPen(QColor(255,221,34,round(235*level)),1+level))
+            inset=7-5*level;painter.drawRoundedRect(QRectF(self.rect()).adjusted(inset,inset,-inset,-inset),5,5)
+
+    def mouseReleaseEvent(self,event):
+        if event.button()==Qt.LeftButton and self.rect().contains(event.position().toPoint()):
+            self.choose_requested.emit()
+        super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self,event):
+        if event.key() in (Qt.Key_Return,Qt.Key_Space):
+            self.choose_requested.emit()
+        else:super().keyPressEvent(event)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls() and any(url.isLocalFile() for url in event.mimeData().urls()):
             event.acceptProposedAction()
+            self._dragging=True;self._drop_feedback(True)
+
+    def dragLeaveEvent(self,event):
+        self._dragging=False;self._drop_feedback(False);event.accept()
 
     def dropEvent(self, event):
+        self._dragging=False;self._drop_feedback(self.underMouse())
         files = [Path(url.toLocalFile()) for url in event.mimeData().urls() if url.isLocalFile()]
         if event.modifiers() & Qt.ShiftModifier:
             self.quick_files_dropped.emit(files, self.mapToGlobal(event.position().toPoint()))
@@ -292,7 +350,7 @@ class Window(QMainWindow):
         self.drop.setMaximumHeight(90)
         self.drop.files_dropped.connect(self._add_files)
         self.drop.quick_files_dropped.connect(self._quick_drop)
-        self.drop.mousePressEvent = lambda event: self._choose_files()
+        self.drop.choose_requested.connect(self._choose_files)
         page.addWidget(self.drop)
 
         section = QHBoxLayout()

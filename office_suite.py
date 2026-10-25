@@ -182,6 +182,8 @@ class Pages(Workspace):
         self._count()
         from office_documents import setup_pages
         setup_pages(self)
+        from office_editing import setup_pages_tools
+        setup_pages_tools(self)
         self.editor.document().setModified(False)
 
     @Slot(str)
@@ -221,6 +223,7 @@ class Pages(Workspace):
         self.imported_docx = None
         self.original_paragraphs = []
         self.editor.clear()
+        self.page_settings=None
         self.rich_changed=False
         self.editor.document().setModified(False)
 
@@ -238,6 +241,7 @@ class Pages(Workspace):
         if not path or not self._can_close():
             return
         def read():
+            self.page_settings=None
             if path.suffix.lower() == ".docx":
                 doc = Document(path)
                 self.original_paragraphs = [p.text for p in doc.paragraphs]
@@ -338,6 +342,13 @@ class Pages(Workspace):
                 printer = QPrinter(QPrinter.HighResolution)
                 printer.setOutputFormat(QPrinter.PdfFormat)
                 printer.setOutputFileName(str(path))
+                if self.page_settings:
+                    from PySide6.QtGui import QPageSize,QPageLayout
+                    from PySide6.QtCore import QMarginsF
+                    settings=self.page_settings
+                    printer.setPageSize(QPageSize(QPageSize.A4 if settings['paper']=='A4' else QPageSize.Letter))
+                    printer.setPageOrientation(QPageLayout.Landscape if settings['landscape'] else QPageLayout.Portrait)
+                    printer.setPageMargins(QMarginsF(*([settings['margin']]*4)),QPageLayout.Millimeter)
                 self.editor.document().print_(printer)
             self.report(write)
 
@@ -388,6 +399,8 @@ class Tables(Workspace):
         self.grid.setCurrentCell(0, 0)
         from office_spreadsheets import setup_tables
         setup_tables(self)
+        from office_cells import setup_cell_tools
+        setup_cell_tools(self)
 
     def _show_formula(self, *_):
         row, column = self.grid.currentRow(), self.grid.currentColumn()
@@ -446,6 +459,7 @@ class Tables(Workspace):
             return
         self.grid.clearContents()
         self.inserted_objects=[];self.object_list.clear();self.object_preview.clear()
+        self.pending_styles={}
         self.path = None
         self.imported_xlsx = None
         self.original_rows = []
@@ -499,6 +513,8 @@ class Tables(Workspace):
         if path.suffix.lower()==".xlsx":
             from office_spreadsheets import load_objects
             load_objects(self,path)
+        from office_cells import load_cell_formats
+        load_cell_formats(self,path)
 
     def save(self):
         if self.path:
@@ -537,7 +553,7 @@ class Tables(Workspace):
         if path.suffix.lower() == ".xlsx":
             if self.imported_xlsx and path.resolve() == self.imported_xlsx.resolve() and self.path is None:
                 raise ValueError("Save an imported workbook to a new file")
-            if self.imported_xlsx and rows == self.original_rows and not any(not obj.get("saved") for obj in self.inserted_objects):
+            if self.imported_xlsx and rows == self.original_rows and not self.pending_styles and not any(not obj.get("saved") for obj in self.inserted_objects):
                 if path.resolve() != self.imported_xlsx.resolve():
                     shutil.copyfile(self.imported_xlsx, path)
                 self.imported_xlsx = path
@@ -558,9 +574,12 @@ class Tables(Workspace):
                     book.close()
             from office_spreadsheets import save_objects
             save_objects(self,path,rows)
+            from office_cells import save_cell_formats
+            save_cell_formats(self,path)
             self.imported_xlsx = path
             self.original_rows = rows
         elif path.suffix.lower() == ".csv":
+            if self.pending_styles:raise ValueError('Save as XLSX to retain cell formatting.')
             if any(not obj.get("saved") for obj in self.inserted_objects):raise ValueError("Save as XLSX to retain inserted charts, images and media links.")
             with path.open("w", newline="", encoding=encoding or self.csv_encoding) as stream:
                 csv.writer(stream, delimiter=delimiter or self.csv_delimiter).writerows(rows)

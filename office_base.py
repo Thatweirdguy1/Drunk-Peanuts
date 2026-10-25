@@ -54,6 +54,11 @@ class Workspace(QMainWindow):
         except Exception as error:
             QMessageBox.warning(self, self.windowTitle(), str(error))
 
+    def showEvent(self,event):
+        from office_ribbon import install_ribbon
+        install_ribbon(self)
+        super().showEvent(event)
+
     def discard_changes(self):
         return not self.dirty or QMessageBox.question(
             self, "Unsaved changes", "Discard unsaved changes?", QMessageBox.Yes | QMessageBox.No

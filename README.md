@@ -8,11 +8,15 @@
 
 A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with Play.
 
-**Version 0.19.0** adds an object-based Dazzle editor, rich content insertion in Pages and Tables, and a visual PDF page organizer. Dazzle now has fonts, colors, text boxes, images, shapes, editable charts and tables, embedded videos, fade animations, slide transitions, layering, undo/redo and fullscreen presenting.
+**Version 0.20.0** brings a Microsoft 365-style ribbon to Pages, Tables, Dazzle, Sketch, Organize and Formulaic. Commands are grouped into tabs with compact icons, quick access, command search and scrolling groups for smaller windows. The converter drop area now has its own expanding hover/drag highlight.
 
-Use **Document pages** in the main menu to split, extract, reorder, rotate, remove pages from a new output, or combine PDFs. Source files stay intact. See the [Office feature report](docs/OFFICE_FEATURES_019.md) for coverage, interoperability checks and limits.
+This batch adds document headings/numbering/spacing, find and replace and page setup; native spreadsheet cell formatting and clipboard tools; and independent slide duplication/alignment. It keeps the black/yellow theme and existing conversion, compression, OCR, media and PDF page tools.
 
-![Dazzle object editor](docs/dazzle-019.jpg)
+See [shipped batches and remaining Office features](docs/OFFICE_BATCHES.md). Full Office feature parity is in progress; only working controls are exposed. The earlier [object editor and PDF organizer report](docs/OFFICE_FEATURES_019.md) details the underlying native models and limits.
+
+![Pages ribbon and document editing](docs/pages-020.jpg)
+
+![Distinct drop-area hover feedback](docs/drop-hover-020.png)
 
 ## Download
 
@@ -20,7 +24,7 @@ Get the app from the [latest release](https://github.com/Thatweirdguy1/FreeConve
 
 | Platform | Download | How to open |
 | --- | --- | --- |
-| **Windows x64 — installer** | [FreeConvert Setup](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/FreeConvert-0.19.0-Setup.exe) | Run Setup, then use **FreeConvert on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
+| **Windows x64 — installer** | [FreeConvert Setup](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/FreeConvert-0.20.0-Setup.exe) | Run Setup, then use **FreeConvert on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
 | Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
 | macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-macOS-Apple-Silicon.zip) | Extract and open `LocalFileConverter.app`. |
 | macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-macOS-Intel.zip) | Extract and open `LocalFileConverter.app`. |
@@ -47,7 +51,7 @@ The original bundled starters are covered by this repository's MIT license. No M
 
 ![Pages with rich images, charts and tables](docs/pages-019.jpg)
 
-![Tables with native spreadsheet charts and images](docs/tables-019.jpg)
+
 
 ## Included engines
 

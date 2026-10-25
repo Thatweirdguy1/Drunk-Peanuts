@@ -248,10 +248,18 @@ class Formulaic(QMainWindow):
         self._theme()
         QApplication.instance().styleHints().colorSchemeChanged.connect(self._theme)
         self.refresh()
+        from office_editing import command
+        for label,callback,glyph in [('Undo',self.source.undo,'undo'),('Redo',self.source.redo,'redo'),('Cut',self.source.cut,'cut'),('Copy',self.source.copy,'copy'),('Paste',self.source.paste,'paste')]:command(self,'Home',label,callback,glyph)
+        for label,value in [('Fraction','{a} over {b}'),('Square root','sqrt {x}'),('Power','x^2'),('Subscript','x_1'),('Greek alpha','alpha')]:command(self,'Insert',label,lambda v=value:self.source.insertPlainText(v),'calculate')
 
     def _theme(self, *_):
         self.setStyleSheet(editor_theme())
         refresh_icons(self)
+
+    def showEvent(self,event):
+        from office_ribbon import install_ribbon
+        install_ribbon(self)
+        super().showEvent(event)
 
     def refresh(self):
         try:
