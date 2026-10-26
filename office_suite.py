@@ -430,6 +430,8 @@ class Tables(Workspace):
         setup_tables(self)
         from office_cells import setup_cell_tools
         setup_cell_tools(self)
+        from office_print_layout import setup_print_tools
+        setup_print_tools(self)
 
     def _show_formula(self, *_):
         row, column = self.grid.currentRow(), self.grid.currentColumn()
@@ -489,6 +491,8 @@ class Tables(Workspace):
         self.grid.clearContents()
         self.inserted_objects=[];self.object_list.clear();self.object_preview.clear()
         self.pending_styles={}
+        from office_print_layout import load_layout
+        load_layout(self)
         self.path = None
         self.imported_xlsx = None
         self.original_rows = []
@@ -544,6 +548,8 @@ class Tables(Workspace):
             load_objects(self,path)
         from office_cells import load_cell_formats
         load_cell_formats(self,path)
+        from office_print_layout import load_layout
+        load_layout(self,path)
 
     def save(self):
         if self.path:
@@ -582,7 +588,7 @@ class Tables(Workspace):
         if path.suffix.lower() == ".xlsx":
             if self.imported_xlsx and path.resolve() == self.imported_xlsx.resolve() and self.path is None:
                 raise ValueError("Save an imported workbook to a new file")
-            if self.imported_xlsx and rows == self.original_rows and not self.pending_styles and not any(not obj.get("saved") for obj in self.inserted_objects):
+            if self.imported_xlsx and rows == self.original_rows and not self.pending_styles and not self.pending_print_layout and not any(not obj.get("saved") for obj in self.inserted_objects):
                 if path.resolve() != self.imported_xlsx.resolve():
                     shutil.copyfile(self.imported_xlsx, path)
                 self.imported_xlsx = path
@@ -605,9 +611,12 @@ class Tables(Workspace):
             save_objects(self,path,rows)
             from office_cells import save_cell_formats
             save_cell_formats(self,path)
+            from office_print_layout import save_layout
+            save_layout(self,path)
             self.imported_xlsx = path
             self.original_rows = rows
         elif path.suffix.lower() == ".csv":
+            if self.pending_print_layout:raise ValueError('Save as XLSX to retain worksheet print settings.')
             if self.pending_styles:raise ValueError('Save as XLSX to retain cell formatting.')
             if any(not obj.get("saved") for obj in self.inserted_objects):raise ValueError("Save as XLSX to retain inserted charts, images and media links.")
             with path.open("w", newline="", encoding=encoding or self.csv_encoding) as stream:

@@ -8,7 +8,7 @@
 
 A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with Play.
 
-**Version 0.23.0** adds a clickable heading outline, body/selection statistics and native DOCX document properties to Pages. The neutral black/charcoal theme, small purple accents, Dazzle presenting tools and Microsoft 365-style ribbon remain across the suite.
+**Version 0.24.0** adds native worksheet print layout to Tables: paper/orientation, margins, print areas, repeating header rows, percentage or fit-to-pages scaling, gridlines and printed headings. Pages productivity tools, the neutral theme and Dazzle presenting controls remain available.
 
 Drunk Peanuts also includes the original DP icon and editable headers, footers and live page-number fields in Pages. The Office ribbon, conversion, compression, OCR, Play and PDF tools remain available. Use **Insert → Header / Footer / Page numbers**; DOCX contains live PAGE/NUMPAGES fields and PDF export numbers the actual output pages.
 
@@ -17,6 +17,10 @@ Read the [rename and header/footer report](docs/DRUNK_PEANUTS_021.md). See [ship
 ![Pages heading outline and native document editing](docs/pages-outline-023.png)
 
 In Pages, use **View → Document outline**, **Review → Document statistics**, and **File → Document properties**. Properties save in DOCX; the outline navigates Heading 1–3 sections. See the [productivity batch report](docs/PAGES_PRODUCTIVITY_023.md).
+
+In Tables, use **Layout → Worksheet print layout**, then save as XLSX. Settings apply to the active sheet and are used by Excel/LibreOffice rendering; the grid is not a print preview. See the [print-layout report](docs/TABLES_PRINT_024.md).
+
+![Tables worksheet print layout](docs/tables-print-024.png)
 
 ![Neutral charcoal converter theme](docs/main-022.png)
 
@@ -30,7 +34,7 @@ Get the app from the [latest release](https://github.com/Thatweirdguy1/Drunk-Pea
 
 | Platform | Download | How to open |
 | --- | --- | --- |
-| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.23.0-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
+| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.24.0-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
 | Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
 | macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Apple-Silicon.zip) | Extract and open `DrunkPeanuts.app`. |
 | macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Intel.zip) | Extract and open `DrunkPeanuts.app`. |

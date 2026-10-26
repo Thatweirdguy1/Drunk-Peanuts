@@ -1,13 +1,13 @@
-## Drunk Peanuts 0.23.0
+## Drunk Peanuts 0.24.0
 
-Pages adds a clickable, filterable heading outline (View), body/selection statistics (Review), and native DOCX document properties (File). Edit title, subject, author, keywords, description and category. Property-only changes preserve the original body and unedited properties; unsupported text exports refuse pending property loss.
+Tables adds native XLSX worksheet print settings: Letter/Legal/A3/A4, portrait/landscape, margins, print areas, repeating header rows, percentage or fit-to-pages scaling, printed gridlines/headings and horizontal centering. Use Layout → Worksheet print layout and save as XLSX. Other worksheets, chart parts and formulas are preserved; existing repeat columns are retained. Invalid ranges and impossible margins are rejected. Pending changes cannot silently export to CSV.
 
-82 source tests pass. Installed Word recognized the authored properties and exported the synthetic document to PDF. The existing neutral theme, Dazzle notes/presenting controls and native Office ribbon remain available.
+84 source tests pass. Installed Excel recognized the settings and exported a four-page PDF with the header repeated on each page. Sparse worksheets also load correctly when empty placeholder cells lack style attributes.
 
-See the [productivity report](https://github.com/Thatweirdguy1/Drunk-Peanuts/blob/main/docs/PAGES_PRODUCTIVITY_023.md) for behavior and limits. Full Office parity remains in progress.
+The grid is not a print preview. Excel/LibreOffice rendering honors the native settings; built-in conversion is not claimed to reproduce Excel pagination. See the [batch report](https://github.com/Thatweirdguy1/Drunk-Peanuts/blob/main/docs/TABLES_PRINT_024.md). Full Office parity remains in progress.
 
 ### Downloads
-- DrunkPeanuts-0.23.0-Setup.exe — Windows Desktop/Start menu installer.
+- DrunkPeanuts-0.24.0-Setup.exe — Windows Desktop/Start menu installer.
 - DrunkPeanuts-Windows-x64.zip — extract the whole portable folder.
 - DrunkPeanuts-macOS-Apple-Silicon.zip and DrunkPeanuts-macOS-Intel.zip.
 - SHA256SUMS.txt — download checksums.

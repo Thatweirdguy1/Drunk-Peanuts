@@ -1,5 +1,9 @@
 # Office expansion: batches and verification
 
+## 0.24.0 — worksheet print layout
+
+Tables adds native paper/orientation, margins, print area(s), repeating header rows, scaling and printed gridlines/headings/centering. Existing repeat columns and unrelated workbook parts are preserved. See [the native Excel/PDF checks](TABLES_PRINT_024.md). Multiple-sheet editing and advanced spreadsheet authoring remain below.
+
 ## 0.23.0 — Pages productivity
 
 Clickable/filterable heading navigation, document/selection statistics and native DOCX core-property editing now work in Pages. Original body XML and unedited properties survive property-only edits. See [behavior and checks](PAGES_PRODUCTIVITY_023.md). Advanced review tools below remain open.
@@ -46,7 +50,7 @@ Full Microsoft 365/LibreOffice feature parity is not complete. Only working comm
 | Batch | Features to implement | Required verification before shipping |
 | --- | --- | --- |
 | Document layout and references | True paginated editing, sections/columns, footnotes/endnotes, contents and citations, editable vector/text boxes, image positioning/wrapping | Save/reopen in Word and LibreOffice; page/section/reference structure retained; representative native PDF comparison. |
-| Spreadsheet authoring | Multiple-sheet editing, broader formulas, range-aware structural edits/sort, tables, merged cells, validations, conditional formatting, workbook print layout, pivot analysis | Formula/range references update correctly; charts and unknown package parts survive; native Excel/Calc round trips. |
+| Spreadsheet authoring | Multiple-sheet editing, broader formulas, range-aware structural edits/sort, tables, merged cells, validations, conditional formatting, print preview/printer controls, pivot analysis | Formula/range references update correctly; charts and unknown package parts survive; native Excel/Calc round trips. |
 | Presentation authoring | Multi-object grouping/distribution, richer text layout, master/layout authoring, crops, editable chart styling, additional transitions and animation timelines, second-monitor presenter view | Independent native objects/media, correct timing/playback, undo and native PowerPoint/Impress round trips. |
 | Review and productivity | Comments, tracked changes, proofing dictionaries, comparison, mail merge, accessibility review and advanced metadata inspection/cleanup | No silent loss of review data; offline fixtures and recovery checks; clear unsupported-format handling. |
 

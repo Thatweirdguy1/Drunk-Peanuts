@@ -104,7 +104,7 @@ def load_cell_formats(editor,path):
         with QSignalBlocker(editor.grid):
             for row in book.active:
                 for cell in row:
-                    if not cell.has_style:continue
+                    if not getattr(cell,'has_style',False):continue
                     item=editor.grid.item(cell.row-1,cell.column-1)
                     if item is None:item=QTableWidgetItem('');editor.grid.setItem(cell.row-1,cell.column-1,item)
                     values=dict(name=cell.font.name or 'Calibri',size=cell.font.sz or 11,bold=bool(cell.font.b),italic=bool(cell.font.i),underline=bool(cell.font.u))
