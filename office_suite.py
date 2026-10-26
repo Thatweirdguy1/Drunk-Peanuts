@@ -231,7 +231,7 @@ class Pages(Workspace):
         self.original_paragraphs = []
         self.editor.clear()
         self.page_settings=None
-        self.header_footer=None;self.original_body_html=None
+        self.header_footer=None;self.header_footer_changed=False;self.original_body_html=None
         self.header_preview.hide();self.footer_preview.hide()
         self.rich_changed=False
         self.editor.document().setModified(False)
@@ -252,12 +252,15 @@ class Pages(Workspace):
         def read():
             self.page_settings=None
             self.header_footer=None
+            self.header_footer_changed=False
             self.header_preview.hide();self.footer_preview.hide()
             if path.suffix.lower() == ".docx":
                 doc = Document(path)
                 self.original_paragraphs = [p.text for p in doc.paragraphs]
                 from office_documents import docx_html
                 self.editor.setHtml(docx_html(doc))
+                from office_headers import load_headers
+                load_headers(self,doc)
                 self.rich_changed=False
                 self.docx_loaded_rich=True
                 self.imported_docx = path

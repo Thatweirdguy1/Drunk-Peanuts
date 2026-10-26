@@ -1,4 +1,4 @@
-# Drunk Peanuts 0.21.1 - naming and document layout batch
+# Drunk Peanuts 0.21.2 - naming and document layout batch
 
 The application is now **Drunk Peanuts**, in the renamed [Drunk-Peanuts repository](https://github.com/Thatweirdguy1/Drunk-Peanuts). The installer, Desktop/Start menu entries, window titles, media-player label, executable product metadata, release names and original logo use the new name. The shared UI uses black surfaces, purple panels/selection and yellow commands. The Microsoft 365-style tabbed ribbon remains across the six Office workspaces.
 
@@ -9,6 +9,7 @@ Use **Insert > Header**, **Footer**, or **Page numbers**. The dialog edits heade
 - DOCX uses native header/footer stories and live `PAGE`/`NUMPAGES` fields, not literal page-number text. It applies the authored settings to all sections; later sections continue numbering.
 - The first-page option creates a blank first-page story. Normal and even-page stories contain the authored content.
 - Editing headers/footers replaces those stories in the saved copy, as explained in the dialog. Imported body XML stays intact if the body was not edited, including existing fields and images. Imported source documents require a new destination.
+- Simple native headers/footers and authored page counters reload into the preview and PDF export. Existing stories are preserved during body editing unless header/footer changes are explicitly applied. Complex imported stories remain in DOCX; the basic preview does not interpret them.
 - PDF export numbers the actual output pages and respects first-page suppression. Its basic overlay uses a standard PDF Latin font; use installed Word/LibreOffice conversion for complex-script typography and exact imported-document layout.
 - TXT/HTML export refuses pending header/footer settings instead of silently dropping them.
 

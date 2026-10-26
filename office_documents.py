@@ -147,7 +147,7 @@ def write_rich_docx(pages,path):
                         if current.position()<=end:p=table.cell(row,col).add_paragraph()
         elif block.isValid():_block(doc.add_paragraph(style='List Bullet' if block.textList() else None),block,pages.editor.document())
         iterator+=1
-    if getattr(pages,'header_footer',None):
+    if getattr(pages,'header_footer',None) and getattr(pages,'header_footer_changed',False):
         from office_headers import apply_headers
         apply_headers(doc,pages.header_footer)
     import tempfile
@@ -156,6 +156,7 @@ def write_rich_docx(pages,path):
     finally:temporary.unlink(missing_ok=True)
     pages.imported_docx=path;pages.path=path;pages.original_paragraphs=pages.editor.toPlainText().split('\n');pages.editor.document().setModified(False)
     pages.original_body_html=pages.editor.toHtml()
+    pages.header_footer_changed=False
 
 def docx_html(doc):
     from docx.text.paragraph import Paragraph
@@ -191,6 +192,7 @@ def docx_html(doc):
         name=paragraph.style.name if paragraph.style else '';tag='h'+name[-1] if name in ('Heading 1','Heading 2','Heading 3') else 'p'
         align={1:'center',2:'right',3:'justify'}.get(paragraph.alignment,'left');spacing=paragraph.paragraph_format.line_spacing
         css='text-align:'+align+';'
+        if paragraph.paragraph_format.page_break_before:css+='page-break-before:always;'
         if isinstance(spacing,float):css+=f'line-height:{spacing*100:g}%;'
         content=''.join(parts) or '<br>'
         if name.startswith('List '):return '<'+('ol' if name=='List Number' else 'ul')+'><li>'+content+'</li></'+('ol' if name=='List Number' else 'ul')+'>'

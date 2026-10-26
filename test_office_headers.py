@@ -30,6 +30,8 @@ class HeaderFooterTests(unittest.TestCase):
             saved=Document(target);self.assertEqual(body,[p.xml for p in saved.element.body if p.tag!=qn('w:sectPr')]);self.assertEqual(source.read_bytes(),original)
             section=saved.sections[0];self.assertTrue(section.different_first_page_header_footer);self.assertEqual(section._sectPr.find(qn('w:pgNumType')).get(qn('w:start')),'4');self.assertIn('Drunk Peanuts report',section.header.paragraphs[0].text)
             fields=section.footer._element.xpath('.//w:instrText');self.assertEqual([n.text.strip() for n in fields],['PAGE','NUMPAGES']);self.assertEqual(section.first_page_footer.paragraphs[0].text,'')
+            reopened=Pages();reopened.open(target);self.assertEqual(reopened.header_footer,self.settings());self.assertFalse(reopened.header_footer_changed)
+            unchanged=root/'copy.docx';reopened._write(unchanged);self.assertEqual(unchanged.read_bytes(),target.read_bytes())
             pages.new();self.assertIsNone(pages.header_footer)
 
     def test_pdf_page_numbers_correct_skip_first_and_plain_export_guard(self):
@@ -39,6 +41,10 @@ class HeaderFooterTests(unittest.TestCase):
             reader=PdfReader(target);self.assertEqual(len(reader.pages),3);self.assertNotIn('Local and private',reader.pages[0].extract_text());self.assertIn('Page 2 of 3',reader.pages[1].extract_text());self.assertIn('Page 3 of 3',reader.pages[2].extract_text());self.assertIn('Drunk Peanuts report',reader.pages[2].extract_text())
             with self.assertRaises(ValueError):pages._write(root/'loses-headers.txt')
             with self.assertRaises(ValueError):validate(self.settings(start=0))
+            native=root/'numbered.docx';pages._write(native);reopened=Pages();reopened.open(native);self.assertEqual(reopened.header_footer,self.settings(start=1))
+            second=root/'reopened.pdf'
+            with patch('office_suite.pick_save',return_value=second):reopened.export_pdf()
+            again=PdfReader(second);self.assertEqual(len(again.pages),3);self.assertIn('Page 3 of 3',again.pages[2].extract_text())
 
 
 if __name__=='__main__':unittest.main()

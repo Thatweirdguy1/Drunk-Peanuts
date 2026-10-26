@@ -1,4 +1,4 @@
-## Drunk Peanuts 0.21.1
+## Drunk Peanuts 0.21.2
 
 FreeConvert is now **Drunk Peanuts**, with an original DP icon and a black, purple and yellow desktop theme. The repository and download names are updated to Drunk-Peanuts / DrunkPeanuts.
 
@@ -8,7 +8,7 @@ Pages adds header/footer text, native Word PAGE/NUMPAGES fields, alignment, star
 
 ### Downloads
 
-- DrunkPeanuts-0.21.1-Setup.exe - Windows installer with Desktop/Start menu integration.
+- DrunkPeanuts-0.21.2-Setup.exe - Windows installer with Desktop/Start menu integration.
 - DrunkPeanuts-Windows-x64.zip - portable Windows app; extract the whole folder.
 - DrunkPeanuts-macOS-Apple-Silicon.zip - Apple Silicon application.
 - DrunkPeanuts-macOS-Intel.zip - Intel macOS application.
