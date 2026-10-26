@@ -13,4 +13,8 @@ Large panels, menus, toolbars and progress tracks use neutral black/charcoal. Ye
 
 80 source tests pass. The new checks cover notes, independent duplication, Undo/Redo, PPTX/Dazzle reload, unchanged shape geometry after canvas resizing, invalid dimensions, ribbon commands and presentation navigation/blackout. Installed Microsoft PowerPoint read both authored notes bodies, recognized the widescreen dimensions (960 × 540 pt), and exported the synthetic two-slide deck to PDF. This uses native document automation; no proprietary Office code was copied.
 
+All jobs in [the v0.22.0 release build](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/runs/40300028498) passed: Windows x64, Apple Silicon and Intel macOS, followed by release assembly. Downloaded Windows installer/portable files matched both the checksum file and GitHub asset digests. The extracted release passed Office/Play self-checks, native document round-trip conversion and actual video-frame decoding. Native PowerPoint PDF output was also checked to exclude speaker notes.
+
+The downloaded installer upgraded the existing Desktop installation successfully. The installed executable matched the release ZIP byte for byte, launched from the Desktop shortcut, and displayed the neutral theme, new Animations tab and speaker-notes dialog. The README converter screenshot is from this installed release. All five public release downloads returned HTTP 200.
+
 This is a bounded presentation batch. Master editing, advanced typography, multi-object grouping/distribution and a full animation timeline remain in the [Office queue](OFFICE_BATCHES.md). Speaker notes are plain text authoring; this release does not provide a second-monitor presenter view or notes-page PDF printing.

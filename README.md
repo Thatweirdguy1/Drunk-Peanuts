@@ -10,7 +10,7 @@ A free, local desktop converter and creative suite for Windows and macOS. Conver
 
 **Version 0.22.0** replaces purple-tinted panels with neutral black/charcoal and keeps purple in smaller branding, focus and selection accents. Dazzle adds native speaker notes, slide dimensions, presentation start controls and screen blanking. The Microsoft 365-style ribbon remains across the Office suite.
 
-This release renames the app to **Drunk Peanuts**, adds a black/purple/yellow theme and original DP icon, and brings editable headers, footers and live page-number fields to Pages. The Office ribbon, conversion, compression, OCR, Play and PDF tools remain available. Use **Insert → Header / Footer / Page numbers**; DOCX contains live PAGE/NUMPAGES fields and PDF export numbers the actual output pages.
+Drunk Peanuts also includes the original DP icon and editable headers, footers and live page-number fields in Pages. The Office ribbon, conversion, compression, OCR, Play and PDF tools remain available. Use **Insert → Header / Footer / Page numbers**; DOCX contains live PAGE/NUMPAGES fields and PDF export numbers the actual output pages.
 
 Read the [rename and header/footer report](docs/DRUNK_PEANUTS_021.md). See [shipped batches and remaining Office features](docs/OFFICE_BATCHES.md). Full Office feature parity is in progress; only working controls are exposed. The earlier [object editor and PDF organizer report](docs/OFFICE_FEATURES_019.md) details the underlying native models and limits.
 
