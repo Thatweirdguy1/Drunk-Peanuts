@@ -1,13 +1,13 @@
-## Drunk Peanuts 0.22.0
+## Drunk Peanuts 0.23.0
 
-Neutral black/charcoal replaces the purple tint on large surfaces. Purple remains in small branding, focus and selection accents; yellow remains the main command color.
+Pages adds a clickable, filterable heading outline (View), body/selection statistics (Review), and native DOCX document properties (File). Edit title, subject, author, keywords, description and category. Property-only changes preserve the original body and unedited properties; unsupported text exports refuse pending property loss.
 
-Dazzle adds native speaker notes with independent duplication and Undo/Redo, deck-wide slide dimensions, F5/Shift+F5 start controls, Home/End navigation and B/period screen blanking. Animation commands now have their own ribbon tab. PPTX and Dazzle projects retain notes; projected slides and PDF output exclude them.
+82 source tests pass. Installed Word recognized the authored properties and exported the synthetic document to PDF. The existing neutral theme, Dazzle notes/presenting controls and native Office ribbon remain available.
 
-80 source tests pass. Installed PowerPoint recognized both authored notes bodies and slide dimensions and exported the synthetic deck to PDF. See the [batch report](https://github.com/Thatweirdguy1/Drunk-Peanuts/blob/main/docs/DAZZLE_BATCH_022.md) for verified behavior and limits. Full Office parity remains in progress.
+See the [productivity report](https://github.com/Thatweirdguy1/Drunk-Peanuts/blob/main/docs/PAGES_PRODUCTIVITY_023.md) for behavior and limits. Full Office parity remains in progress.
 
 ### Downloads
-- DrunkPeanuts-0.22.0-Setup.exe — Windows Desktop/Start menu installer.
+- DrunkPeanuts-0.23.0-Setup.exe — Windows Desktop/Start menu installer.
 - DrunkPeanuts-Windows-x64.zip — extract the whole portable folder.
 - DrunkPeanuts-macOS-Apple-Silicon.zip and DrunkPeanuts-macOS-Intel.zip.
 - SHA256SUMS.txt — download checksums.

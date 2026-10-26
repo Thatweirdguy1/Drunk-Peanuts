@@ -191,6 +191,8 @@ class Pages(Workspace):
         setup_pages_tools(self)
         from office_headers import setup_header_tools
         setup_header_tools(self)
+        from office_productivity import setup_productivity
+        setup_productivity(self)
         self.editor.document().setModified(False)
 
     @Slot(str)
@@ -233,6 +235,8 @@ class Pages(Workspace):
         self.page_settings=None
         self.header_footer=None;self.header_footer_changed=False;self.original_body_html=None
         self.header_preview.hide();self.footer_preview.hide()
+        from office_productivity import load_properties
+        load_properties(self)
         self.rich_changed=False
         self.editor.document().setModified(False)
 
@@ -254,8 +258,11 @@ class Pages(Workspace):
             self.header_footer=None
             self.header_footer_changed=False
             self.header_preview.hide();self.footer_preview.hide()
+            from office_productivity import load_properties
+            load_properties(self)
             if path.suffix.lower() == ".docx":
                 doc = Document(path)
+                load_properties(self,doc)
                 self.original_paragraphs = [p.text for p in doc.paragraphs]
                 from office_documents import docx_html
                 self.editor.setHtml(docx_html(doc))
@@ -288,6 +295,7 @@ class Pages(Workspace):
             self.report(lambda: self._write(path))
 
     def _write(self, path):
+        if self.pending_properties and path.suffix.lower()!='.docx':raise ValueError('Save as DOCX to retain pending document properties.')
         if self.header_footer and path.suffix.lower() in ('.html','.htm','.txt'):raise ValueError('Save as DOCX or export PDF to retain header/footer and page numbers.')
         if path.suffix.lower()=='.docx' and self.imported_docx and self.docx_loaded_rich and not self.editor.document().isModified() and not self.rich_changed:
             if path.resolve()==self.imported_docx.resolve() and self.path is None:raise ValueError('Save an imported Word document to a new file')
@@ -318,6 +326,7 @@ class Pages(Workspace):
                     if doc.tables or advanced_content(self.imported_docx):
                         raise ValueError("Paragraph count changed in a complex Word file; save as HTML or TXT to avoid dropping content")
                 doc = Document()
+                for key,value in self.document_properties.items():setattr(doc.core_properties,key,value)
                 block = self.editor.document().begin()
                 while block.isValid():
                     paragraph = doc.add_paragraph(style="List Bullet" if block.textList() else None)

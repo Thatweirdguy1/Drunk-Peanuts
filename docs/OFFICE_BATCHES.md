@@ -1,5 +1,9 @@
 # Office expansion: batches and verification
 
+## 0.23.0 — Pages productivity
+
+Clickable/filterable heading navigation, document/selection statistics and native DOCX core-property editing now work in Pages. Original body XML and unedited properties survive property-only edits. See [behavior and checks](PAGES_PRODUCTIVITY_023.md). Advanced review tools below remain open.
+
 ## 0.22.0 — presentation productivity
 
 Native speaker notes with independent duplication and Undo/Redo, deck dimensions, presenting from beginning/current slide, first/last navigation and black-screen controls have shipped in this batch. Large UI surfaces now use neutral charcoal with small purple accents. See [native round trips, controls and limits](DAZZLE_BATCH_022.md).

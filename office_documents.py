@@ -151,12 +151,15 @@ def write_rich_docx(pages,path):
         from office_headers import apply_headers
         apply_headers(doc,pages.header_footer)
     import tempfile
+    properties=getattr(pages,'pending_properties',{}) if original else getattr(pages,'document_properties',{})
+    for key,value in properties.items():setattr(doc.core_properties,key,value)
     with tempfile.NamedTemporaryFile(dir=path.parent,suffix='.docx',delete=False) as stream:temporary=Path(stream.name)
     try:doc.save(temporary);temporary.replace(path)
     finally:temporary.unlink(missing_ok=True)
     pages.imported_docx=path;pages.path=path;pages.original_paragraphs=pages.editor.toPlainText().split('\n');pages.editor.document().setModified(False)
     pages.original_body_html=pages.editor.toHtml()
     pages.header_footer_changed=False
+    pages.pending_properties={}
 
 def docx_html(doc):
     from docx.text.paragraph import Paragraph
