@@ -63,7 +63,7 @@ class ScriptEditor(QPlainTextEdit):
 class ScreenwriterWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Writer's Drafts · FreeConvert")
+        self.setWindowTitle("Writer's Drafts · Drunk Peanuts")
         self.resize(1320, 830)
         self.path: Path | None = None
         self.original_fdx: bytes | None = None

@@ -78,7 +78,7 @@ class HoverFeedback(QObject):
             button.destroyed.connect(lambda: self._buttons.discard(button))
             frame = QFrame(button)
             frame.setAttribute(Qt.WA_TransparentForMouseEvents)
-            frame.setStyleSheet('background: rgba(255, 221, 34, 24); border: 1px solid #ffdd22; border-radius: 3px;')
+            frame.setStyleSheet('background: rgba(169, 100, 235, 45); border: 1px solid #ffdd22; border-radius: 3px;')
             effect = QGraphicsOpacityEffect(frame)
             effect.setOpacity(0)
             frame.setGraphicsEffect(effect)
@@ -167,7 +167,7 @@ def palette():
     if not hasattr(app, '_hover_feedback'):
         app._hover_feedback = HoverFeedback(app)
         app.installEventFilter(app._hover_feedback)
-    return dict(bg="#0b0b0b", card="#181818", ink="#f2f2ed", muted="#aaa99f", border="#393831", accent="#ffdd22", hover="#39331a")
+    return dict(bg="#0b0b0b", card="#18121f", ink="#f2f2ed", muted="#aaa99f", border="#503669", accent="#ffdd22", hover="#342044")
 
 
 def icon(name, color):
@@ -236,9 +236,9 @@ def editor_theme():
         QPushButton:disabled, QToolButton:disabled {{ color: #66665e; border-color: transparent; }}
         QPushButton:focus, QToolButton:focus {{ border-color: {p['accent']}; }}
         QLineEdit, QComboBox, QSpinBox {{ background: {p['card']}; color: {p['ink']}; border: 1px solid {p['border']}; border-radius: 3px; padding: 4px; }}
-        QTextEdit, QPlainTextEdit, QTextBrowser, QTableWidget, QListWidget {{ background: {p['card']}; color: {p['ink']}; border: 1px solid {p['border']}; border-radius: 2px; selection-background-color: #6b5b10; selection-color: white; }}
+        QTextEdit, QPlainTextEdit, QTextBrowser, QTableWidget, QListWidget {{ background: {p['card']}; color: {p['ink']}; border: 1px solid {p['border']}; border-radius: 2px; selection-background-color: #61358c; selection-color: white; }}
         QTableWidget {{ gridline-color: {p['border']}; alternate-background-color: {p['bg']}; }}
-        QTableWidget::item:selected {{ background: #6b5b10; color: white; border: 1px solid {p['accent']}; }}
+        QTableWidget::item:selected {{ background: #61358c; color: white; border: 1px solid {p['accent']}; }}
         QHeaderView::section {{ background: {p['card']}; color: {p['muted']}; border: none; border-right: 1px solid {p['border']}; border-bottom: 1px solid {p['border']}; padding: 7px; }}
         QListWidget::item {{ padding: 6px; border-radius: 2px; }}
         QListWidget::item:selected {{ background: {p['hover']}; color: {p['ink']}; }}

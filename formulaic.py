@@ -212,7 +212,7 @@ def export_preview(source: str, path: Path) -> None:
 class Formulaic(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Formulaic · FreeConvert")
+        self.setWindowTitle("Formulaic · Drunk Peanuts")
         self.resize(850, 550)
         self.path = None
         area = QWidget()

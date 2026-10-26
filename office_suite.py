@@ -1,4 +1,4 @@
-"""FreeConvert's local document, table, slide, drawing, and database workspaces."""
+"""Drunk Peanuts's local document, table, slide, drawing, and database workspaces."""
 
 from __future__ import annotations
 
@@ -134,7 +134,12 @@ class Pages(Workspace):
         layout = QHBoxLayout(area)
         layout.setContentsMargins(28, 24, 28, 20)
         layout.addStretch(1)
-        layout.addWidget(self.editor, 10)
+        paper=QWidget();paper.setMaximumWidth(850);paper_layout=QVBoxLayout(paper);paper_layout.setContentsMargins(0,0,0,0);paper_layout.setSpacing(0)
+        self.header_preview=QLabel();self.footer_preview=QLabel()
+        for preview in (self.header_preview,self.footer_preview):
+            preview.setTextFormat(Qt.PlainText);preview.setWordWrap(True);preview.setStyleSheet('background:white;color:#444;padding:10px 28px;font:12px Calibri;');preview.hide()
+        paper_layout.addWidget(self.header_preview);paper_layout.addWidget(self.editor,1);paper_layout.addWidget(self.footer_preview)
+        layout.addWidget(paper, 10)
         layout.addStretch(1)
         self.setCentralWidget(area)
         for label, method in [("New", self.new), ("Open", self.open), ("Save", self.save),
@@ -184,6 +189,8 @@ class Pages(Workspace):
         setup_pages(self)
         from office_editing import setup_pages_tools
         setup_pages_tools(self)
+        from office_headers import setup_header_tools
+        setup_header_tools(self)
         self.editor.document().setModified(False)
 
     @Slot(str)
@@ -224,6 +231,8 @@ class Pages(Workspace):
         self.original_paragraphs = []
         self.editor.clear()
         self.page_settings=None
+        self.header_footer=None;self.original_body_html=None
+        self.header_preview.hide();self.footer_preview.hide()
         self.rich_changed=False
         self.editor.document().setModified(False)
 
@@ -242,6 +251,8 @@ class Pages(Workspace):
             return
         def read():
             self.page_settings=None
+            self.header_footer=None
+            self.header_preview.hide();self.footer_preview.hide()
             if path.suffix.lower() == ".docx":
                 doc = Document(path)
                 self.original_paragraphs = [p.text for p in doc.paragraphs]
@@ -259,6 +270,7 @@ class Pages(Workspace):
             # Imported DOCX may contain structures this editor cannot retain.
             self.path = None if path.suffix.lower() == ".docx" else path
             self.editor.document().setModified(False)
+            self.original_body_html=self.editor.toHtml()
         self.report(read)
 
     def save(self):
@@ -273,6 +285,7 @@ class Pages(Workspace):
             self.report(lambda: self._write(path))
 
     def _write(self, path):
+        if self.header_footer and path.suffix.lower() in ('.html','.htm','.txt'):raise ValueError('Save as DOCX or export PDF to retain header/footer and page numbers.')
         if path.suffix.lower()=='.docx' and self.imported_docx and self.docx_loaded_rich and not self.editor.document().isModified() and not self.rich_changed:
             if path.resolve()==self.imported_docx.resolve() and self.path is None:raise ValueError('Save an imported Word document to a new file')
             if path.resolve()!=self.imported_docx.resolve():shutil.copyfile(self.imported_docx,path)
@@ -350,6 +363,10 @@ class Pages(Workspace):
                     printer.setPageOrientation(QPageLayout.Landscape if settings['landscape'] else QPageLayout.Portrait)
                     printer.setPageMargins(QMarginsF(*([settings['margin']]*4)),QPageLayout.Millimeter)
                 self.editor.document().print_(printer)
+                del printer  # Finalize Qt's embedded font resources before reading the PDF.
+                if self.header_footer:
+                    from office_headers import overlay_pdf
+                    overlay_pdf(path,self.header_footer)
             self.report(write)
 
 

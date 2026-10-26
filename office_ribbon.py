@@ -24,7 +24,7 @@ def install_ribbon(window):
             elif not action.isSeparator() and action not in actions:actions.append(action)
     panel=QWidget();panel.setObjectName('officeRibbon');layout=QVBoxLayout(panel);layout.setContentsMargins(5,0,5,0);layout.setSpacing(2)
     quick=QHBoxLayout();quick.setContentsMargins(8,0,8,0)
-    brand=QLabel('FreeConvert.');brand.setStyleSheet('color:#ffdd22;font:bold italic 17px Georgia');quick.addWidget(brand)
+    brand=QLabel('Drunk Peanuts.');brand.setStyleSheet('color:#ffdd22;font:bold italic 17px Georgia');quick.addWidget(brand)
     for label in ('Save','Undo','Redo'):
         action=next((a for a in actions if a.text().replace('&','')==label),None)
         if action:

@@ -127,14 +127,15 @@ def write_rich_docx(pages,path):
             section.orientation=WD_ORIENT.LANDSCAPE if settings['landscape'] else WD_ORIENT.PORTRAIT
             section.page_width=Mm(height if settings['landscape'] else width);section.page_height=Mm(width if settings['landscape'] else height)
             section.top_margin=section.bottom_margin=section.left_margin=section.right_margin=Mm(settings['margin'])
-    if original:
+    preserve_body=bool(original and pages.editor.toHtml()==getattr(pages,'original_body_html',None))
+    if original and not preserve_body:
         # Existing unsupported fields/objects must not disappear during rich editing.
         bad=[el for el in doc.element.body.iter() if el.tag.rsplit('}',1)[-1] in {'fldChar','instrText','object','sdt','chart'}]
         if bad:raise ValueError('This Word file contains fields or advanced objects. Save an HTML copy for rich editing; the source remains intact.')
         for child in list(doc.element.body):
             if child.tag!=qn('w:sectPr'):doc.element.body.remove(child)
     iterator=pages.editor.document().rootFrame().begin()
-    while not iterator.atEnd():
+    while not preserve_body and not iterator.atEnd():
         frame=iterator.currentFrame();block=iterator.currentBlock()
         if isinstance(frame,QTextTable):
             table=doc.add_table(rows=frame.rows(),cols=frame.columns());table.style='Table Grid'
@@ -146,11 +147,15 @@ def write_rich_docx(pages,path):
                         if current.position()<=end:p=table.cell(row,col).add_paragraph()
         elif block.isValid():_block(doc.add_paragraph(style='List Bullet' if block.textList() else None),block,pages.editor.document())
         iterator+=1
+    if getattr(pages,'header_footer',None):
+        from office_headers import apply_headers
+        apply_headers(doc,pages.header_footer)
     import tempfile
     with tempfile.NamedTemporaryFile(dir=path.parent,suffix='.docx',delete=False) as stream:temporary=Path(stream.name)
     try:doc.save(temporary);temporary.replace(path)
     finally:temporary.unlink(missing_ok=True)
     pages.imported_docx=path;pages.path=path;pages.original_paragraphs=pages.editor.toPlainText().split('\n');pages.editor.document().setModified(False)
+    pages.original_body_html=pages.editor.toHtml()
 
 def docx_html(doc):
     from docx.text.paragraph import Paragraph

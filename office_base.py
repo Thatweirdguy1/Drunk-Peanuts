@@ -31,7 +31,7 @@ def pick_save(parent, label, filters):
 class Workspace(QMainWindow):
     def __init__(self, name):
         super().__init__()
-        self.setWindowTitle(f"{name} · FreeConvert")
+        self.setWindowTitle(f"{name} · Drunk Peanuts")
         self.resize(1100, 750)
         self.path = None
         self.dirty = False

@@ -1,33 +1,33 @@
-# FreeConvert
+# Drunk Peanuts
 
-<p align="center"><img src="assets/logo.png" alt="FreeConvert." width="480"></p>
+<p align="center"><img src="assets/logo.png" alt="Drunk Peanuts." width="480"></p>
 
-[![Desktop builds](https://github.com/Thatweirdguy1/FreeConvert/actions/workflows/release.yml/badge.svg)](https://github.com/Thatweirdguy1/FreeConvert/actions/workflows/release.yml)
+[![Desktop builds](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/workflows/release.yml/badge.svg)](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 [![Local and offline](https://img.shields.io/badge/files-local%20%26%20offline-ffdd22)](#privacy-and-security)
 
 A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with Play.
 
-**Version 0.20.1** brings a Microsoft 365-style ribbon to Pages, Tables, Dazzle, Sketch, Organize and Formulaic. Commands are grouped into tabs with compact icons, quick access, command search and scrolling groups for smaller windows. The converter drop area now has its own expanding hover/drag highlight.
+**Version 0.21.0** brings a Microsoft 365-style ribbon to Pages, Tables, Dazzle, Sketch, Organize and Formulaic. Commands are grouped into tabs with compact icons, quick access, command search and scrolling groups for smaller windows. The converter drop area now has its own expanding hover/drag highlight.
 
-This batch adds document headings/numbering/spacing, find and replace and page setup; native spreadsheet cell formatting and clipboard tools; and independent slide duplication/alignment. It keeps the black/yellow theme and existing conversion, compression, OCR, media and PDF page tools.
+This release renames the app to **Drunk Peanuts**, adds a black/purple/yellow theme and original DP icon, and brings editable headers, footers and live page-number fields to Pages. The Office ribbon, conversion, compression, OCR, Play and PDF tools remain available. Use **Insert → Header / Footer / Page numbers**; DOCX contains live PAGE/NUMPAGES fields and PDF export numbers the actual output pages.
 
-See [shipped batches and remaining Office features](docs/OFFICE_BATCHES.md). Full Office feature parity is in progress; only working controls are exposed. The earlier [object editor and PDF organizer report](docs/OFFICE_FEATURES_019.md) details the underlying native models and limits.
+Read the [rename and header/footer report](docs/DRUNK_PEANUTS_021.md). See [shipped batches and remaining Office features](docs/OFFICE_BATCHES.md). Full Office feature parity is in progress; only working controls are exposed. The earlier [object editor and PDF organizer report](docs/OFFICE_FEATURES_019.md) details the underlying native models and limits.
 
-![Pages ribbon and document editing](docs/pages-020.jpg)
+![Pages ribbon and document editing](docs/pages-021.png)
 
-![Distinct drop-area hover feedback](docs/drop-hover-020.png)
+![Drunk Peanuts converter theme](docs/main-021.png)
 
 ## Download
 
-Get the app from the [latest release](https://github.com/Thatweirdguy1/FreeConvert/releases/latest). **No Python installation, terminal, or account is needed.**
+Get the app from the [latest release](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest). **No Python installation, terminal, or account is needed.**
 
 | Platform | Download | How to open |
 | --- | --- | --- |
-| **Windows x64 — installer** | [FreeConvert Setup](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/FreeConvert-0.20.1-Setup.exe) | Run Setup, then use **FreeConvert on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
-| Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
-| macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-macOS-Apple-Silicon.zip) | Extract and open `LocalFileConverter.app`. |
-| macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/FreeConvert/releases/latest/download/LocalFileConverter-macOS-Intel.zip) | Extract and open `LocalFileConverter.app`. |
+| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.21.0-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
+| Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
+| macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Apple-Silicon.zip) | Extract and open `DrunkPeanuts.app`. |
+| macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Intel.zip) | Extract and open `DrunkPeanuts.app`. |
 
 Downloads include FFmpeg, the VLC playback runtime, OCR models, and Office templates. Microsoft Office and LibreOffice are optional external applications. SHA-256 checksums are included with the release.
 
@@ -55,7 +55,7 @@ The original bundled starters are covered by this repository's MIT license. No M
 
 ## Included engines
 
-Basic Office conversions run inside FreeConvert using included Python format libraries. For a more faithful PDF, choose **Automatic** or select an installed Microsoft Office or LibreOffice renderer. For cross-format Office conversion, choose installed LibreOffice when available to retain more advanced content. These applications are optional and are **not bundled**. On Windows, automatic PDF rendering prefers installed Word for DOCX, Excel for XLSX, and PowerPoint for PPTX; it then tries installed LibreOffice and finally the built-in basic renderer. On macOS, installed LibreOffice is the optional external renderer. The app reports a failure if a selected external export fails; it does not silently substitute a different PDF.
+Basic Office conversions run inside Drunk Peanuts using included Python format libraries. For a more faithful PDF, choose **Automatic** or select an installed Microsoft Office or LibreOffice renderer. For cross-format Office conversion, choose installed LibreOffice when available to retain more advanced content. These applications are optional and are **not bundled**. On Windows, automatic PDF rendering prefers installed Word for DOCX, Excel for XLSX, and PowerPoint for PPTX; it then tries installed LibreOffice and finally the built-in basic renderer. On macOS, installed LibreOffice is the optional external renderer. The app reports a failure if a selected external export fails; it does not silently substitute a different PDF.
 
 OCR runs locally using bundled [RapidOCR](https://github.com/RapidAI/RapidOCR) and PaddleOCR-derived ONNX models. The default model recognizes Latin-script languages, Chinese, and Japanese; choose a dedicated Cyrillic, Hindi/Devanagari, Korean, or Arabic model for those scripts. No separate OCR installation, account, or network connection is needed.
 

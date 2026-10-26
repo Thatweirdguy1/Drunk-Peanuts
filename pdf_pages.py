@@ -51,7 +51,7 @@ def split_groups(source,folder,groups):
 
 class PdfPages(QDialog):
     def __init__(self,path,parent=None):
-        super().__init__(parent);self.source=Path(path);self.setWindowTitle('Document pages · FreeConvert');self.resize(1050,760);self.setStyleSheet(editor_theme());self.pdf=None;self.thumb_index=0;self.pixmaps={};self.items={}
+        super().__init__(parent);self.source=Path(path);self.setWindowTitle('Document pages · Drunk Peanuts');self.resize(1050,760);self.setStyleSheet(editor_theme());self.pdf=None;self.thumb_index=0;self.pixmaps={};self.items={}
         count=len(PdfReader(str(path)).pages);self.total=count
         if not count:raise ValueError('The document has no pages.')
         layout=QVBoxLayout(self);layout.addWidget(QLabel(f'{self.source.name} · {count} pages\nDrag cards to reorder. Ctrl/Shift selects several pages. Every operation creates new files.'))

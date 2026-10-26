@@ -88,7 +88,7 @@ class VideoSurface(QWidget):
 class WatchIT(QMainWindow):
     def __init__(self, engine=None, deferred=False):
         super().__init__()
-        self.setWindowTitle("Play · FreeConvert")
+        self.setWindowTitle("Play · Drunk Peanuts")
         self.resize(1060, 740)
         self.setMinimumSize(760, 520)
         self.vlc = self.instance = self.player = None

@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.20.1"
+VERSION = "0.21.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -255,7 +255,7 @@ class Worker(QThread):
 class Window(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"FreeConvert {VERSION}")
+        self.setWindowTitle(f"Drunk Peanuts {VERSION}")
         self.resize(1080, 830)
         self.setMinimumSize(760, 540)
         self.preview_worker = None
@@ -305,7 +305,7 @@ class Window(QMainWindow):
         title = QLabel()
         title.setObjectName("title")
         title.setPixmap(QPixmap(str(Path(__file__).resolve().parent / 'assets' / 'logo.png')).scaledToHeight(48, Qt.SmoothTransformation))
-        title.setAccessibleName("FreeConvert.")
+        title.setAccessibleName("Drunk Peanuts.")
         brand.addWidget(eyebrow)
         brand.addWidget(title)
         header.addLayout(brand)
@@ -547,7 +547,7 @@ class Window(QMainWindow):
             QLabel#dropMark {{ font-size: 34px; font-weight: 300; color: #ffdd22; }}
             QLabel#muted {{ color: {muted}; }}
             QLabel#fieldLabel {{ font-weight: 700; }}
-            QFrame#dropArea {{ background: transparent; border: 1px dashed #75671d; border-radius: 3px; }}
+            QFrame#dropArea {{ background: transparent; border: 1px dashed #78529c; border-radius: 3px; }}
             QFrame#workspaces {{ background: {card}; border: 1px solid {border}; border-radius: 12px; }}
             QToolBar {{ background: {card}; border: none; padding: 3px 6px; spacing: 2px; }}
             QToolButton {{ background: transparent; color: {text}; padding: 6px; border: 1px solid transparent; border-radius: 3px; }}
@@ -1257,7 +1257,7 @@ def main():
         engine.release()
         return
     app = QApplication(sys.argv)
-    app.setApplicationName("FreeConvert")
+    app.setApplicationName("Drunk Peanuts")
     app.setApplicationVersion(VERSION)
     app.setOrganizationName("Local File Converter")
     app.setWindowIcon(QIcon(str(Path(__file__).resolve().parent / "assets" / "app.ico")))

@@ -1,4 +1,4 @@
-"""Create original FreeConvert branding and editable local Office starters."""
+"""Create original Drunk Peanuts branding and editable local Office starters."""
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from docx import Document
@@ -11,21 +11,21 @@ from contextlib import closing
 from office_templates import style_slide
 
 
+def build_branding(folder=Path('assets')):
+    folder=Path(folder);folder.mkdir(parents=True,exist_ok=True)
+    logo=Image.new('RGB',(1600,320),'black');draw=ImageDraw.Draw(logo)
+    font=ImageFont.truetype('C:/Windows/Fonts/BRUSHSCI.TTF',164)
+    draw.text((800,150),'Drunk Peanuts.',font=font,fill='#ffdd22',anchor='mm',stroke_width=2)
+    draw.rounded_rectangle((400,265,1200,278),radius=6,fill='#a964eb');logo.save(folder/'logo.png')
+    tile=Image.new('RGB',(256,256),'black');draw=ImageDraw.Draw(tile);font=ImageFont.truetype('C:/Windows/Fonts/arialbd.ttf',125)
+    draw.rounded_rectangle((10,10,246,246),radius=35,outline='#a964eb',width=12)
+    draw.text((73,130),'D',font=font,fill='#a964eb',anchor='mm');draw.text((172,130),'P',font=font,fill='#ffdd22',anchor='mm')
+    tile.save(folder/'app.icns')
+    tile.save(folder/'app.ico',sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
+
+
 def build(folder=Path('assets')):
-    folder = Path(folder)
-    folder.mkdir(parents=True, exist_ok=True)
-    # Render installed script type; only original rendered artwork is distributed.
-    font = ImageFont.truetype('C:/Windows/Fonts/BRUSHSCI.TTF', 164)
-    logo = Image.new('RGB', (1120, 280), 'black')
-    draw = ImageDraw.Draw(logo)
-    draw.text((560, 140), 'FreeConvert.', font=font, fill='#ffdd22', anchor='mm', stroke_width=2)
-    logo.save(folder/'logo.png')
-    tile = Image.new('RGB', (256, 256), 'black')
-    tile_draw = ImageDraw.Draw(tile)
-    for text, y, size in [('Free', 79, 100), ('Convert.', 174, 78)]:
-        tile_draw.text((128, y), text, font=ImageFont.truetype('C:/Windows/Fonts/BRUSHSCI.TTF', size),
-                       fill='#ffdd22', anchor='mm', stroke_width=1)
-    tile.save(folder/'app.ico', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
+    folder=Path(folder);build_branding(folder)
     templates = folder/'templates'
     templates.mkdir(exist_ok=True)
     for name, lines in {

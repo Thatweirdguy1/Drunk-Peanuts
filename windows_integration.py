@@ -10,12 +10,12 @@ def registration_values(executable):
     command = f'"{executable}" --play "%1"'
     classes = 'Software\\Classes\\'
     values = [
-        (classes + 'FreeConvert.Media', '', 'Play · FreeConvert'),
+        (classes + 'FreeConvert.Media', '', 'Play · Drunk Peanuts'),
         (classes + 'FreeConvert.Media\\DefaultIcon', '', f'"{executable}",0'),
         (classes + 'FreeConvert.Media\\shell\\open\\command', '', command),
-        (classes + 'Applications\\LocalFileConverter.exe', 'FriendlyAppName', 'Play · FreeConvert'),
+        (classes + 'Applications\\LocalFileConverter.exe', 'FriendlyAppName', 'Play · Drunk Peanuts'),
         (classes + 'Applications\\LocalFileConverter.exe\\shell\\open\\command', '', command),
-        ('Software\\FreeConvert\\Capabilities', 'ApplicationName', 'FreeConvert'),
+        ('Software\\FreeConvert\\Capabilities', 'ApplicationName', 'Drunk Peanuts'),
         ('Software\\FreeConvert\\Capabilities', 'ApplicationDescription', 'Local conversion, Office Suite and Play media player'),
         ('Software\\RegisteredApplications', 'FreeConvert', 'Software\\FreeConvert\\Capabilities'),
         ('Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\LocalFileConverter.exe', '', executable),

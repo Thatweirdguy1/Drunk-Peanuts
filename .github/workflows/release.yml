@@ -41,7 +41,19 @@ jobs:
         run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name LocalFileConverter --icon assets/app.ico --version-file version_info.txt --add-data "assets;assets" --collect-all imageio_ffmpeg --collect-data rapidocr --add-data "ocr_models;ocr_models" --add-data "C:/Program Files/VideoLAN/VLC/libvlc.dll;vlc_runtime" --add-data "C:/Program Files/VideoLAN/VLC/libvlccore.dll;vlc_runtime" --add-data "C:/Program Files/VideoLAN/VLC/plugins;vlc_runtime/plugins" app.py
       - name: Package app on macOS
         if: runner.os == 'macOS'
-        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name LocalFileConverter --add-data "assets:assets" --collect-all imageio_ffmpeg --collect-data rapidocr --add-data "ocr_models:ocr_models" --add-binary "/Applications/VLC.app/Contents/MacOS/lib:vlc_runtime/lib" --add-binary "/Applications/VLC.app/Contents/MacOS/plugins:vlc_runtime/plugins" app.py
+        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name DrunkPeanuts --icon assets/app.icns --osx-bundle-identifier com.thatweirdguy1.drunkpeanuts --add-data "assets:assets" --collect-all imageio_ffmpeg --collect-data rapidocr --add-data "ocr_models:ocr_models" --add-binary "/Applications/VLC.app/Contents/MacOS/lib:vlc_runtime/lib" --add-binary "/Applications/VLC.app/Contents/MacOS/plugins:vlc_runtime/plugins" app.py
+      - name: Set macOS product metadata
+        if: runner.os == 'macOS'
+        run: |
+          python - <<'PY'
+          import plistlib, re
+          from pathlib import Path
+          path = Path('dist/DrunkPeanuts.app/Contents/Info.plist')
+          data = plistlib.loads(path.read_bytes())
+          version = re.search(r'VERSION = "([^"]+)"', Path('app.py').read_text()).group(1)
+          data.update(CFBundleName='Drunk Peanuts', CFBundleDisplayName='Drunk Peanuts', CFBundleShortVersionString=version, CFBundleVersion=version)
+          path.write_bytes(plistlib.dumps(data))
+          PY
       - name: Use Windows ICU for Qt
         if: runner.os == 'Windows'
         shell: pwsh
@@ -56,19 +68,19 @@ jobs:
         run: python verify_release_ocr.py dist/LocalFileConverter/LocalFileConverter.exe
       - name: Verify packaged OCR on macOS
         if: runner.os == 'macOS'
-        run: python verify_release_ocr.py dist/LocalFileConverter.app/Contents/MacOS/LocalFileConverter
+        run: python verify_release_ocr.py dist/DrunkPeanuts.app/Contents/MacOS/LocalFileConverter
       - name: Verify native workspaces on Windows
         if: runner.os == 'Windows'
         run: python verify_release_suite.py dist/LocalFileConverter/LocalFileConverter.exe
       - name: Verify native workspaces on macOS
         if: runner.os == 'macOS'
-        run: python verify_release_suite.py dist/LocalFileConverter.app/Contents/MacOS/LocalFileConverter
+        run: python verify_release_suite.py dist/DrunkPeanuts.app/Contents/MacOS/LocalFileConverter
       - name: Verify native conversion on Windows
         if: runner.os == 'Windows'
         run: python verify_release_native.py dist/LocalFileConverter/LocalFileConverter.exe
       - name: Verify native conversion on macOS
         if: runner.os == 'macOS'
-        run: python verify_release_native.py dist/LocalFileConverter.app/Contents/MacOS/LocalFileConverter
+        run: python verify_release_native.py dist/DrunkPeanuts.app/Contents/MacOS/LocalFileConverter
       - name: Verify optional renderer support on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -77,7 +89,7 @@ jobs:
           if ($process.ExitCode -ne 0) { exit $process.ExitCode }
       - name: Verify optional renderer support on macOS
         if: runner.os == 'macOS'
-        run: dist/LocalFileConverter.app/Contents/MacOS/LocalFileConverter --renderer-self-check
+        run: dist/DrunkPeanuts.app/Contents/MacOS/LocalFileConverter --renderer-self-check
       - name: Include licenses on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -88,9 +100,9 @@ jobs:
       - name: Include licenses on macOS
         if: runner.os == 'macOS'
         run: |
-          cp LICENSE THIRD_PARTY_NOTICES.md dist/LocalFileConverter.app/Contents/Resources/
-          cp -R THIRD_PARTY_LICENSES dist/LocalFileConverter.app/Contents/Resources/
-          cp THIRD_PARTY_LICENSES/VLC-GPL-2.0.txt dist/LocalFileConverter.app/Contents/Resources/VLC-COPYING.txt
+          cp LICENSE THIRD_PARTY_NOTICES.md dist/DrunkPeanuts.app/Contents/Resources/
+          cp -R THIRD_PARTY_LICENSES dist/DrunkPeanuts.app/Contents/Resources/
+          cp THIRD_PARTY_LICENSES/VLC-GPL-2.0.txt dist/DrunkPeanuts.app/Contents/Resources/VLC-COPYING.txt
       - name: Build Windows installer
         if: runner.os == 'Windows'
         shell: pwsh
@@ -99,28 +111,28 @@ jobs:
           if (-not $compiler) { throw 'Inno Setup compiler is missing from the Windows runner.' }
           & $compiler.FullName /DPackageDir=dist\LocalFileConverter installer.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item dist/FreeConvert-*-Setup.exe -Destination .
+          Copy-Item dist/DrunkPeanuts-*-Setup.exe -Destination .
       - name: Archive Windows app
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -LiteralPath dist/LocalFileConverter -DestinationPath "LocalFileConverter-${{ matrix.name }}.zip"
+        run: Compress-Archive -LiteralPath dist/LocalFileConverter -DestinationPath "DrunkPeanuts-${{ matrix.name }}.zip"
       - name: Archive macOS app
         if: runner.os == 'macOS'
-        run: ditto -c -k --sequesterRsrc --keepParent dist/LocalFileConverter.app "LocalFileConverter-${{ matrix.name }}.zip"
+        run: ditto -c -k --sequesterRsrc --keepParent dist/DrunkPeanuts.app "DrunkPeanuts-${{ matrix.name }}.zip"
       - name: Checksum Windows downloads
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Get-FileHash "LocalFileConverter-${{ matrix.name }}.zip", FreeConvert-*-Setup.exe | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content "SHA256SUMS-${{ matrix.name }}.txt" -Encoding ascii
+          Get-FileHash "DrunkPeanuts-${{ matrix.name }}.zip", DrunkPeanuts-*-Setup.exe | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content "SHA256SUMS-${{ matrix.name }}.txt" -Encoding ascii
       - name: Checksum macOS download
         if: runner.os == 'macOS'
-        run: shasum -a 256 "LocalFileConverter-${{ matrix.name }}.zip" > "SHA256SUMS-${{ matrix.name }}.txt"
+        run: shasum -a 256 "DrunkPeanuts-${{ matrix.name }}.zip" > "SHA256SUMS-${{ matrix.name }}.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
           path: |
-            LocalFileConverter-${{ matrix.name }}.zip
-            FreeConvert-*-Setup.exe
+            DrunkPeanuts-${{ matrix.name }}.zip
+            DrunkPeanuts-*-Setup.exe
             SHA256SUMS-${{ matrix.name }}.txt
 
   release:
@@ -138,4 +150,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat SHA256SUMS-*.txt > SHA256SUMS.txt
-          gh release create "${GITHUB_REF_NAME}" ./*.zip ./*.exe SHA256SUMS.txt --repo "${GITHUB_REPOSITORY}" --title "FreeConvert ${GITHUB_REF_NAME}" --verify-tag --notes-file RELEASE_NOTES.md --draft
+          gh release create "${GITHUB_REF_NAME}" ./*.zip ./*.exe SHA256SUMS.txt --repo "${GITHUB_REPOSITORY}" --title "Drunk Peanuts ${GITHUB_REF_NAME}" --verify-tag --notes-file RELEASE_NOTES.md --draft
