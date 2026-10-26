@@ -1,7 +1,7 @@
 import unittest
 import tempfile
 from pathlib import Path
-from windows_integration import registration_values, MEDIA_EXTENSIONS
+from windows_integration import registration_values, MEDIA_EXTENSIONS, WORKSPACE_EXTENSIONS, launcher_name
 
 
 class WindowsIntegrationTest(unittest.TestCase):
@@ -9,10 +9,34 @@ class WindowsIntegrationTest(unittest.TestCase):
         executable = Path('build/App with spaces/LocalFileConverter.exe').resolve()
         values = registration_values(executable)
         commands = [v for path, name, v in values if path.endswith('open\\command')]
-        self.assertEqual(commands, [f'"{executable}" --play "%1"'] * 2)
+        self.assertEqual(commands[:2], [f'"{executable}" --play "%1"'] * 2)
+        for workspace, extensions in WORKSPACE_EXTENSIONS.items():
+            command = f'"{executable.parent / launcher_name(workspace)}" "%1"'
+            self.assertEqual(commands.count(command), 2)
+            for extension in extensions:
+                self.assertIn(('Software\\Classes\\'+extension+'\\OpenWithProgids', 'DrunkPeanuts.'+workspace, ''), values)
         for extension in MEDIA_EXTENSIONS:
             self.assertIn(('Software\\Classes\\' + extension + '\\OpenWithProgids', 'FreeConvert.Media', ''), values)
         self.assertFalse(any('UserChoice' in path or name == 'ProgId' for path, name, _ in values))
+
+    def test_open_with_dispatches_each_office_file_without_overwriting_open_work(self):
+        import os
+        os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+        from PySide6.QtWidgets import QApplication
+        from unittest.mock import MagicMock, patch
+        from app import Window
+        application = QApplication.instance() or QApplication([])
+        with tempfile.TemporaryDirectory() as folder:
+            first, second = Path(folder)/'First file.docx', Path(folder)/'Second file.docx'
+            first.touch();second.touch()
+            window = Window()
+            with patch('office_suite.WORKSPACES', {'Pages':MagicMock(side_effect=[MagicMock(), MagicMock()])}), patch.object(window, '_workspace_templates'):
+                window.open_arguments(['--open-workspace', 'Pages', str(first), str(second)])
+                opened = list(window.workspaces.values())
+                self.assertEqual(len(opened), 2)
+                opened[0].open.assert_called_once_with(first)
+                opened[1].open.assert_called_once_with(second)
+            window.workspaces.clear();window.close()
 
     def test_templates_are_editable_copies_and_never_overwrite(self):
         from office_templates import ASSETS, TEMPLATES, create_document

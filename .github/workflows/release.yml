@@ -42,6 +42,9 @@ jobs:
       - name: Package app on macOS
         if: runner.os == 'macOS'
         run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name DrunkPeanuts --icon assets/app.icns --osx-bundle-identifier com.thatweirdguy1.drunkpeanuts --add-data "assets:assets" --collect-all imageio_ffmpeg --collect-data rapidocr --add-data "ocr_models:ocr_models" --add-binary "/Applications/VLC.app/Contents/MacOS/lib:vlc_runtime/lib" --add-binary "/Applications/VLC.app/Contents/MacOS/plugins:vlc_runtime/plugins" app.py
+      - name: Build Windows Open With launchers
+        if: runner.os == 'Windows'
+        run: python build_windows_launchers.py dist/LocalFileConverter
       - name: Set macOS product metadata
         if: runner.os == 'macOS'
         run: |

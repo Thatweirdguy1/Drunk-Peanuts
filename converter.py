@@ -402,9 +402,10 @@ def convert(source: Path, target: Path, engine: str = "built-in") -> None:
     office_cross = source.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS and fmt in {"docx", "odt", "rtf", "xlsx", "ods", "pptx", "odp"} and fmt in targets(source.suffix.lower().lstrip("."))
     selected_engine = resolve_engine(source, engine) if office_pdf else "built-in"
     pdf_docx=source.suffix.lower()=='.pdf' and fmt=='docx'
-    pdf_visual = pdf_docx and engine in {'built-in','auto','visual'}
+    pdf_visual = pdf_docx and engine=='visual'
+    pdf_editable=pdf_docx and engine in {'built-in','auto','editable'}
     pdf_text_only=pdf_docx and engine=='text'
-    if engine not in {"built-in", "auto"} and not office_pdf and not pdf_visual and not pdf_text_only and not legacy_modern and not (office_cross and engine == "libreoffice"):
+    if engine not in {"built-in", "auto"} and not office_pdf and not pdf_visual and not pdf_editable and not pdf_text_only and not legacy_modern and not (office_cross and engine == "libreoffice"):
         raise ValueError("An external rendering engine is unavailable for this conversion.")
     if office_cross and engine == "libreoffice":
         convert_with_libreoffice(source, target)
@@ -422,6 +423,11 @@ def convert(source: Path, target: Path, engine: str = "built-in") -> None:
         return
     if pdf_visual:
         _pdf_to_docx_visual(source, target)
+        return
+    if pdf_editable:
+        from pdf_docx import editable_docx
+        with pdfium_guard():
+            editable_docx(source,target)
         return
     group = kind(source)
     if group == "Image":

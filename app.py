@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.25.0"
+VERSION = "0.26.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -688,10 +688,26 @@ class Window(QMainWindow):
             QMessageBox.warning(parent or self, "Could not create document", str(error))
 
     def open_arguments(self, arguments):
-        from windows_integration import MEDIA_EXTENSIONS
+        from windows_integration import MEDIA_EXTENSIONS, WORKSPACE_EXTENSIONS
+        workspace = None
+        if arguments[:1] == ['--open-workspace']:
+            if len(arguments) < 2 or arguments[1] not in WORKSPACE_EXTENSIONS:
+                QMessageBox.warning(self, 'Cannot open workspace', 'Unknown Office workspace.')
+                return
+            workspace = arguments[1]
+            arguments = arguments[2:]
+            if not arguments:
+                if workspace == 'Writer':self._screenwriter()
+                elif workspace == 'Play':self._watchit()
+                else:self._open_workspace(workspace)
+                return
         play = arguments[:1] == ["--play"]
         files = [Path(name).resolve() for name in (arguments[1:] if play else arguments)
                  if not name.startswith("--") and Path(name).is_file()]
+        if not files:
+            if play:self._watchit()
+            else:self.show()
+            return
         media = [path for path in files if path.suffix.lower() in MEDIA_EXTENSIONS]
         if media:
             self.pending_media.extend(media)
@@ -701,7 +717,25 @@ class Window(QMainWindow):
                 self.pending_media = []
         other = [path for path in files if path not in media]
         if other and not play:
-            self._add_files(other)
+            remaining = []
+            for path in other:
+                name = workspace or next((w for w, extensions in WORKSPACE_EXTENSIONS.items() if path.suffix.lower() in extensions), None)
+                if name is None:
+                    remaining.append(path)
+                    continue
+                if path.suffix.lower() not in WORKSPACE_EXTENSIONS[name]:
+                    QMessageBox.warning(self, 'Unsupported file', f'{name} cannot open {path.suffix} files.')
+                    continue
+                from office_suite import WORKSPACES
+                from screenwriter import ScreenwriterWindow
+                window = ScreenwriterWindow() if name == 'Writer' else WORKSPACES[name]()
+                self._workspace_templates(window, "Writer's Drafts" if name == 'Writer' else name)
+                self.workspaces[f'open:{id(window)}'] = window
+                (window._open if name == 'Writer' else window.open)(path)
+                window.show();window.raise_();window.activateWindow()
+            if remaining:
+                self.show()
+                self._add_files(remaining)
 
     def _add_files(self, files: list[Path]):
         if self.worker and self.worker.isRunning():
@@ -827,9 +861,9 @@ class Window(QMainWindow):
         if not (office_pdf or pdf_docx or office_cross):
             return
         self.engine_label.setText("PDF to DOCX mode" if pdf_docx else "PDF renderer" if office_pdf else "Conversion engine")
-        self.engine_hint.setText("Preserve pages keeps graphics; text-only omits images/layout" if pdf_docx else "For the selected Office file")
+        self.engine_hint.setText("Editable text + separate images; complex layouts may reflow" if pdf_docx else "For the selected Office file")
         if pdf_docx:
-            choices = [("Preserve pages (not editable)", "visual"), ("Text only (drops images/layout)", "text")]
+            choices = [("Editable text and images", "editable"), ("Preserve pages (not editable)", "visual"), ("Text only (drops images/layout)", "text")]
         elif office_cross:
             choices = [("Built-in (basic)", "built-in"), ("LibreOffice (installed)", "libreoffice")]
         else:
@@ -849,7 +883,7 @@ class Window(QMainWindow):
         index = self.pdf_engine.findData(selected)
         self.pdf_engine.setCurrentIndex(index if index >= 0 else 0)
         if index < 0:
-            self.engines[path] = "visual" if pdf_docx else "auto" if office_pdf else "built-in"
+            self.engines[path] = "editable" if pdf_docx else "auto" if office_pdf else "built-in"
         self.pdf_engine.blockSignals(False)
 
     def _refresh_details(self):
@@ -859,8 +893,8 @@ class Window(QMainWindow):
             target = self.formats.get(path, "—").upper()
             note = ""
             if path.suffix.lower() == ".pdf" and target == "DOCX":
-                note = ("\nComplete page images preserve headers, graphics and signatures; text is not editable." if self.engines.get(path,'visual') in {'visual','auto','built-in'}
-                        else "\nSelectable text only; PDF layout and images are not preserved.")
+                engine = self.engines.get(path, 'editable')
+                note = ('\nComplete page images; text is not editable.' if engine == 'visual' else '\nSelectable text only; images/layout omitted.' if engine == 'text' else '\nEditable paragraphs and separate images. Complex columns, tables and typography may reflow; scanned pages require OCR.')
             if target == "PDF" and path.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS:
                 chosen = resolve_engine(path, self.engines.get(path, "auto"))
                 note = f"\nPDF renderer: {chosen}. Installed application required for its native layout."
@@ -1262,7 +1296,7 @@ def main():
     app.setOrganizationName("Local File Converter")
     app.setWindowIcon(QIcon(str(Path(__file__).resolve().parent / "assets" / "app.ico")))
     window = Window()
-    window.show()
+    if not sys.argv[1:]:window.show()
     QTimer.singleShot(0, lambda: window.open_arguments(sys.argv[1:]))
     sys.exit(app.exec())
 

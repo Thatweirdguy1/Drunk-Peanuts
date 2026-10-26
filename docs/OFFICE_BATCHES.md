@@ -1,5 +1,9 @@
 # Office expansion: batches and verification
 
+## 0.26.0 — editable PDF and Windows file entry points
+
+PDF import now reconstructs selectable text as editable Word paragraphs and retains embedded raster images separately. Each Office workspace and Play has a distinct small Windows launcher and Open with registration. No file defaults are changed. See [details and limits](EDITABLE_OPEN_WITH_026.md).
+
 ## 0.25.0 — formula results and content-preserving PDF import
 
 Tables paints computed cell results while retaining raw formulas, recalculates after edits, supports additional bounded local functions, renders common number formats and adds AutoSum/F9/Show formulas. PDF→DOCX defaults to complete page images to preserve letterheads and other graphics; explicit text-only mode remains separate. See [verification and limits](FORMULAS_PDF_025.md).

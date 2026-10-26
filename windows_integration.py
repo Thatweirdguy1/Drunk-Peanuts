@@ -3,6 +3,20 @@ from pathlib import Path
 import sys
 
 MEDIA_EXTENSIONS = ('.mp4', '.mkv', '.mov', '.avi', '.webm', '.mpeg', '.mpg', '.wmv', '.m4v', '.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.aiff', '.wma')
+WORKSPACE_EXTENSIONS = {
+    'Pages': ('.docx', '.txt', '.html', '.htm'),
+    'Tables': ('.xlsx', '.csv'),
+    'Dazzle': ('.pptx', '.dazzle'),
+    'Sketch': ('.png', '.jpg', '.jpeg', '.bmp'),
+    'Organize': ('.sqlite', '.db'),
+    'Formulaic': ('.formulaic', '.mml'),
+    'Writer': ('.fountain', '.fdx'),
+    'Play': MEDIA_EXTENSIONS,
+}
+
+
+def launcher_name(workspace):
+    return f'DrunkPeanuts.{workspace}.exe'
 
 
 def registration_values(executable):
@@ -26,6 +40,29 @@ def registration_values(executable):
             (classes + 'Applications\\LocalFileConverter.exe\\SupportedTypes', extension, ''),
             ('Software\\FreeConvert\\Capabilities\\FileAssociations', extension, 'FreeConvert.Media'),
         ])
+    for workspace, extensions in WORKSPACE_EXTENSIONS.items():
+        launcher = str(Path(executable).parent / launcher_name(workspace))
+        progid = 'DrunkPeanuts.' + workspace
+        application = classes + 'Applications\\' + launcher_name(workspace)
+        capabilities = 'Software\\DrunkPeanuts\\' + workspace + '\\Capabilities'
+        title = workspace + ' · Drunk Peanuts'
+        values.extend([
+            (classes + progid, '', title),
+            (classes + progid + '\\DefaultIcon', '', f'"{launcher}",0'),
+            (classes + progid + '\\shell\\open\\command', '', f'"{launcher}" "%1"'),
+            (classes + progid + '\\Application', 'ApplicationName', title),
+            (application, 'FriendlyAppName', title),
+            (application + '\\shell\\open\\command', '', f'"{launcher}" "%1"'),
+            (capabilities, 'ApplicationName', title),
+            (capabilities, 'ApplicationDescription', 'Offline ' + workspace + ' workspace'),
+            ('Software\\RegisteredApplications', progid, capabilities),
+        ])
+        for extension in extensions:
+            values.extend([
+                (classes + extension + '\\OpenWithProgids', progid, ''),
+                (application + '\\SupportedTypes', extension, ''),
+                (capabilities + '\\FileAssociations', extension, progid),
+            ])
     return values
 
 
@@ -34,6 +71,10 @@ def register(executable=None):
         raise OSError('Windows registration is only available on Windows')
     import ctypes
     import winreg
+    folder = Path(executable or sys.executable).resolve().parent
+    missing = [launcher_name(w) for w in WORKSPACE_EXTENSIONS if not (folder / launcher_name(w)).is_file()]
+    if missing:
+        raise FileNotFoundError('Open With launchers are missing; reinstall the complete app: ' + ', '.join(missing))
     for path, name, value in registration_values(executable or sys.executable):
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, path) as key:
             winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
@@ -59,7 +100,9 @@ def unregister(executable=None):
                     winreg.DeleteValue(key, name)
         except FileNotFoundError:
             pass
-    owned = ('Software\\Classes\\FreeConvert.Media', 'Software\\Classes\\Applications\\LocalFileConverter.exe', 'Software\\FreeConvert', 'Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\LocalFileConverter.exe')
+    owned = ('Software\\Classes\\FreeConvert.Media', 'Software\\Classes\\Applications\\LocalFileConverter.exe', 'Software\\FreeConvert', 'Software\\DrunkPeanuts', 'Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\LocalFileConverter.exe',
+             *(f'Software\\Classes\\DrunkPeanuts.{w}' for w in WORKSPACE_EXTENSIONS),
+             *(f'Software\\Classes\\Applications\\{launcher_name(w)}' for w in WORKSPACE_EXTENSIONS))
     paths = set()
     for path, _, _ in values:
         for prefix in owned:
