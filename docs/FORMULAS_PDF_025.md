@@ -20,4 +20,10 @@ A user-supplied one-page PDF containing nine embedded images was verified locall
 
 88 source tests pass. New checks cover painted results versus raw formulas, native formula save/reload, automatic dependent recalculation, formula-bar style preservation, chart results, view-only formula toggling, AutoSum overwrite refusal, error states, absolute references, lazy conditionals and rounding. A synthetic graphic-letterhead PDF is compared pixel-for-pixel with the embedded DOCX image; explicit text-only mode and original-source preservation are checked separately.
 
+Nine synthetic arithmetic/aggregate/conditional/rounding/logical results were also compared against installed Excel and matched exactly for those cases. This validates the representative cases rather than asserting full Excel calculation parity.
+
+All jobs in [the v0.25.0 build](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/runs/40352609081) passed on Windows x64, Apple Silicon and Intel macOS. Downloaded Windows files matched the checksum manifest and GitHub asset digests. The extracted release passed Office/Play self-checks, native document conversion and video-frame decoding. Its actual executable also converted the reported PDF to a complete-page DOCX without changing the source.
+
+The release installer upgraded the Desktop app. Its installed executable matched the downloaded portable release byte for byte and opened through the Desktop shortcut as 0.25.0. Installed Tables reopened the synthetic XLSX and displayed `12.5` in D2 while retaining `=B2*C2` in the formula bar. The README screenshot is from this installed build. Unsaved edits in the separate source preview were preserved.
+
 See the [remaining Office queue](OFFICE_BATCHES.md) for the next batches.
