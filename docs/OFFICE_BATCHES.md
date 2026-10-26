@@ -1,6 +1,6 @@
 # Office expansion: batches and verification
 
-## 0.26.0 — editable PDF and Windows file entry points
+## 0.26.1 — editable PDF and Windows file entry points
 
 PDF import now reconstructs selectable text as editable Word paragraphs and retains embedded raster images separately. Each Office workspace and Play has a distinct small Windows launcher and Open with registration. No file defaults are changed. See [details and limits](EDITABLE_OPEN_WITH_026.md).
 

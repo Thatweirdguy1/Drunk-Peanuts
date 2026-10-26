@@ -1,4 +1,4 @@
-# Editable PDF and Windows Open with — 0.26.0
+# Editable PDF and Windows Open with — 0.26.1
 
 PDF → DOCX now defaults to **Editable text and images**. Selectable PDF text becomes normal Word paragraphs; embedded raster pictures become independently positioned Word images. This uses the bundled PDFium engine and works offline without installing Word. The reported private letter was checked locally: editable body text, separate letterhead/signature images, and a one-page LibreOffice rendering. The original was left untouched; private content is excluded from this repository.
 

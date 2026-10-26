@@ -34,8 +34,8 @@ class WindowsIntegrationTest(unittest.TestCase):
                 window.open_arguments(['--open-workspace', 'Pages', str(first), str(second)])
                 opened = list(window.workspaces.values())
                 self.assertEqual(len(opened), 2)
-                opened[0].open.assert_called_once_with(first)
-                opened[1].open.assert_called_once_with(second)
+                opened[0].open.assert_called_once_with(first.resolve())
+                opened[1].open.assert_called_once_with(second.resolve())
             window.workspaces.clear();window.close()
 
     def test_templates_are_editable_copies_and_never_overwrite(self):
