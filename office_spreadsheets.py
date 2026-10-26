@@ -31,13 +31,17 @@ def insert_image(editor,path=None):
     blob=image_bytes(path);image=QImage.fromData(blob);add(editor,dict(type='image',blob=blob,anchor=anchor(editor),width=360,height=360*image.height()/max(1,image.width())))
 
 def chart_values(editor,bounds):
+    from office_formulas import computed_value,display
     r1,c1,r2,c2=bounds
-    categories=[editor.grid.item(r-1,c1-1).text() if editor.grid.item(r-1,c1-1) else str(r) for r in range(r1+1,r2+1)]
+    def category(row):
+        item=editor.grid.item(row-1,c1-1)
+        return display(computed_value(editor,row-1,c1-1)) if item and item.text().startswith('=') else item.text() if item else str(row)
+    categories=[category(r) for r in range(r1+1,r2+1)]
     series=[]
     for col in range(c1+1,c2+1):
         name=editor.grid.item(r1-1,col-1);values=[]
         for row in range(r1+1,r2+1):
-            item=editor.grid.item(row-1,col-1);values.append(float(item.text()) if item and item.text() else 0)
+            values.append(float(computed_value(editor,row-1,col-1)))
         series.append({'name':name.text() if name else get_column_letter(col),'values':values})
     return dict(categories=categories,series=series)
 

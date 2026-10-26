@@ -1,5 +1,9 @@
 # Office expansion: batches and verification
 
+## 0.25.0 — formula results and content-preserving PDF import
+
+Tables paints computed cell results while retaining raw formulas, recalculates after edits, supports additional bounded local functions, renders common number formats and adds AutoSum/F9/Show formulas. PDF→DOCX defaults to complete page images to preserve letterheads and other graphics; explicit text-only mode remains separate. See [verification and limits](FORMULAS_PDF_025.md).
+
 ## 0.24.0 — worksheet print layout
 
 Tables adds native paper/orientation, margins, print area(s), repeating header rows, scaling and printed gridlines/headings/centering. Existing repeat columns and unrelated workbook parts are preserved. See [the native Excel/PDF checks](TABLES_PRINT_024.md). Multiple-sheet editing and advanced spreadsheet authoring remain below.

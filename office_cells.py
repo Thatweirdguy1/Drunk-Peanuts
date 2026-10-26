@@ -10,6 +10,7 @@ from PySide6.QtGui import QColor,QFont
 from PySide6.QtWidgets import QApplication,QTableWidgetItem,QInputDialog,QColorDialog,QComboBox,QSpinBox
 from office_editing import command
 from office_surgery import S,_active_sheet
+from office_formulas import NUMBER_FORMAT_ROLE
 
 
 def selected_cells(editor):
@@ -31,6 +32,7 @@ def paint_cell(item,changes):
         elif key=='color':item.setForeground(QColor(value))
         elif key=='fill':item.setBackground(QColor(value))
         elif key=='horizontal':item.setTextAlignment({'left':Qt.AlignLeft,'center':Qt.AlignHCenter,'right':Qt.AlignRight}[value]|Qt.AlignVCenter)
+        elif key=='number_format':item.setData(NUMBER_FORMAT_ROLE,value)
     item.setFont(font)
 
 
@@ -107,7 +109,7 @@ def load_cell_formats(editor,path):
                     if not getattr(cell,'has_style',False):continue
                     item=editor.grid.item(cell.row-1,cell.column-1)
                     if item is None:item=QTableWidgetItem('');editor.grid.setItem(cell.row-1,cell.column-1,item)
-                    values=dict(name=cell.font.name or 'Calibri',size=cell.font.sz or 11,bold=bool(cell.font.b),italic=bool(cell.font.i),underline=bool(cell.font.u))
+                    values=dict(name=cell.font.name or 'Calibri',size=cell.font.sz or 11,bold=bool(cell.font.b),italic=bool(cell.font.i),underline=bool(cell.font.u),number_format=cell.number_format)
                     if cell.font.color and cell.font.color.type=='rgb':values['color']='#'+cell.font.color.rgb[-6:]
                     if cell.fill.patternType=='solid' and cell.fill.fgColor.type=='rgb':values['fill']='#'+cell.fill.fgColor.rgb[-6:]
                     if cell.alignment.horizontal in ('left','center','right'):values['horizontal']=cell.alignment.horizontal
@@ -146,7 +148,7 @@ def setup_cell_tools(editor):
     for label in ('Left','Center','Right'):command(editor,'Home','Align '+label.lower(),lambda v=label.lower():format_cells(editor,horizontal=v),label.lower())
     def number_format():
         values={'General':'General','Number':'0.00','Currency':'#,##0.00','Percent':'0.00%','Date':'yyyy-mm-dd'};label,ok=QInputDialog.getItem(editor,'Number format','Format',list(values),0,False)
-        if ok:format_cells(editor,number_format=values[label]);editor.statusBar().showMessage('Number format saved in XLSX; the grid shows raw values.')
+        if ok:format_cells(editor,number_format=values[label]);editor.statusBar().showMessage('Number, grouped-decimal and percentage formats display in the grid and save in XLSX. Date formats save in XLSX.')
     command(editor,'Home','Number format',number_format,'calculate')
     def font():
         from PySide6.QtWidgets import QFontDialog

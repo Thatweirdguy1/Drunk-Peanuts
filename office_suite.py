@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import csv
-import ast
-import operator
 import re
 import shutil
 import sqlite3
@@ -26,91 +24,7 @@ from ui import action as icon_action, editor_theme, refresh_icons
 from office_templates import SLIDE_COLORS, style_slide
 
 
-def calculate_cell(rows, address):
-    """Evaluate common spreadsheet arithmetic without running Python from a cell."""
-    operations = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
-                  ast.Div: operator.truediv, ast.Pow: operator.pow}
-    visiting, cache = set(), {}
-
-    def coordinates(name):
-        match = re.fullmatch(r"\$?([A-Z]{1,3})\$?([1-9][0-9]*)", name.upper())
-        if not match:
-            raise ValueError(f"Unsupported cell reference: {name}")
-        column = 0
-        for letter in match[1]:
-            column = column * 26 + ord(letter) - 64
-        return int(match[2]) - 1, column - 1
-
-    def value(name):
-        row, column = coordinates(name)
-        key = (row, column)
-        if key in cache:
-            return cache[key]
-        if key in visiting:
-            raise ValueError("Circular formula reference")
-        visiting.add(key)
-        raw = rows[row][column] if row < len(rows) and column < len(rows[row]) else ""
-        if isinstance(raw, str) and raw.startswith("="):
-            expression = re.sub(r"(\$?[A-Za-z]{1,3}\$?[1-9][0-9]*):(\$?[A-Za-z]{1,3}\$?[1-9][0-9]*)",
-                                lambda m: f'RANGE("{m[1]}","{m[2]}")', raw[1:]).replace("^", "**")
-            if len(expression) > 2000:
-                raise ValueError("Formula is too long")
-            result = evaluate(ast.parse(expression, mode="eval").body)
-        else:
-            try:
-                result = float(raw) if raw != "" else 0.0
-            except (TypeError, ValueError):
-                result = raw
-        visiting.remove(key)
-        cache[key] = result
-        return result
-
-    def evaluate(node):
-        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-            return node.value
-        if isinstance(node, ast.Name):
-            return value(node.id)
-        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
-            number = evaluate(node.operand)
-            return number if isinstance(node.op, ast.UAdd) else -number
-        if isinstance(node, ast.BinOp) and type(node.op) in operations:
-            left, right = evaluate(node.left), evaluate(node.right)
-            if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
-                raise ValueError("Arithmetic requires numbers")
-            if isinstance(node.op, ast.Pow) and abs(right) > 100:
-                raise ValueError("Formula exponent is too large")
-            return operations[type(node.op)](left, right)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and not node.keywords:
-            name = node.func.id.upper()
-            if name == "RANGE" and len(node.args) == 2 and all(isinstance(arg, ast.Constant) and isinstance(arg.value, str) for arg in node.args):
-                start, end = coordinates(node.args[0].value), coordinates(node.args[1].value)
-                if (end[0] - start[0] + 1) * (end[1] - start[1] + 1) > 10000:
-                    raise ValueError("Formula range is too large")
-                return [value(f"{column_name(column)}{row + 1}")
-                        for row in range(start[0], end[0] + 1) for column in range(start[1], end[1] + 1)]
-            args = []
-            for arg in node.args:
-                result = evaluate(arg)
-                args.extend(result if isinstance(result, list) else [result])
-            numbers = [item for item in args if isinstance(item, (int, float))]
-            if name == "SUM":
-                return sum(numbers)
-            if name == "COUNT":
-                return len(numbers)
-            if name in {"AVERAGE", "MIN", "MAX"} and numbers:
-                return {"AVERAGE": lambda: sum(numbers) / len(numbers), "MIN": lambda: min(numbers),
-                        "MAX": lambda: max(numbers)}[name]()
-        raise ValueError("Formula uses an unsupported function or expression")
-
-    def column_name(index):
-        name = ""
-        while index >= 0:
-            index, remainder = divmod(index, 26)
-            name = chr(65 + remainder) + name
-            index -= 1
-        return name
-
-    return value(address)
+from office_formulas import calculate_cell
 
 
 from office_base import Workspace, button, pick_open, pick_save
@@ -432,6 +346,8 @@ class Tables(Workspace):
         setup_cell_tools(self)
         from office_print_layout import setup_print_tools
         setup_print_tools(self)
+        from office_formulas import setup_formulas
+        setup_formulas(self)
 
     def _show_formula(self, *_):
         row, column = self.grid.currentRow(), self.grid.currentColumn()
@@ -445,7 +361,9 @@ class Tables(Workspace):
     def _apply_formula(self):
         row, column = self.grid.currentRow(), self.grid.currentColumn()
         if row >= 0 and column >= 0:
-            self.grid.setItem(row, column, QTableWidgetItem(self.formula.text()))
+            item=self.grid.item(row,column)
+            if item:item.setText(self.formula.text())
+            else:self.grid.setItem(row, column, QTableWidgetItem(self.formula.text()))
 
     def add_row(self):
         self.grid.insertRow(self.grid.rowCount())
@@ -550,6 +468,8 @@ class Tables(Workspace):
         load_cell_formats(self,path)
         from office_print_layout import load_layout
         load_layout(self,path)
+        from office_formulas import recalculate
+        recalculate(self)
 
     def save(self):
         if self.path:

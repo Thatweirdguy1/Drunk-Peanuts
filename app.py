@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.24.0"
+VERSION = "0.25.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -827,9 +827,9 @@ class Window(QMainWindow):
         if not (office_pdf or pdf_docx or office_cross):
             return
         self.engine_label.setText("PDF to DOCX mode" if pdf_docx else "PDF renderer" if office_pdf else "Conversion engine")
-        self.engine_hint.setText("Visual pages cannot be edited as text" if pdf_docx else "For the selected Office file")
+        self.engine_hint.setText("Preserve pages keeps graphics; text-only omits images/layout" if pdf_docx else "For the selected Office file")
         if pdf_docx:
-            choices = [("Editable text", "built-in"), ("Visual pages", "visual")]
+            choices = [("Preserve pages (not editable)", "visual"), ("Text only (drops images/layout)", "text")]
         elif office_cross:
             choices = [("Built-in (basic)", "built-in"), ("LibreOffice (installed)", "libreoffice")]
         else:
@@ -849,7 +849,7 @@ class Window(QMainWindow):
         index = self.pdf_engine.findData(selected)
         self.pdf_engine.setCurrentIndex(index if index >= 0 else 0)
         if index < 0:
-            self.engines[path] = "auto" if office_pdf else "built-in"
+            self.engines[path] = "visual" if pdf_docx else "auto" if office_pdf else "built-in"
         self.pdf_engine.blockSignals(False)
 
     def _refresh_details(self):
@@ -859,7 +859,7 @@ class Window(QMainWindow):
             target = self.formats.get(path, "—").upper()
             note = ""
             if path.suffix.lower() == ".pdf" and target == "DOCX":
-                note = ("\nVisual pages preserve appearance; text is not editable." if self.engines.get(path) == "visual"
+                note = ("\nComplete page images preserve headers, graphics and signatures; text is not editable." if self.engines.get(path,'visual') in {'visual','auto','built-in'}
                         else "\nSelectable text only; PDF layout and images are not preserved.")
             if target == "PDF" and path.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS:
                 chosen = resolve_engine(path, self.engines.get(path, "auto"))

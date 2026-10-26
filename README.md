@@ -8,7 +8,11 @@
 
 A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with Play.
 
-**Version 0.24.0** adds native worksheet print layout to Tables: paper/orientation, margins, print areas, repeating header rows, percentage or fit-to-pages scaling, gridlines and printed headings. Pages productivity tools, the neutral theme and Dazzle presenting controls remain available.
+**Version 0.25.0** makes Tables display calculated results while retaining editable formulas, with automatic recalculation, AutoSum and broader local functions. PDF→DOCX now preserves complete pages by default so graphical headers and signatures do not disappear; the resulting page images are not editable text.
+
+![Calculated totals with original formula in the formula bar](docs/tables-results-025.png)
+
+See the [formula and PDF-preservation report](docs/FORMULAS_PDF_025.md) for supported calculations, conversion modes and limits.
 
 Drunk Peanuts also includes the original DP icon and editable headers, footers and live page-number fields in Pages. The Office ribbon, conversion, compression, OCR, Play and PDF tools remain available. Use **Insert → Header / Footer / Page numbers**; DOCX contains live PAGE/NUMPAGES fields and PDF export numbers the actual output pages.
 
@@ -34,7 +38,7 @@ Get the app from the [latest release](https://github.com/Thatweirdguy1/Drunk-Pea
 
 | Platform | Download | How to open |
 | --- | --- | --- |
-| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.24.0-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
+| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.25.0-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and media-file registration. |
 | Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
 | macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Apple-Silicon.zip) | Extract and open `DrunkPeanuts.app`. |
 | macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Intel.zip) | Extract and open `DrunkPeanuts.app`. |
@@ -146,7 +150,7 @@ Select an element in the toolbar or press **Ctrl+1–8**. **Tab** and **Shift+Ta
 
 1. Drag files into the window or select **Add files**.
 2. Select each file for a visual image/PDF preview and choose its output format. Mixed formats can share one batch.
-3. For an Office file going to PDF, choose its **PDF renderer**. Automatic uses the best installed engine available for that file; Built-in keeps the basic offline converter. For PDF to DOCX, choose editable text or visual pages. Visual pages preserve appearance but are images, so their text is not editable.
+3. For an Office file going to PDF, choose its **PDF renderer**. Automatic uses the best installed engine available for that file; Built-in keeps the basic offline converter. PDF to DOCX defaults to **Preserve pages (not editable)**, retaining graphical headers and signatures as page images. Choose **Text only (drops images/layout)** only when editable extracted text is the priority.
 4. Choose a save folder and select **Convert files**, or press **Shift+Enter**.
 
 The external PDF renderer supports DOC, DOCX, XLS, XLSX, PPT, and PPTX through installed Microsoft Office on Windows, and those formats plus ODT, ODS, ODP, and RTF through installed LibreOffice on Windows or macOS. Legacy DOC/XLS/PPT can also be converted to DOCX/XLSX/PPTX through those applications. Installed LibreOffice can also convert between supported modern Office formats, including DOCX/ODT, XLSX/ODS, and PPTX/ODP; choose it per file in **Conversion engine**. Microsoft Office export uses COM automation; LibreOffice uses its documented headless conversion interface. Existing outputs and source files are not replaced. Running from source on Windows needs the `pywin32` package in `requirements.txt`; release downloads include that support. To select an engine from a terminal, use `LocalFileConverter.exe --convert-with auto input.docx output.pdf` (or `microsoft`, `libreoffice`, or `built-in`). Use `--convert-with libreoffice input.docx output.odt` for cross-format conversion or `--convert-with visual input.pdf output.docx` for visual pages. Plain `--convert` retains the built-in Office renderer; for legacy files it selects an installed application because there is no built-in legacy parser.
@@ -190,7 +194,7 @@ Files stay on your computer. The app has no upload service, analytics, or accoun
 ## Limitations
 
 - Regular PDF to text extracts embedded/selectable text. Use **OCR to text** for scanned or mixed PDFs; pages containing both embedded text and raster text may still omit the raster text.
-- PDF to DOCX offers editable extracted text without layout or images, or visual pages that preserve appearance as images without editable text.
+- PDF to DOCX preserves complete page images by default, without editable text. The explicitly labelled text-only mode omits images and layout.
 - PDF size reduction rewrites the file even when it keeps selectable text; digital signatures should be checked again after conversion.
 - Animated GIF, WebP, and TIFF inputs preserve every frame when converted to animated GIF/WebP, multipage TIFF, or multipage PDF. Image tools and target-size reduction retain all frames in supported animated formats. Still-image conversion targets are not offered for animations.
 - CSV to XLSX stores values as text; XLSX to CSV exports the active worksheet's displayed values. CSV cannot retain workbook formulas, charts, or sheets.

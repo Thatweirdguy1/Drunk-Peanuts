@@ -126,7 +126,7 @@ class ConversionTest(unittest.TestCase):
             pdf = root / "notes.pdf"
             convert(source, pdf)
             extracted = root / "extracted.docx"
-            convert(pdf, extracted)
+            convert(pdf, extracted, 'text')
             self.assertIn("First line", "\n".join(p.text for p in Document(extracted).paragraphs))
             self.assertIn("docx", available_formats(pdf))
 

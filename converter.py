@@ -245,7 +245,9 @@ def _pdf_to_docx_visual(source: Path, target: Path) -> None:
                 picture.seek(0)
                 paragraph = document.add_paragraph()
                 paragraph.paragraph_format.space_before = paragraph.paragraph_format.space_after = Pt(0)
-                paragraph.add_run().add_picture(picture, width=Pt(max(1, width - 6)), height=Pt(max(1, height - 6)))
+                paragraph.paragraph_format.line_spacing=1.0
+                scale=min(max(1,width-8)/width,max(1,height-12)/height)
+                paragraph.add_run().add_picture(picture, width=Pt(width*scale), height=Pt(height*scale))
             finally:
                 page.close()
     finally:
@@ -399,8 +401,10 @@ def convert(source: Path, target: Path, engine: str = "built-in") -> None:
     legacy_modern = source.suffix.lower().lstrip(".") in LEGACY_FORMATS and fmt == MODERN_FOR_LEGACY[source.suffix.lower().lstrip(".")]
     office_cross = source.suffix.lower().lstrip(".") in LIBREOFFICE_FORMATS and fmt in {"docx", "odt", "rtf", "xlsx", "ods", "pptx", "odp"} and fmt in targets(source.suffix.lower().lstrip("."))
     selected_engine = resolve_engine(source, engine) if office_pdf else "built-in"
-    pdf_visual = source.suffix.lower() == ".pdf" and fmt == "docx" and engine == "visual"
-    if engine not in {"built-in", "auto"} and not office_pdf and not pdf_visual and not legacy_modern and not (office_cross and engine == "libreoffice"):
+    pdf_docx=source.suffix.lower()=='.pdf' and fmt=='docx'
+    pdf_visual = pdf_docx and engine in {'built-in','auto','visual'}
+    pdf_text_only=pdf_docx and engine=='text'
+    if engine not in {"built-in", "auto"} and not office_pdf and not pdf_visual and not pdf_text_only and not legacy_modern and not (office_cross and engine == "libreoffice"):
         raise ValueError("An external rendering engine is unavailable for this conversion.")
     if office_cross and engine == "libreoffice":
         convert_with_libreoffice(source, target)
