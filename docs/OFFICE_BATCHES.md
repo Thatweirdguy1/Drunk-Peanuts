@@ -39,7 +39,7 @@ The converter drop area has a separate expanding outline and soft background ani
 
 References: [Microsoft ribbon customization](https://support.microsoft.com/en-us/office/foundations-experiences/customize-the-ribbon-in-office), [Word ribbon shortcuts and tab responsibilities](https://support.microsoft.com/en-us/accessibility/word/keyboard-shortcuts-in-word), [LibreOffice notebook bar](https://help.libreoffice.org/latest/en-US/text/shared/01/notebook_bar.html?DbPAR=SHARED).
 
-## Remaining batches — not implemented by 0.20
+## Remaining feature queue
 
 Full Microsoft 365/LibreOffice feature parity is not complete. Only working commands are shown in this release. This is the implementation queue, not a list of shipped features:
 
@@ -48,6 +48,6 @@ Full Microsoft 365/LibreOffice feature parity is not complete. Only working comm
 | Document layout and references | True paginated editing, sections/columns, footnotes/endnotes, contents and citations, editable vector/text boxes, image positioning/wrapping | Save/reopen in Word and LibreOffice; page/section/reference structure retained; representative native PDF comparison. |
 | Spreadsheet authoring | Multiple-sheet editing, broader formulas, range-aware structural edits/sort, tables, merged cells, validations, conditional formatting, workbook print layout, pivot analysis | Formula/range references update correctly; charts and unknown package parts survive; native Excel/Calc round trips. |
 | Presentation authoring | Multi-object grouping/distribution, richer text layout, master/layout authoring, crops, editable chart styling, additional transitions and animation timelines, second-monitor presenter view | Independent native objects/media, correct timing/playback, undo and native PowerPoint/Impress round trips. |
-| Review and productivity | Comments, tracked changes, proofing dictionaries, navigation, comparison, mail merge, accessibility review and document metadata tools | No silent loss of review data; offline fixtures and recovery checks; clear unsupported-format handling. |
+| Review and productivity | Comments, tracked changes, proofing dictionaries, comparison, mail merge, accessibility review and advanced metadata inspection/cleanup | No silent loss of review data; offline fixtures and recovery checks; clear unsupported-format handling. |
 
 Existing limits from the 0.19 report still apply: unsupported advanced slide objects are preserved rather than fully rendered; Pages charts/shapes are images and Pages/Tables video insertions are local links. Document page splitting/reordering currently targets PDFs. Signed macros, cloud collaboration and account services are separate systems, not implied by an Office-style layout.
