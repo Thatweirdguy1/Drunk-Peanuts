@@ -18,4 +18,10 @@ The grid is not a print preview. Excel/LibreOffice rendering uses the native sav
 
 Installed Excel recognized landscape Letter paper, `A1:D131`, repeating row 1, one-page-wide scaling and printed gridlines. It exported four PDF pages with the header repeated on every page. The native application was opened only for the synthetic fixture and closed without changing its source.
 
+LibreOffice also exported the same saved XLSX to four PDF pages with the header repeated on every page, using the existing isolated-profile conversion helper.
+
+All jobs in [the v0.24.0 build](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/runs/40308471479) passed on Windows x64, Apple Silicon and Intel macOS. Downloaded Windows installer and portable files matched the checksum manifest and GitHub asset digests. The extracted release passed Office/Play self-checks, native document conversion and actual video-frame decoding.
+
+The release installer upgraded the Desktop app successfully. Its installed executable matched the downloaded portable release byte for byte; the Desktop shortcut opened 0.24.0. Installed Tables reopened the native workbook and displayed the saved paper, orientation, area, repeat rows, margins, scaling and gridline settings. The README print-layout screenshot is from this installed build.
+
 Multiple-sheet authoring, structural/formula-aware edits, conditional formatting, validations, merged-cell authoring and pivot tools remain in the [Office queue](OFFICE_BATCHES.md).
