@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.21.2"
+VERSION = "0.22.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -572,7 +572,7 @@ class Window(QMainWindow):
             QPushButton#textButton {{ background: transparent; border: 1px solid transparent; color: #ffdd22; }}
             QPushButton#textButton:hover {{ background: {drop}; border-color: #ffdd22; }}
             QPushButton#textButton:disabled, QToolButton:disabled {{ color: #69695f; border-color: transparent; }}
-            QPushButton:focus, QComboBox:focus, QListWidget:focus {{ border: 2px solid #ffdd22; }}
+            QPushButton:focus, QComboBox:focus, QListWidget:focus {{ border: 2px solid #a66ce0; }}
             QComboBox {{ background: {card}; border: 1px solid {border}; border-radius: 3px; min-height: 28px; padding: 2px 8px; }}
             QDoubleSpinBox {{ background: {card}; border: 1px solid {border}; border-radius: 3px; min-height: 28px; padding: 2px 8px; min-width: 90px; }}
             QComboBox QAbstractItemView {{ background: {card}; color: {text}; selection-background-color: {drop}; }}

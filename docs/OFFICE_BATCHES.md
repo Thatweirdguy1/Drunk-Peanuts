@@ -1,5 +1,13 @@
 # Office expansion: batches and verification
 
+## 0.22.0 — presentation productivity
+
+Native speaker notes with independent duplication and Undo/Redo, deck dimensions, presenting from beginning/current slide, first/last navigation and black-screen controls have shipped in this batch. Large UI surfaces now use neutral charcoal with small purple accents. See [native round trips, controls and limits](DAZZLE_BATCH_022.md).
+
+## 0.21.2 — document headers and numbering
+
+Pages header/footer text, native PAGE/NUMPAGES fields, first-page suppression and PDF counters shipped in [the document layout batch](DRUNK_PEANUTS_021.md). Other document-layout work below remains open.
+
 ## 0.20.1 — ribbon and core editing batch
 
 The six Office workspaces (Pages, Tables, Dazzle, Sketch, Organize and Formulaic) now use a native tabbed ribbon. Existing commands remain connected to their original actions, including shortcuts, check states, file pickers and template menus. A quick-access row provides Save/Undo/Redo where available. Command search executes actual commands. Narrow windows scroll the groups horizontally; controls are not stacked over one another. The black/yellow identity remains.
@@ -33,9 +41,9 @@ Full Microsoft 365/LibreOffice feature parity is not complete. Only working comm
 
 | Batch | Features to implement | Required verification before shipping |
 | --- | --- | --- |
-| Document layout and references | True paginated editing, headers/footers, page numbers, sections/columns, footnotes/endnotes, contents and citations, editable vector/text boxes, image positioning/wrapping | Save/reopen in Word and LibreOffice; page/section/reference structure retained; representative native PDF comparison. |
+| Document layout and references | True paginated editing, sections/columns, footnotes/endnotes, contents and citations, editable vector/text boxes, image positioning/wrapping | Save/reopen in Word and LibreOffice; page/section/reference structure retained; representative native PDF comparison. |
 | Spreadsheet authoring | Multiple-sheet editing, broader formulas, range-aware structural edits/sort, tables, merged cells, validations, conditional formatting, workbook print layout, pivot analysis | Formula/range references update correctly; charts and unknown package parts survive; native Excel/Calc round trips. |
-| Presentation authoring | Multi-object grouping/distribution, richer text layout, notes/master/layout authoring, crops, editable chart styling, additional transitions and animation timelines, presentation controls | Independent native objects/media, correct timing/playback, undo and native PowerPoint/Impress round trips. |
+| Presentation authoring | Multi-object grouping/distribution, richer text layout, master/layout authoring, crops, editable chart styling, additional transitions and animation timelines, second-monitor presenter view | Independent native objects/media, correct timing/playback, undo and native PowerPoint/Impress round trips. |
 | Review and productivity | Comments, tracked changes, proofing dictionaries, navigation, comparison, mail merge, accessibility review and document metadata tools | No silent loss of review data; offline fixtures and recovery checks; clear unsupported-format handling. |
 
 Existing limits from the 0.19 report still apply: unsupported advanced slide objects are preserved rather than fully rendered; Pages charts/shapes are images and Pages/Tables video insertions are local links. Document page splitting/reordering currently targets PDFs. Signed macros, cloud collaboration and account services are separate systems, not implied by an Office-style layout.

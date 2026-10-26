@@ -46,12 +46,12 @@ def install_ribbon(window):
         label=action.text().replace('&','');menu=locations.get(action,'Home')
         if menu=='File':return 'File','Document'
         if menu=='Templates':return 'Templates','Starters'
-        if menu in ('Insert','Layout','Data','Formulas','Review','View'):return menu,menu
+        if menu in ('Insert','Layout','Data','Formulas','Review','View','Animations'):return menu,menu
         if menu=='Design':
             if label in ('Bold','Italic','Underline'):return 'Home','Font'
             if 'transition' in label.lower():return 'Transitions','Slide transition'
             return 'Design','Slide design'
-        if menu=='Slide':return ('Slide show','Present') if label=='Slideshow' else ('Home','Slides')
+        if menu=='Slide':return ('Slide show','Present') if label in ('Slideshow','Present from beginning') else ('View','Speaker notes') if label=='Speaker notes' else ('Home','Slides')
         if menu=='Arrange':return 'Arrange','Objects'
         if label in ('Cut','Copy','Paste','Undo','Redo'):return 'Home','Clipboard'
         if label in ('Bold','Italic','Underline','Text color','Highlight','Clear formatting','Strikethrough','Superscript','Subscript'):return 'Home','Font'

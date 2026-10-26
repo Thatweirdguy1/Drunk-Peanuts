@@ -221,8 +221,8 @@ class SlideView(QGraphicsView):
         if self.scene():self.fitInView(self.sceneRect(),Qt.KeepAspectRatio)
 
 class SlideShow(QGraphicsView):
-    def __init__(self,owner):
-        super().__init__();self.owner=owner;self.index=max(0,owner.index);self.setWindowTitle('Dazzle · Slideshow');self.setStyleSheet('background:black;border:none');self.animations=[];self.pending=[];self.show_slide();self.showFullScreen()
+    def __init__(self,owner,start=None):
+        super().__init__();self.owner=owner;self.index=max(0,owner.index if start is None else start);self.setWindowTitle('Dazzle · Slideshow');self.setStyleSheet('background:black;border:none');self.animations=[];self.pending=[];self.blackout=False;self.show_slide();self.showFullScreen()
     def show_slide(self):
         for animation in self.animations:animation.stop()
         old=self.scene();self.animations=[];scene=self.owner.make_scene(self.index,False);self.setScene(scene);self.pending=[]
@@ -237,10 +237,18 @@ class SlideShow(QGraphicsView):
                     item.setOpacity(0);animation=QVariantAnimation(self);animation.setDuration(450);animation.setStartValue(0.0);animation.setEndValue(1.0);animation.valueChanged.connect(item.setOpacity);self.animations.append(animation);animation.start()
     def keyPressEvent(self,event):
         if event.key()==Qt.Key_Escape:self.close()
+        elif event.key() in (Qt.Key_B,Qt.Key_Period):
+            self.blackout=not self.blackout
+            for item in self.scene().items():item.setVisible(not self.blackout)
+            self.scene().setBackgroundBrush(QColor('black') if self.blackout else QColor(self.owner._read_slide_colors(self.owner.deck.slides[self.index])['background']))
+        elif self.blackout:return
+        elif event.key()==Qt.Key_Home:self.index=0;self.show_slide()
+        elif event.key()==Qt.Key_End:self.index=len(self.owner.deck.slides)-1;self.show_slide()
         elif event.key() in (Qt.Key_Space,Qt.Key_Right,Qt.Key_PageDown):self.advance()
         elif event.key() in (Qt.Key_Left,Qt.Key_PageUp):self.index=max(0,self.index-1);self.show_slide()
         else:super().keyPressEvent(event)
     def mousePressEvent(self,event):
+        if self.blackout:return
         item=self.itemAt(event.pos())
         if item is not None and hasattr(item,'native_shape') and item.native_shape.shape_type==MSO_SHAPE_TYPE.MEDIA:self.owner.play_video(item.native_shape);return
         if event.button()==Qt.LeftButton:self.advance()
@@ -274,6 +282,10 @@ class Dazzle(Workspace):
         self.title.textChanged.connect(self._primary_changed);self.body.textChanged.connect(self._primary_changed);self.list.currentRowChanged.connect(self.select);self.slide_stage.installEventFilter(self)
         from office_editing import setup_slide_tools
         setup_slide_tools(self)
+        from office_editing import command
+        command(self,'Slide','Speaker notes',self.edit_notes,'pen')
+        command(self,'Design','Slide size',self.choose_slide_size,'settings')
+        command(self,'Slide','Present from beginning',lambda:self.present(0),'play','F5')
     def eventFilter(self,watched,event):
         if watched is self.slide_stage and event.type()==QEvent.Resize:
             scale=min(max(1,watched.width()-24)/(self.deck.slide_width/EMU),max(1,watched.height()-24)/(self.deck.slide_height/EMU))
@@ -325,7 +337,7 @@ class Dazzle(Workspace):
         tool(self.design_menu,'Background color','color',self.background_color)
         tool(self.design_menu,'Background image','open',self.background_image)
         tool(self.design_menu,'Slide transition','timer',self.choose_transition)
-        tool(self.slide_menu,'Slideshow','slide',self.present,'F5')
+        tool(self.slide_menu,'Slideshow','slide',self.present,'Shift+F5')
         tool(self.slide_menu,'Move slide up','previous',lambda:self.move_slide(-1))
         tool(self.slide_menu,'Move slide down','next',lambda:self.move_slide(1))
         tool(self.menus['Edit'],'Undo','undo',self.undo,'Ctrl+Z');tool(self.menus['Edit'],'Redo','redo',self.redo,'Ctrl+Y')
@@ -617,8 +629,48 @@ class Dazzle(Workspace):
             def move():
                 tree=shape._element.getparent();tree.remove(shape._element);tree.insert(len(tree) if front else 2,shape._element)
             self.change(move)
-    def present(self):
-        self._store();self.show_window=SlideShow(self)
+    def present(self,start=None):
+        self._store();self.show_window=SlideShow(self,start)
+
+    def set_notes(self,text):
+        if not isinstance(text,str) or len(text)>100000:raise ValueError('Notes must contain at most 100,000 characters.')
+        def apply():
+            frame=self.deck.slides[self.index].notes_slide.notes_text_frame
+            if frame is None:raise ValueError('This notes master has no editable notes body.')
+            frame.text=text
+        self.change(apply)
+
+    def edit_notes(self):
+        from PySide6.QtWidgets import QDialog,QDialogButtonBox,QLabel
+        slide=self.deck.slides[self.index]
+        frame=slide.notes_slide.notes_text_frame if slide.has_notes_slide else None
+        dialog=QDialog(self);dialog.setWindowTitle('Speaker notes');dialog.resize(560,370);layout=QVBoxLayout(dialog)
+        layout.addWidget(QLabel('Private speaker notes saved in PPTX/Dazzle. Not shown on slides or PDF.\nApplying replaces this slide’s notes text and its text formatting.'))
+        editor=QTextEdit();editor.setAcceptRichText(False);editor.setAccessibleName('Speaker notes text');editor.setPlainText(frame.text if frame is not None else '');layout.addWidget(editor)
+        buttons=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject);layout.addWidget(buttons)
+        if dialog.exec()==QDialog.Accepted:self.set_notes(editor.toPlainText())
+
+    def set_slide_size(self,width,height):
+        if not all(isinstance(v,(int,float)) and math.isfinite(v) and 1<=v<=56 for v in (width,height)):
+            raise ValueError('Slide dimensions must be between 1 and 56 inches.')
+        def apply():self.deck.slide_width=Inches(width);self.deck.slide_height=Inches(height)
+        self.change(apply)
+        # Trigger the existing stage fitting path after the native canvas changes.
+        self.eventFilter(self.slide_stage,QEvent(QEvent.Resize))
+
+    def choose_slide_size(self):
+        from PySide6.QtWidgets import QDialog,QDialogButtonBox,QLabel
+        dialog=QDialog(self);dialog.setWindowTitle('Slide size');layout=QFormLayout(dialog)
+        preset=QComboBox();preset.addItems(['Custom','Widescreen (16:9)','Standard (4:3)','Portrait']);layout.addRow('Preset',preset)
+        width=QDoubleSpinBox();height=QDoubleSpinBox()
+        for spin,value,label in ((width,self.deck.slide_width/Inches(1),'Width'),(height,self.deck.slide_height/Inches(1),'Height')):
+            spin.setRange(1,56);spin.setDecimals(3);spin.setValue(value);spin.setSuffix(' in');spin.setAccessibleName('Slide '+label.lower());layout.addRow(label,spin)
+        def choose(index):
+            if index:width.setValue([0,13.333,10,7.5][index]);height.setValue([0,7.5,7.5,10][index])
+        preset.currentIndexChanged.connect(choose)
+        layout.addRow(QLabel('Applies to the whole deck. Objects keep their positions and size.\nA smaller canvas may place objects outside the slide; Undo restores it.'))
+        buttons=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject);layout.addRow(buttons)
+        if dialog.exec()==QDialog.Accepted:self.set_slide_size(width.value(),height.value())
     def play_video(self,shape):
         blob=movie_blob(shape)
         if blob is None:return

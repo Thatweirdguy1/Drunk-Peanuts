@@ -140,6 +140,17 @@ def duplicate_slide(editor):
             if node is not None:
                 if tag=='p:bg':slide._element.cSld.insert(0,copy_node(node))
                 else:slide._element.append(copy_node(node))
+        if source.has_notes_slide:
+            # Copy the native notes XML, remapping its relationships, so notes stay independent.
+            notes=source.notes_slide
+            target=slide.notes_slide
+            element=copy.deepcopy(notes._element)
+            for node in element.iter():
+                for key,value in list(node.attrib.items()):
+                    if key.startswith('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'):
+                        rel=notes.part.rels[value]
+                        node.set(key,target.part.relate_to(rel.target_ref if rel.is_external else rel.target_part,rel.reltype,rel.is_external))
+            target._element[:]=list(element)
         editor.index=len(editor.deck.slides)-1
     editor.change(duplicate);editor.refresh()
 
