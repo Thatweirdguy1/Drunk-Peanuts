@@ -1,4 +1,4 @@
-# Drunk Peanuts 0.21.0 - naming and document layout batch
+# Drunk Peanuts 0.21.1 - naming and document layout batch
 
 The application is now **Drunk Peanuts**, in the renamed [Drunk-Peanuts repository](https://github.com/Thatweirdguy1/Drunk-Peanuts). The installer, Desktop/Start menu entries, window titles, media-player label, executable product metadata, release names and original logo use the new name. The shared UI uses black surfaces, purple panels/selection and yellow commands. The Microsoft 365-style tabbed ribbon remains across the six Office workspaces.
 

@@ -54,6 +54,9 @@ jobs:
           data.update(CFBundleName='Drunk Peanuts', CFBundleDisplayName='Drunk Peanuts', CFBundleShortVersionString=version, CFBundleVersion=version)
           path.write_bytes(plistlib.dumps(data))
           PY
+          test -x dist/DrunkPeanuts.app/Contents/MacOS/DrunkPeanuts
+          codesign --force --sign - dist/DrunkPeanuts.app
+          codesign --verify --deep --strict dist/DrunkPeanuts.app
       - name: Use Windows ICU for Qt
         if: runner.os == 'Windows'
         shell: pwsh
@@ -68,19 +71,19 @@ jobs:
         run: python verify_release_ocr.py dist/LocalFileConverter/LocalFileConverter.exe
       - name: Verify packaged OCR on macOS
         if: runner.os == 'macOS'
-        run: python verify_release_ocr.py dist/DrunkPeanuts.app/Contents/MacOS/LocalFileConverter
+        run: python verify_release_ocr.py dist/DrunkPeanuts.app/Contents/MacOS/DrunkPeanuts
       - name: Verify native workspaces on Windows
         if: runner.os == 'Windows'
         run: python verify_release_suite.py dist/LocalFileConverter/LocalFileConverter.exe
       - name: Verify native workspaces on macOS
         if: runner.os == 'macOS'
-        run: python verify_release_suite.py dist/DrunkPeanuts.app/Contents/MacOS/LocalFileConverter
+        run: python verify_release_suite.py dist/DrunkPeanuts.app/Contents/MacOS/DrunkPeanuts
       - name: Verify native conversion on Windows
         if: runner.os == 'Windows'
         run: python verify_release_native.py dist/LocalFileConverter/LocalFileConverter.exe
       - name: Verify native conversion on macOS
         if: runner.os == 'macOS'
-        run: python verify_release_native.py dist/DrunkPeanuts.app/Contents/MacOS/LocalFileConverter
+        run: python verify_release_native.py dist/DrunkPeanuts.app/Contents/MacOS/DrunkPeanuts
       - name: Verify optional renderer support on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -89,7 +92,7 @@ jobs:
           if ($process.ExitCode -ne 0) { exit $process.ExitCode }
       - name: Verify optional renderer support on macOS
         if: runner.os == 'macOS'
-        run: dist/DrunkPeanuts.app/Contents/MacOS/LocalFileConverter --renderer-self-check
+        run: dist/DrunkPeanuts.app/Contents/MacOS/DrunkPeanuts --renderer-self-check
       - name: Include licenses on Windows
         if: runner.os == 'Windows'
         shell: pwsh
