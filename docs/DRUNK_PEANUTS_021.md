@@ -17,6 +17,8 @@ Use **Insert > Header**, **Footer**, or **Page numbers**. The dialog edits heade
 
 78 source checks pass. New tests cover native page fields, starting number, first-page stories, unchanged original/body XML, images, numbered three-page PDF output and plain-text export refusal. Installed Word recognized both fields, counted two pages and exported a PDF with the first header/footer hidden and `Page 2 of 2` on the second page.
 
+The final [v0.21.2 build](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/runs/40268936176) passed Windows, Apple Silicon and Intel macOS checks, including packaged OCR, native Office workspaces, conversion and renderer support. The downloaded Windows ZIP and installer matched their published SHA-256 checksums. The extracted release passed Office/Play self-checks, native document round-trip conversion and a real VLC video-frame decode. The installed 0.21.2 executable matched the release ZIP byte for byte and opened from the Drunk Peanuts Desktop shortcut; the installed Pages ribbon was inspected directly. The README converter screenshot is from that installed build.
+
 REA/Ghidra 12.1.4 read the LibreOffice launcher (SHA-256 `3aeb1080d40bc82596f36ea4dd75019ab6aadad676e73d348c355396a464537a`), observing its defined `soffice` strings. REA/Rizin read the updated installed WINWORD.EXE as PE64/x86-64, SHA-256 `9be13b7adc7eda2d1b5256d7f392eb688c996a3cb0adf84bad8cb0ef9e5b871d`, without changing its bytes. These are static identity observations; the native document experiment establishes the header/footer behavior. No proprietary code was copied. Android-only tooling was not applied to Windows Office executables.
 
 ## Upgrade and scope
