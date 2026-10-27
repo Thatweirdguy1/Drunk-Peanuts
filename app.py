@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.27.0"
+VERSION = "0.27.1"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -1285,7 +1285,7 @@ def main():
         player_window = WatchIT()
         player_window.timer.stop()
         with tempfile.TemporaryDirectory() as folder:
-            files = [Path(folder)/'First track.mp4', Path(folder)/'Second track.wav']
+            files = [(Path(folder)/name).resolve() for name in ('First track.mp4', 'Second track.wav')]
             for file in files:file.touch()
             target = Path(folder)/'Queue.m3u8'
             save_playlist(target, files)

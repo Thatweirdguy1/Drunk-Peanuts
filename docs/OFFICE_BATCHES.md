@@ -1,6 +1,6 @@
 # Office expansion: batches and verification
 
-## 0.27.0 — Play folders and playlists
+## 0.27.1 — Play folders and playlists
 
 Play adds folder context actions, same-window enqueue, background folder scanning, editable/reorderable queues and local M3U/M3U8 save/open. See [behavior, VLC investigation and limits](PLAYLISTS_027.md).
 

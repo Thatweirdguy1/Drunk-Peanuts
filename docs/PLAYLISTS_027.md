@@ -1,4 +1,4 @@
-# Play folders and playlists — 0.27.0
+# Play folders and playlists — 0.27.1
 
 Windows folders gain two per-user context-menu actions under **Show more options**:
 

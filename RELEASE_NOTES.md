@@ -1,4 +1,4 @@
-## Drunk Peanuts 0.27.0
+## Drunk Peanuts 0.27.1
 
 Play now supports **Play with Drunk Peanuts Play** and **Add to Drunk Peanuts Play playlist** on Windows folders (right-click → Show more options). Folder scans include supported media in subfolders and run in the background.
 
@@ -9,7 +9,7 @@ The installer preserves existing default apps and VLC commands. For an older ins
 Saved playlists reference local media; moving those files can break references. Remote streams, XSPF/PLS and automatic session recovery are outside this batch. See the [playlist report](https://github.com/Thatweirdguy1/Drunk-Peanuts/blob/main/docs/PLAYLISTS_027.md) for the VLC investigation and limits.
 
 ### Downloads
-- DrunkPeanuts-0.27.0-Setup.exe — Windows Desktop/Start menu installer.
+- DrunkPeanuts-0.27.1-Setup.exe — Windows Desktop/Start menu installer.
 - DrunkPeanuts-Windows-x64.zip — extract the entire portable folder.
 - DrunkPeanuts-macOS-Apple-Silicon.zip and DrunkPeanuts-macOS-Intel.zip.
 - SHA256SUMS.txt — checksums.
