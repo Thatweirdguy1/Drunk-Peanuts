@@ -11,9 +11,10 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer, Signal, QThread
 from PySide6.QtGui import QAction, QKeySequence, QCursor
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QHBoxLayout,
-    QLabel, QListWidget, QMainWindow, QMessageBox, QPushButton, QSlider, QSpinBox,
+    QLabel, QListWidget, QListWidgetItem, QAbstractItemView, QMainWindow, QMessageBox, QPushButton, QSlider, QSpinBox,
     QVBoxLayout, QWidget, QFormLayout, QScrollArea, QFrame, QDialog)
 from ui import icon_button, icon, palette
+from windows_integration import MEDIA_EXTENSIONS
 
 _dll_directory = None
 
@@ -70,6 +71,24 @@ class EngineLoader(QThread):
             self.failed.emit(str(error))
 
 
+class MediaScanner(QThread):
+    ready = Signal(object, bool)
+    failed = Signal(str)
+
+    def __init__(self, names, autoplay, parent):
+        super().__init__(parent)
+        self.names, self.autoplay = names, autoplay
+
+    def run(self):
+        from play_queue import media_paths
+        try:
+            files = media_paths(self.names, self.isInterruptionRequested)
+            if not self.isInterruptionRequested():
+                self.ready.emit(files, self.autoplay)
+        except (OSError, ValueError) as error:
+            self.failed.emit(str(error))
+
+
 class VideoSurface(QWidget):
     double_clicked = Signal()
 
@@ -98,6 +117,9 @@ class WatchIT(QMainWindow):
         self.seeking = False
         self._fullscreen_state = None
         self._last_state = None
+        self.scanner = None
+        self.scan_requests = []
+        self.scan_generation = 0
         self._build()
         self._theme()
         QApplication.instance().styleHints().colorSchemeChanged.connect(self._theme)
@@ -250,7 +272,12 @@ class WatchIT(QMainWindow):
         volume_row.addStretch()
         row.insertWidget(row.count() - 1, self.volume_controls)
         self.playlist = QListWidget()
-        self.playlist.setMaximumHeight(110)
+        self.playlist.setMinimumHeight(100)
+        self.playlist.setMaximumHeight(210)
+        self.playlist.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.playlist.setDragDropMode(QAbstractItemView.InternalMove)
+        self.playlist.model().rowsAboutToBeMoved.connect(self._before_reorder)
+        self.playlist.model().rowsMoved.connect(self._after_reorder)
         self.playlist.itemDoubleClicked.connect(lambda item: self._play(self.playlist.row(item)))
         page.addWidget(self.playlist)
         self.playlist_toggle = QPushButton()
@@ -259,6 +286,27 @@ class WatchIT(QMainWindow):
         self.playlist_toggle.toggled.connect(self.playlist.setVisible)
         row.insertWidget(row.count() - 1, self.playlist_toggle)
         self.playlist.hide()
+        self.playlist_tools = QWidget()
+        tools = QHBoxLayout(self.playlist_tools)
+        tools.setContentsMargins(0, 0, 0, 0)
+        for label, name, callback in (("Add files to playlist", "add", self.enqueue_files),
+                ("Add folder to playlist", "open", self.add_folder),
+                ("Open playlist", "playlist", self.open_playlist),
+                ("Save playlist", "save", self.save_playlist),
+                ("Move selected up", "up", lambda: self.move_selected(-1)),
+                ("Move selected down", "down", lambda: self.move_selected(1)),
+                ("Remove selected from playlist", "delete", self.remove_selected),
+                ("Clear playlist", "clear", self.clear_playlist)):
+            button = QPushButton()
+            icon_button(button, label, name)
+            button.clicked.connect(callback)
+            tools.addWidget(button)
+        self.queue_count = QLabel('0 tracks')
+        tools.addWidget(self.queue_count)
+        tools.addStretch()
+        page.addWidget(self.playlist_tools)
+        self.playlist_toggle.toggled.connect(self.playlist_tools.setVisible)
+        self.playlist_tools.hide()
         self.statusBar().showMessage("Open media files to play locally")
         for keys, callback in (("Space", self.toggle), ("Ctrl+O", self.open_files),
                                ("F", self.fullscreen), ("F11", self.fullscreen),
@@ -311,26 +359,124 @@ class WatchIT(QMainWindow):
         if names:
             self.add_media(names)
 
-    def add_media(self, names):
-        if self.player is None:
+    def add_media(self, names, autoplay=True):
+        self.scan_requests.append((list(names), autoplay))
+        if self.scanner is None:
+            self._scan_next()
+
+    def _scan_next(self):
+        if not self.scan_requests:
+            self.scanner = None
             return
-        files = [Path(name) for name in names if Path(name).is_file()]
+        names, autoplay = self.scan_requests.pop(0)
+        self.scanner = MediaScanner(names, autoplay, self)
+        generation = self.scan_generation
+        self.scanner.ready.connect(lambda files, play: self._append_media(files, play) if generation == self.scan_generation else None)
+        self.scanner.failed.connect(lambda error: QMessageBox.warning(self, 'Cannot read playlist', error))
+        self.scanner.finished.connect(self.scanner.deleteLater)
+        self.scanner.finished.connect(self._scan_next)
+        self.statusBar().showMessage('Scanning local media…')
+        self.scanner.start()
+
+    def _append_media(self, files, autoplay):
         if not files:
+            self.statusBar().showMessage('No supported local media found.')
             return
         start = len(self.files)
         self.files.extend(files)
-        self.playlist.addItems([path.name for path in files])
+        for path in files:
+            item = QListWidgetItem(path.name)
+            item.setData(Qt.UserRole, str(path))
+            item.setToolTip(str(path))
+            self.playlist.addItem(item)
         self.playlist_toggle.setChecked(True)
-        self._play(start)
+        self.queue_count.setText(f'{len(self.files)} tracks')
+        if autoplay:
+            self._play(start)
+        else:
+            self.statusBar().showMessage(f'Added {len(files)} tracks to playlist')
+
+    def enqueue_files(self):
+        names, _ = QFileDialog.getOpenFileNames(self, 'Add to playlist', '', 'Media and playlists (*' + ' *'.join(MEDIA_EXTENSIONS) + ' *.m3u *.m3u8);;All files (*)')
+        if names:
+            self.add_media(names, autoplay=False)
+
+    def add_folder(self):
+        name = QFileDialog.getExistingDirectory(self, 'Add folder to playlist')
+        if name:
+            self.add_media([name], autoplay=False)
+
+    def open_playlist(self):
+        name, _ = QFileDialog.getOpenFileName(self, 'Open playlist', '', 'M3U playlists (*.m3u *.m3u8)')
+        if name:
+            self.add_media([name])
+
+    def save_playlist(self):
+        from play_queue import save_playlist
+        if not self.files:
+            self.statusBar().showMessage('Add media before saving a playlist.')
+            return
+        name, _ = QFileDialog.getSaveFileName(self, 'Save playlist', 'Playlist.m3u8', 'UTF-8 playlist (*.m3u8)')
+        if name:
+            try:
+                if Path(name).suffix.lower() not in ('.m3u', '.m3u8'):
+                    name += '.m3u8'
+                save_playlist(name, self.files)
+                self.statusBar().showMessage('Playlist saved: ' + name)
+            except OSError as error:
+                QMessageBox.warning(self, 'Cannot save playlist', str(error))
+
+    def _before_reorder(self, *_):
+        self._playing_item = self.playlist.item(self.index) if self.index >= 0 else None
+
+    def _after_reorder(self, *_):
+        self.files = [Path(self.playlist.item(i).data(Qt.UserRole)) for i in range(self.playlist.count())]
+        self.index = self.playlist.row(self._playing_item) if self._playing_item is not None else -1
+
+    def move_selected(self, delta):
+        rows = sorted(self.playlist.row(item) for item in self.playlist.selectedItems())
+        if not rows or rows[0] + delta < 0 or rows[-1] + delta >= len(self.files):
+            return
+        self._before_reorder()
+        for row in (rows if delta < 0 else reversed(rows)):
+            item = self.playlist.takeItem(row)
+            self.playlist.insertItem(row + delta, item)
+            item.setSelected(True)
+        self._after_reorder()
+
+    def remove_selected(self):
+        rows = sorted((self.playlist.row(item) for item in self.playlist.selectedItems()), reverse=True)
+        if not rows:
+            return
+        self._before_reorder()
+        removed_current = self.index in rows
+        if removed_current:
+            self.stop()
+            self._playing_item = None
+        for row in rows:
+            self.playlist.takeItem(row)
+        self._after_reorder()
+        self.queue_count.setText(f'{len(self.files)} tracks')
+
+    def clear_playlist(self):
+        self.scan_generation += 1
+        if self.scanner is not None:
+            self.scanner.requestInterruption()
+        self.scan_requests.clear()
+        self.stop()
+        self.index = -1
+        self.files.clear()
+        self.playlist.clear()
+        self.queue_count.setText('0 tracks')
 
     def _play(self, index):
         if self.player is None or not 0 <= index < len(self.files):
             return
-        self.index = index
         path = self.files[index]
         if not path.is_file():
             self.statusBar().showMessage(f"File is no longer available: {path.name}")
             return
+        self.index = index
         self.player.stop()
         self.player.set_media(self.instance.media_new_path(str(path)))
         handle = int(self.surface.winId())
@@ -357,6 +503,8 @@ class WatchIT(QMainWindow):
             self.player.pause()
         elif self.index >= 0:
             self.player.play()
+        elif self.files:
+            self._play(0)
 
     def stop(self):
         if self.player is None:
@@ -383,7 +531,7 @@ class WatchIT(QMainWindow):
         self._controls_until = time.monotonic() + 2.5
         self._options_visible = self.options_scroll.isVisible()
         self._playlist_visible = self.playlist.isVisible()
-        for widget in (self.heading, self.playlist, self.options_scroll, self.options_toggle):
+        for widget in (self.heading, self.playlist, self.playlist_tools, self.options_scroll, self.options_toggle):
             widget.hide()
         self.centralWidget().layout().setContentsMargins(0, 0, 0, 0)
         self.statusBar().hide()
@@ -397,6 +545,7 @@ class WatchIT(QMainWindow):
         for widget in (self.heading, self.options_toggle):
             widget.show()
         self.playlist.setVisible(self._playlist_visible)
+        self.playlist_tools.setVisible(self._playlist_visible)
         self.options_scroll.setVisible(self._options_visible)
         self.centralWidget().layout().setContentsMargins(24, 20, 24, 20)
         self.statusBar().show()
@@ -512,6 +661,12 @@ class WatchIT(QMainWindow):
                 self._play(self.index + 1)
 
     def closeEvent(self, event):
+        if self.scanner is not None:
+            self.scanner.requestInterruption()
+            self.scan_requests.clear()
+            self.scanner.finished.connect(self.close)
+            event.ignore()
+            return
         self.exit_fullscreen()
         self.options_scroll.hide()
         self.options_toggle.setChecked(False)

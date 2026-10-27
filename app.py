@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.26.2"
+VERSION = "0.27.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -600,6 +600,9 @@ class Window(QMainWindow):
         return self.screenwriter
 
     def _watchit(self):
+        if not hasattr(self, 'play_inbox'):
+            from play_queue import PlayInbox
+            self.play_inbox = PlayInbox(self, self._queue_play)
         if self.watchit is not None:
             self.watchit.show()
             self.watchit.raise_()
@@ -622,9 +625,9 @@ class Window(QMainWindow):
     def _watchit_ready(self, engine):
         try:
             self.watchit.set_engine(engine)
-            if self.pending_media:
-                self.watchit.add_media(self.pending_media)
-                self.pending_media = []
+            pending, self.pending_media = self.pending_media, []
+            for names, enqueue in pending:
+                self.watchit.add_media(names, autoplay=not enqueue)
         except Exception as error:
             QMessageBox.warning(self, "Play", str(error))
 
@@ -688,7 +691,7 @@ class Window(QMainWindow):
             QMessageBox.warning(parent or self, "Could not create document", str(error))
 
     def open_arguments(self, arguments):
-        from windows_integration import MEDIA_EXTENSIONS, WORKSPACE_EXTENSIONS
+        from windows_integration import WORKSPACE_EXTENSIONS
         workspace = None
         if arguments[:1] == ['--open-workspace']:
             if len(arguments) < 2 or arguments[1] not in WORKSPACE_EXTENSIONS:
@@ -701,22 +704,20 @@ class Window(QMainWindow):
                 elif workspace == 'Play':self._watchit()
                 else:self._open_workspace(workspace)
                 return
-        play = arguments[:1] == ["--play"]
-        files = [Path(name).resolve() for name in (arguments[1:] if play else arguments)
+        play = arguments[:1] in (["--play"], ["--enqueue"])
+        if play or workspace == 'Play':
+            self._queue_play(arguments[1:] if play else arguments, arguments[:1] == ['--enqueue'])
+            return
+        files = [Path(name).resolve() for name in arguments
                  if not name.startswith("--") and Path(name).is_file()]
         if not files:
-            if play:self._watchit()
-            else:self.show()
+            self.show()
             return
-        media = [path for path in files if path.suffix.lower() in MEDIA_EXTENSIONS]
+        media = [path for path in files if path.suffix.lower() in WORKSPACE_EXTENSIONS['Play']]
         if media:
-            self.pending_media.extend(media)
-            self._watchit()
-            if self.watchit.player is not None:
-                self.watchit.add_media(self.pending_media)
-                self.pending_media = []
+            self._queue_play(media)
         other = [path for path in files if path not in media]
-        if other and not play:
+        if other:
             remaining = []
             for path in other:
                 name = workspace or next((w for w, extensions in WORKSPACE_EXTENSIONS.items() if path.suffix.lower() in extensions), None)
@@ -736,6 +737,14 @@ class Window(QMainWindow):
             if remaining:
                 self.show()
                 self._add_files(remaining)
+
+    def _queue_play(self, names, enqueue=False):
+        names = [Path(name).resolve() for name in names if not str(name).startswith('--')]
+        self._watchit()
+        if self.watchit.player is None:
+            self.pending_media.append((names, enqueue))
+        elif names:
+            self.watchit.add_media(names, autoplay=not enqueue)
 
     def _add_files(self, files: list[Path]):
         if self.worker and self.worker.isRunning():
@@ -1265,6 +1274,36 @@ def main():
             import win32com.client
         print(", ".join(available_engines(Path("sample.docx"))))
         return
+    if sys.argv[1:] == ['--playlist-self-check']:
+        import os
+        import tempfile
+        import time
+        from play_queue import media_paths, save_playlist
+        from watchit import WatchIT
+        os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+        application = QApplication([])
+        player_window = WatchIT()
+        player_window.timer.stop()
+        with tempfile.TemporaryDirectory() as folder:
+            files = [Path(folder)/'First track.mp4', Path(folder)/'Second track.wav']
+            for file in files:file.touch()
+            target = Path(folder)/'Queue.m3u8'
+            save_playlist(target, files)
+            assert media_paths([target]) == files
+            player_window.add_media([folder], autoplay=False)
+            deadline = time.monotonic() + 10
+            while player_window.scanner is not None and time.monotonic() < deadline:
+                application.processEvents()
+                time.sleep(.01)
+            assert player_window.scanner is None and player_window.files == files
+            assert player_window.index == -1
+            player_window.playlist.item(0).setSelected(True)
+            player_window.move_selected(1)
+            assert player_window.files == list(reversed(files))
+            player_window.clear_playlist()
+            assert not player_window.files
+            player_window.close()
+        return
     if sys.argv[1:2] == ["--watchit-self-check"] and len(sys.argv) in {2, 3}:
         import json
         import time
@@ -1295,6 +1334,10 @@ def main():
     app.setApplicationVersion(VERSION)
     app.setOrganizationName("Local File Converter")
     app.setWindowIcon(QIcon(str(Path(__file__).resolve().parent / "assets" / "app.ico")))
+    if sys.argv[1:2] in (['--play'], ['--enqueue']):
+        from play_queue import forward_play
+        if forward_play(sys.argv[2:], enqueue=sys.argv[1] == '--enqueue'):
+            return
     window = Window()
     if not sys.argv[1:]:window.show()
     QTimer.singleShot(0, lambda: window.open_arguments(sys.argv[1:]))

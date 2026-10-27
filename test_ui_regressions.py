@@ -249,10 +249,10 @@ class UsabilityTest(unittest.TestCase):
                 window.watchit = MagicMock(player=None)
                 window.open_arguments(['--play', str(media)])
                 launch.assert_called_once()
-                self.assertEqual(window.pending_media, [media.resolve()])
+                self.assertEqual(window.pending_media, [([media.resolve()], False)])
                 window.watchit.add_media.assert_not_called()
                 window._watchit_ready(('vlc', 'instance', 'player'))
-                window.watchit.add_media.assert_called_once_with([media.resolve()])
+                window.watchit.add_media.assert_called_once_with([media.resolve()], autoplay=True)
                 self.assertEqual(window.pending_media, [])
             window.watchit = None
             window.close()

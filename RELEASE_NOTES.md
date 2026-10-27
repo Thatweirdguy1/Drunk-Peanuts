@@ -1,15 +1,15 @@
-## Drunk Peanuts 0.26.2
+## Drunk Peanuts 0.27.0
 
-PDF → DOCX now defaults to editable paragraphs and separate embedded images. The graphical letterhead/signature sample was checked locally without publishing personal content. Preserve pages and Text only remain explicit alternatives. Complex layouts may reflow; scanned pages require OCR.
+Play now supports **Play with Drunk Peanuts Play** and **Add to Drunk Peanuts Play playlist** on Windows folders (right-click → Show more options). Folder scans include supported media in subfolders and run in the background.
 
-Windows Setup now registers distinct Open with handlers for Pages, Tables, Dazzle, Sketch, Organize, Formulaic, Writer and Play. Lightweight launchers open files directly in the matching workspace. Multiple Office files receive separate windows. Existing default apps are preserved. The legacy duplicate Play candidate is hidden. For older installations with missing menu entries, use **Start → Drunk Peanuts → Repair Open with registration**.
+Enqueue requests append to the existing Play window without restarting the current track. The playlist toolbar supports adding files/folders, opening and saving M3U/M3U8 playlists, drag reordering, moving tracks up/down, removing selected entries and clearing the queue. Removing playlist entries never deletes media files. Play starts an idle queue; double-click selects a track. Existing next/previous, automatic advance and single-track repeat follow the edited queue.
 
-See the [batch report](https://github.com/Thatweirdguy1/Drunk-Peanuts/blob/main/docs/EDITABLE_OPEN_WITH_026.md) for supported formats, checks and limitations.
+The installer preserves existing default apps and VLC commands. For an older installation, use **Start → Drunk Peanuts → Repair Open with registration**. This adds classic folder context-menu actions, not a Windows 11 top-level shell extension.
 
-89 local tests and all three platform builds passed. Windows Explorer menu/file-opening checks passed for MP4, DOCX, XLSX and PPTX; the installed files match the verified package. The [README](https://github.com/Thatweirdguy1/Drunk-Peanuts#readme) includes fresh screenshots.
+Saved playlists reference local media; moving those files can break references. Remote streams, XSPF/PLS and automatic session recovery are outside this batch. See the [playlist report](https://github.com/Thatweirdguy1/Drunk-Peanuts/blob/main/docs/PLAYLISTS_027.md) for the VLC investigation and limits.
 
 ### Downloads
-- DrunkPeanuts-0.26.2-Setup.exe — Windows Desktop/Start menu installer.
+- DrunkPeanuts-0.27.0-Setup.exe — Windows Desktop/Start menu installer.
 - DrunkPeanuts-Windows-x64.zip — extract the entire portable folder.
 - DrunkPeanuts-macOS-Apple-Silicon.zip and DrunkPeanuts-macOS-Intel.zip.
 - SHA256SUMS.txt — checksums.

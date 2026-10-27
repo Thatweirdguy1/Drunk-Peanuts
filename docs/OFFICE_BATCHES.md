@@ -1,5 +1,9 @@
 # Office expansion: batches and verification
 
+## 0.27.0 — Play folders and playlists
+
+Play adds folder context actions, same-window enqueue, background folder scanning, editable/reorderable queues and local M3U/M3U8 save/open. See [behavior, VLC investigation and limits](PLAYLISTS_027.md).
+
 ## 0.26.2 — editable PDF and Windows file entry points
 
 PDF import now reconstructs selectable text as editable Word paragraphs and retains embedded raster images separately. Each Office workspace and Play has a distinct small Windows launcher and Open with registration. No file defaults are changed. See [details and limits](EDITABLE_OPEN_WITH_026.md).

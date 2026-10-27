@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 
 MEDIA_EXTENSIONS = ('.mp4', '.mkv', '.mov', '.avi', '.webm', '.mpeg', '.mpg', '.wmv', '.m4v', '.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.aiff', '.wma')
+PLAYLIST_EXTENSIONS = ('.m3u', '.m3u8')
 WORKSPACE_EXTENSIONS = {
     'Pages': ('.docx', '.txt', '.html', '.htm'),
     'Tables': ('.xlsx', '.csv'),
@@ -11,7 +12,7 @@ WORKSPACE_EXTENSIONS = {
     'Organize': ('.sqlite', '.db'),
     'Formulaic': ('.formulaic', '.mml'),
     'Writer': ('.fountain', '.fdx'),
-    'Play': MEDIA_EXTENSIONS,
+    'Play': MEDIA_EXTENSIONS + PLAYLIST_EXTENSIONS,
 }
 
 
@@ -37,6 +38,12 @@ def registration_values(executable):
         (classes + 'FreeConvert.Media', 'NoOpenWith', ''),
         (classes + 'Applications\\LocalFileConverter.exe', 'NoOpenWith', ''),
     ]
+    for verb, title, argument in (('DrunkPeanuts.Play', 'Play with Drunk Peanuts Play', '--play'),
+                                  ('DrunkPeanuts.Enqueue', 'Add to Drunk Peanuts Play playlist', '--enqueue')):
+        key = classes + 'Directory\\shell\\' + verb
+        values.extend([(key, '', title), (key, 'Icon', f'"{executable}",0'),
+                       (key, 'MultiSelectModel', 'Player'),
+                       (key + '\\command', '', f'"{executable}" {argument} "%1"')])
     for extension in MEDIA_EXTENSIONS:
         values.extend([
             (classes + extension + '\\OpenWithProgids', 'FreeConvert.Media', ''),
@@ -103,7 +110,8 @@ def unregister(executable=None):
                     winreg.DeleteValue(key, name)
         except FileNotFoundError:
             pass
-    owned = ('Software\\Classes\\FreeConvert.Media', 'Software\\Classes\\Applications\\LocalFileConverter.exe', 'Software\\FreeConvert', 'Software\\DrunkPeanuts', 'Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\LocalFileConverter.exe',
+    owned = ('Software\\Classes\\Directory\\shell\\DrunkPeanuts.Play', 'Software\\Classes\\Directory\\shell\\DrunkPeanuts.Enqueue',
+             'Software\\Classes\\FreeConvert.Media', 'Software\\Classes\\Applications\\LocalFileConverter.exe', 'Software\\FreeConvert', 'Software\\DrunkPeanuts', 'Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\LocalFileConverter.exe',
              *(f'Software\\Classes\\DrunkPeanuts.{w}' for w in WORKSPACE_EXTENSIONS),
              *(f'Software\\Classes\\Applications\\{launcher_name(w)}' for w in WORKSPACE_EXTENSIONS))
     paths = set()
