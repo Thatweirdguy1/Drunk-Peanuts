@@ -1,4 +1,4 @@
-# Play: Picture in Picture and 200% volume — 0.28.0
+# Play: Picture in Picture and 200% volume — 0.28.1
 
 The volume slider spans 0–200%, starts at 100%, displays its current percentage and keeps mute separate. Boost above 100% uses libVLC's native volume control; it does not rewrite the media or change the Windows system-volume setting. Loud source material can distort when boosted. The selected gain is reapplied after the audio output starts, since VLC can reset a volume request made during startup.
 

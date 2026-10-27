@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.28.0"
+  #define AppVersion "0.28.1"
 #endif
 #ifndef PackageDir
   #define PackageDir "dist\ui-021\LocalFileConverter"

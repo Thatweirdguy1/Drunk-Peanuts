@@ -1,4 +1,4 @@
-## Drunk Peanuts 0.28.0
+## Drunk Peanuts 0.28.1
 
 Play now supports **volume up to 200%**, with a visible percentage readout and independent mute. The selected VLC gain is reapplied after audio initialization so it survives playback startup.
 
@@ -8,7 +8,7 @@ Folder actions and saved M3U/M3U8 playlists remain available. See the [PiP and v
 
 ### Downloads
 
-- DrunkPeanuts-0.28.0-Setup.exe — Windows Desktop/Start menu installer.
+- DrunkPeanuts-0.28.1-Setup.exe — Windows Desktop/Start menu installer.
 - DrunkPeanuts-Windows-x64.zip — extract the entire portable folder.
 - DrunkPeanuts-macOS-Apple-Silicon.zip and DrunkPeanuts-macOS-Intel.zip.
 - SHA256SUMS.txt — checksums.

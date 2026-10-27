@@ -1,6 +1,6 @@
 # Office expansion: batches and verification
 
-## 0.28.0 — Play Picture in Picture and 200% volume
+## 0.28.1 — Play Picture in Picture and 200% volume
 
 Play adds a compact always-on-top PiP view, restores the original layout with Escape, and supports native VLC volume up to 200% with a visible percentage. The player, native video surface and queue are retained between modes. See [behavior and checks](PLAY_PIP_VOLUME_028.md).
 

@@ -409,7 +409,8 @@ class WatchIT(QMainWindow):
             item.setData(Qt.UserRole, str(path))
             item.setToolTip(str(path))
             self.playlist.addItem(item)
-        self.playlist_toggle.setChecked(True)
+        if self._pip_state is None and not self.isFullScreen():
+            self.playlist_toggle.setChecked(True)
         self.queue_count.setText(f'{len(self.files)} tracks')
         if autoplay:
             self._play(start)
