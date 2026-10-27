@@ -116,6 +116,7 @@ class WatchIT(QMainWindow):
         self.index = -1
         self.seeking = False
         self._fullscreen_state = None
+        self._pip_state = None
         self._last_state = None
         self.scanner = None
         self.scan_requests = []
@@ -168,6 +169,7 @@ class WatchIT(QMainWindow):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(8)
         row.addStretch()
+        self.transport_buttons = {}
         for label, callback in (("Open", self.open_files), ("Previous", self.previous),
                                 ("Play/Pause", self.toggle), ("Stop", self.stop),
                                 ("Next", self.next), ("Fullscreen", self.fullscreen)):
@@ -176,6 +178,7 @@ class WatchIT(QMainWindow):
             icon_button(button, label, name)
             button.clicked.connect(callback)
             row.addWidget(button)
+            self.transport_buttons[label] = button
             if label == "Fullscreen":
                 self.fullscreen_button = button
             elif label == "Play/Pause":
@@ -254,11 +257,16 @@ class WatchIT(QMainWindow):
         volume_row = QHBoxLayout(self.volume_controls)
         volume_row.setContentsMargins(0, 0, 0, 0)
         self.volume = QSlider(Qt.Horizontal)
-        self.volume.setRange(0, 150)
+        self.volume.setRange(0, 200)
+        self.volume.setAccessibleName('Volume (%)')
         self.volume.setValue(100)
         self.volume.setMaximumWidth(180)
-        self.volume.valueChanged.connect(lambda value: self.player.audio_set_volume(value) if self.player is not None else None)
+        self.volume.valueChanged.connect(self._volume_changed)
         volume_row.addWidget(self.volume)
+        self.volume_label = QLabel('100%')
+        self.volume_label.setMinimumWidth(38)
+        self.volume.setToolTip('Volume: 100% · 100% is normal; up to 200% boost')
+        volume_row.addWidget(self.volume_label)
         self.mute = QPushButton("Mute")
         icon_button(self.mute, "Mute (M)", "volume")
         self.mute.setCheckable(True)
@@ -307,16 +315,28 @@ class WatchIT(QMainWindow):
         page.addWidget(self.playlist_tools)
         self.playlist_toggle.toggled.connect(self.playlist_tools.setVisible)
         self.playlist_tools.hide()
+        self.pip_button = QPushButton()
+        self.pip_button.setCheckable(True)
+        icon_button(self.pip_button, 'Picture in Picture (Ctrl+Shift+P)', 'pip')
+        self.pip_button.clicked.connect(self.picture_in_picture)
+        row.insertWidget(row.count() - 1, self.pip_button)
         self.statusBar().showMessage("Open media files to play locally")
         for keys, callback in (("Space", self.toggle), ("Ctrl+O", self.open_files),
                                ("F", self.fullscreen), ("F11", self.fullscreen),
-                               ("Escape", self.exit_fullscreen), ("M", self.mute.click),
+                               ("Escape", self.escape_view), ("M", self.mute.click),
+                               ("Ctrl+Shift+P", self.picture_in_picture),
                                ("Right", lambda: self._skip(10000)),
                                ("Left", lambda: self._skip(-10000))):
             action = QAction(self)
             action.setShortcut(QKeySequence(keys))
             action.triggered.connect(callback)
             self.addAction(action)
+
+    def _volume_changed(self, value):
+        self.volume_label.setText(f'{value}%')
+        self.volume.setToolTip(f'Volume: {value}% · 100% is normal; up to 200% boost')
+        if self.player is not None:
+            self.player.audio_set_volume(value)
 
     def _mute(self, muted):
         if self.player is not None:
@@ -486,7 +506,7 @@ class WatchIT(QMainWindow):
             self.player.set_nsobject(handle)
         self.player.play()
         self.player.set_rate(self.speed.currentData())
-        self.player.audio_set_volume(self.volume.value())
+        self._volume_changed(self.volume.value())
         self.player.audio_set_mute(self.mute.isChecked())
         self.player.video_set_aspect_ratio(self.aspect.currentData())
         self.player.audio_set_delay(self.audio_sync.value() * 1000)
@@ -523,6 +543,7 @@ class WatchIT(QMainWindow):
             self._play((self.index + 1) % len(self.files))
 
     def fullscreen(self):
+        self.exit_pip()
         if self.isFullScreen():
             self.exit_fullscreen()
             return
@@ -531,6 +552,7 @@ class WatchIT(QMainWindow):
         self._controls_until = time.monotonic() + 2.5
         self._options_visible = self.options_scroll.isVisible()
         self._playlist_visible = self.playlist.isVisible()
+        self._fullscreen_margins = self.centralWidget().layout().contentsMargins()
         for widget in (self.heading, self.playlist, self.playlist_tools, self.options_scroll, self.options_toggle):
             widget.hide()
         self.centralWidget().layout().setContentsMargins(0, 0, 0, 0)
@@ -547,10 +569,64 @@ class WatchIT(QMainWindow):
         self.playlist.setVisible(self._playlist_visible)
         self.playlist_tools.setVisible(self._playlist_visible)
         self.options_scroll.setVisible(self._options_visible)
-        self.centralWidget().layout().setContentsMargins(24, 20, 24, 20)
+        self.centralWidget().layout().setContentsMargins(self._fullscreen_margins)
         self.statusBar().show()
         icon_button(self.fullscreen_button, "Fullscreen (F11)", "fullscreen")
         self._show_controls(True)
+
+    def picture_in_picture(self):
+        if self._pip_state is not None:
+            self.exit_pip()
+            return
+        self.exit_fullscreen()
+        self._show_controls(True)
+        self.winId()  # Create the native window before updating its topmost hint.
+        hidden = [self.heading, self.time_label, self.playlist, self.playlist_tools,
+                  self.options_scroll, self.options_toggle, self.playlist_toggle,
+                  self.volume, self.volume_label, self.loop, self.statusBar(),
+                  *(self.transport_buttons[name] for name in ('Open', 'Stop', 'Fullscreen'))]
+        self._pip_state = (self.saveGeometry(), self.windowHandle().flags(),
+                           self.minimumSize(), self.surface.minimumHeight(),
+                           self.centralWidget().layout().contentsMargins(),
+                           [(widget, not widget.isHidden()) for widget in hidden])
+        for widget in hidden:
+            widget.hide()
+        self.showNormal()
+        # QWindow updates the native hint without reparenting/recreating the VLC surface.
+        self.windowHandle().setFlag(Qt.WindowStaysOnTopHint, True)
+        self.setMinimumSize(320, 180)
+        self.surface.setMinimumHeight(90)
+        self.centralWidget().layout().setContentsMargins(6, 6, 6, 6)
+        self.resize(480, 300)
+        screen = self.screen().availableGeometry()
+        self.move(max(screen.left(), screen.right() - self.frameGeometry().width() - 16),
+                  max(screen.top(), screen.bottom() - self.frameGeometry().height() - 16))
+        self.setWindowTitle('Play · Picture in Picture · Drunk Peanuts')
+        self.pip_button.setChecked(True)
+        icon_button(self.pip_button, 'Exit Picture in Picture (Escape)', 'restore')
+        self.raise_()
+
+    def exit_pip(self):
+        if self._pip_state is None:
+            return
+        geometry, flags, minimum, surface_height, margins, visibility = self._pip_state
+        self._pip_state = None
+        self.windowHandle().setFlags(flags)
+        self.setMinimumSize(minimum)
+        self.surface.setMinimumHeight(surface_height)
+        self.centralWidget().layout().setContentsMargins(margins)
+        for widget, visible in visibility:
+            widget.setVisible(visible)
+        self.restoreGeometry(geometry)
+        self.setWindowTitle('Play · Drunk Peanuts')
+        self.pip_button.setChecked(False)
+        icon_button(self.pip_button, 'Picture in Picture (Ctrl+Shift+P)', 'pip')
+
+    def escape_view(self):
+        if self._pip_state is not None:
+            self.exit_pip()
+        else:
+            self.exit_fullscreen()
 
     def _show_controls(self, visible):
         for widget in (self.seek, self.time_label, self.transport, self.volume_controls):
@@ -577,6 +653,9 @@ class WatchIT(QMainWindow):
         self.seeking = False
 
     def _tracks(self):
+        # Reapply after output creation; VLC can reset an early volume request.
+        self._volume_changed(self.volume.value())
+        self.player.audio_set_mute(self.mute.isChecked())
         self.subtitles.blockSignals(True)
         self.subtitles.clear()
         self.subtitles.addItem("Off", -1)
@@ -668,6 +747,7 @@ class WatchIT(QMainWindow):
             event.ignore()
             return
         self.exit_fullscreen()
+        self.exit_pip()
         self.options_scroll.hide()
         self.options_toggle.setChecked(False)
         self.timer.stop()

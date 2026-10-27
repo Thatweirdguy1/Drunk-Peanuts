@@ -8,7 +8,9 @@
 
 A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with Play.
 
-**Version 0.27.1** adds folder playback and editable playlists to **Play**. Right-click a folder → **Show more options** → **Play with Drunk Peanuts Play** or **Add to Drunk Peanuts Play playlist**. Enqueue adds tracks to the existing Play window without interrupting playback. Default apps and VLC's commands are preserved.
+**Version 0.28.0** adds **200% volume** and **Picture in Picture** to Play. The volume slider now shows its percentage, with 100% as normal volume. Click the PiP icon or press **Ctrl+Shift+P** for a small, resizable, always-on-top player. Press **Escape** or click its restore icon to return to the original layout. Playback, the playlist, volume and mute state are retained. See the [PiP and volume report](docs/PLAY_PIP_VOLUME_028.md).
+
+Play also supports folder playback and editable playlists. Right-click a folder → **Show more options** → **Play with Drunk Peanuts Play** or **Add to Drunk Peanuts Play playlist**. Enqueue adds tracks to the existing Play window without interrupting playback. Default apps and VLC's commands are preserved.
 
 In Play, toggle the playlist icon to add files/folders, open or save an M3U/M3U8 playlist, move tracks up/down (or drag), remove selected tracks, or clear the queue. Folders include supported media in subfolders; scans run in the background. Play starts a queued track; double-click any track to play it. Saved lists reference your local media rather than copying it. See the [playlist report](docs/PLAYLISTS_027.md).
 
@@ -54,7 +56,7 @@ Get the app from the [latest release](https://github.com/Thatweirdguy1/Drunk-Pea
 
 | Platform | Download | How to open |
 | --- | --- | --- |
-| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.27.1-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and Office and media-file registration. |
+| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.28.0-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and Office and media-file registration. |
 | Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
 | macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Apple-Silicon.zip) | Extract and open `DrunkPeanuts.app`. |
 | macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Intel.zip) | Extract and open `DrunkPeanuts.app`. |

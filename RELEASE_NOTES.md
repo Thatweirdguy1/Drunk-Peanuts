@@ -1,19 +1,16 @@
-## Drunk Peanuts 0.27.1
+## Drunk Peanuts 0.28.0
 
-Play now supports **Play with Drunk Peanuts Play** and **Add to Drunk Peanuts Play playlist** on Windows folders (right-click → Show more options). Folder scans include supported media in subfolders and run in the background.
+Play now supports **volume up to 200%**, with a visible percentage readout and independent mute. The selected VLC gain is reapplied after audio initialization so it survives playback startup.
 
-Enqueue requests append to the existing Play window without restarting the current track. The playlist toolbar supports adding files/folders, opening and saving M3U/M3U8 playlists, drag reordering, moving tracks up/down, removing selected entries and clearing the queue. Removing playlist entries never deletes media files. Play starts an idle queue; double-click selects a track. Existing next/previous, automatic advance and single-track repeat follow the edited queue.
+**Picture in Picture** opens a compact, resizable, always-on-top player. Use the PiP icon or **Ctrl+Shift+P**; press **Escape** or the restore icon to return to the original window layout. Playback, the native video surface, playlist, volume and mute state are retained. Play/pause, previous/next, mute and seek remain available in PiP.
 
-The installer preserves existing default apps and VLC commands. For an older installation, use **Start → Drunk Peanuts → Repair Open with registration**. This adds classic folder context-menu actions, not a Windows 11 top-level shell extension.
-
-Saved playlists reference local media; moving those files can break references. Remote streams, XSPF/PLS and automatic session recovery are outside this batch. See the [playlist report](https://github.com/Thatweirdguy1/Drunk-Peanuts/blob/main/docs/PLAYLISTS_027.md) for the VLC investigation and limits.
-
-93 source tests and all three platform builds passed, including packaged playlist checks. Windows folder launch/enqueue and playlist export were verified in the installed app; 37 default-app choices were unchanged. The README includes fresh screenshots of Play and the folder menu.
+Folder actions and saved M3U/M3U8 playlists remain available. See the [PiP and volume report](https://github.com/Thatweirdguy1/Drunk-Peanuts/blob/main/docs/PLAY_PIP_VOLUME_028.md) for behavior, native VLC investigation, checks and limits.
 
 ### Downloads
-- DrunkPeanuts-0.27.1-Setup.exe — Windows Desktop/Start menu installer.
+
+- DrunkPeanuts-0.28.0-Setup.exe — Windows Desktop/Start menu installer.
 - DrunkPeanuts-Windows-x64.zip — extract the entire portable folder.
 - DrunkPeanuts-macOS-Apple-Silicon.zip and DrunkPeanuts-macOS-Intel.zip.
 - SHA256SUMS.txt — checksums.
 
-Windows builds remain unsigned; macOS builds are not notarized. Full Office parity remains in progress.
+Windows builds remain unsigned; macOS builds are not notarized. PiP is a desktop mini-player, not a browser or protected-system overlay. Full Office parity remains in progress.

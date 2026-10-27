@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.27.1"
+VERSION = "0.28.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -1284,6 +1284,16 @@ def main():
         application = QApplication([])
         player_window = WatchIT()
         player_window.timer.stop()
+        player_window.resize(780, 540)
+        player_window.volume.setValue(200)
+        assert player_window.volume.maximum() == 200 and player_window.volume_label.text() == '200%'
+        native_window, surface = int(player_window.winId()), int(player_window.surface.winId())
+        flags = player_window.windowHandle().flags()
+        player_window.picture_in_picture()
+        assert player_window.windowHandle().flags() & Qt.WindowStaysOnTopHint
+        assert int(player_window.winId()) == native_window and int(player_window.surface.winId()) == surface
+        player_window.escape_view()
+        assert player_window.windowHandle().flags() == flags and player_window._pip_state is None
         with tempfile.TemporaryDirectory() as folder:
             files = [(Path(folder)/name).resolve() for name in ('First track.mp4', 'Second track.wav')]
             for file in files:file.touch()

@@ -150,6 +150,7 @@ PATHS = {
     "mute": '<path d="M3 9h4l5-5v16l-5-5H3zM16 8l6 8M22 8l-6 8"/>',
     "loop": '<path d="M4 8h13l-3-3M20 16H7l3 3M20 8v5M4 16v-5"/>',
     "playlist": '<path d="M3 5h12M3 11h12M3 17h8M18 12l5 5-5 5z"/>',
+    "pip": '<rect x="2" y="3" width="20" height="17" rx="2"/><rect x="12" y="11" width="8" height="7" rx="1" fill="currentColor"/>',
     "up": '<path d="M12 21V3M5 10l7-7 7 7"/>',
     "down": '<path d="M12 3v18M5 14l7 7 7-7"/>',
     "clear": '<path d="M5 5h14M5 12h9M5 19h9M17 16l5 5M22 16l-5 5"/>',

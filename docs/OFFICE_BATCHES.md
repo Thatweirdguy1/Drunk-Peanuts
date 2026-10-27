@@ -1,5 +1,9 @@
 # Office expansion: batches and verification
 
+## 0.28.0 — Play Picture in Picture and 200% volume
+
+Play adds a compact always-on-top PiP view, restores the original layout with Escape, and supports native VLC volume up to 200% with a visible percentage. The player, native video surface and queue are retained between modes. See [behavior and checks](PLAY_PIP_VOLUME_028.md).
+
 ## 0.27.1 — Play folders and playlists
 
 Play adds folder context actions, same-window enqueue, background folder scanning, editable/reorderable queues and local M3U/M3U8 save/open. See [behavior, VLC investigation and limits](PLAYLISTS_027.md).
