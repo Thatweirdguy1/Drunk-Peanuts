@@ -8,6 +8,8 @@ The installer preserves existing default apps and VLC commands. For an older ins
 
 Saved playlists reference local media; moving those files can break references. Remote streams, XSPF/PLS and automatic session recovery are outside this batch. See the [playlist report](https://github.com/Thatweirdguy1/Drunk-Peanuts/blob/main/docs/PLAYLISTS_027.md) for the VLC investigation and limits.
 
+93 source tests and all three platform builds passed, including packaged playlist checks. Windows folder launch/enqueue and playlist export were verified in the installed app; 37 default-app choices were unchanged. The README includes fresh screenshots of Play and the folder menu.
+
 ### Downloads
 - DrunkPeanuts-0.27.1-Setup.exe — Windows Desktop/Start menu installer.
 - DrunkPeanuts-Windows-x64.zip — extract the entire portable folder.

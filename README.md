@@ -12,6 +12,10 @@ A free, local desktop converter and creative suite for Windows and macOS. Conver
 
 In Play, toggle the playlist icon to add files/folders, open or save an M3U/M3U8 playlist, move tracks up/down (or drag), remove selected tracks, or clear the queue. Folders include supported media in subfolders; scans run in the background. Play starts a queued track; double-click any track to play it. Saved lists reference your local media rather than copying it. See the [playlist report](docs/PLAYLISTS_027.md).
 
+![Installed Play with a three-track local playlist](docs/play-playlist-027.png)
+
+<img src="docs/play-folder-menu-027.png" alt="Windows folder menu with Play and Add to Drunk Peanuts Play playlist" width="320">
+
 Editable PDF-to-DOCX and the separate **Pages, Tables, Dazzle, Sketch, Organize, Formulaic, Writer and Play** Open with handlers remain available.
 
 ![Installed converter with editable PDF to DOCX mode](docs/converter-editable-026.png)

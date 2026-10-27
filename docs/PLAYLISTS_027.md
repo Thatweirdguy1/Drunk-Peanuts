@@ -22,3 +22,13 @@ REA with Ghidra 12.1.4 found `libvlc_playlist_play` in the installed x64 `vlc.ex
 ## Checks
 
 `python -m unittest test_play_queue test_watchit test_windows_integration -q` covers folder expansion, Unicode/file-URL playlist round trips, nested-cycle/remote-directive rejection, enqueue preservation, reorder/remove/clear behavior, quoted folder registration and cross-process enqueue acknowledgment.
+
+93 source tests passed. The [0.27.1 build](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/runs/40569989211) passed on Windows x64, Intel macOS and Apple Silicon, including packaged playlist, playback-engine, OCR and native conversion checks. The packaged playlist check resolves temporary paths before comparing them, including macOS `/var` aliases.
+
+The Windows installer and portable ZIP matched the release checksums and GitHub asset digests. Installed version 0.27.1 and all eight launchers matched the CI portable package. Installed suite and native-conversion checks passed. All 37 checked default-app choices were unchanged.
+
+Actual Explorer checks verified both folder actions with synthetic media. Enqueue opened an idle two-track queue; Play with reused that window and started playback. A subsequent enqueue preserved the paused track. A separate folder with three tracks, including a subfolder, played successfully. Saving through the installed playlist toolbar produced a valid M3U8 that reopened all three local references in order. On this upgraded installation, the existing registration repair shortcut was needed after Setup before Explorer displayed the new actions.
+
+![Installed Play with three local tracks](play-playlist-027.png)
+
+![Actual folder context-menu commands](play-folder-menu-027.png)
