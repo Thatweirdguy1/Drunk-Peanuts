@@ -8,7 +8,15 @@
 
 A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with Play.
 
-**Version 0.26.2 candidate (validation in progress)** converts selectable PDF text into editable DOCX paragraphs and retains embedded images separately. Windows installation adds distinct **Pages, Tables, Dazzle, Sketch, Organize, Formulaic, Writer and Play** handlers to Open with. Existing default apps are preserved. **The Windows 11 short-menu omission is still under investigation; 0.26.2 remains a draft.**
+**Version 0.26.2** converts selectable PDF text into editable DOCX paragraphs and retains embedded images separately. Windows installation adds distinct **Pages, Tables, Dazzle, Sketch, Organize, Formulaic, Writer and Play** handlers to Open with. Existing default apps are preserved.
+
+![Installed converter with editable PDF to DOCX mode](docs/converter-editable-026.png)
+
+If an older Windows installation still omits the suite from Explorer, run **Start → Drunk Peanuts → Repair Open with registration**, then reopen the menu. This keeps your existing default apps.
+
+![Play in Explorer Open with](docs/play-openwith-026.png)
+
+![Editable PDF-derived text with a separate letterhead image in Pages](docs/editable-pdf-pages-026.png)
 
 ![Calculated totals with original formula in the formula bar](docs/tables-results-025.png)
 

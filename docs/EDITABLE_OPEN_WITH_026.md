@@ -19,7 +19,7 @@ Setup includes eight small Windows launchers: Pages, Tables, Dazzle, Sketch, Org
 | Writer | FOUNTAIN, FDX |
 | Play | MP4, MKV, MOV, AVI, WEBM, MPEG, MPG, WMV, M4V, MP3, WAV, FLAC, OGG, M4A, AAC, AIFF, WMA |
 
-Registration uses per-user ProgIDs, Applications/SupportedTypes and RegisteredApplications capabilities. It never changes UserChoice, extension defaults or another application's registration. Setup registers automatically; a portable Windows download needs its complete extracted folder and a one-time `LocalFileConverter.exe --register-windows`. Uninstall removes matching owned values only. An older installation cannot unregister a newer installation.
+Registration uses per-user ProgIDs, Applications/SupportedTypes and RegisteredApplications capabilities. It never changes UserChoice, extension defaults or another application's registration. Setup registers automatically; the Start-menu repair shortcut repeats registration through normal Windows app activation. a portable Windows download needs its complete extracted folder and a one-time `LocalFileConverter.exe --register-windows`. Uninstall removes matching owned values only. An older installation cannot unregister a newer installation.
 
 Explorer chooses its short Open with list; **Choose another app** exposes additional candidates. Close and reopen an already open menu after installation. The desktop shortcut opens the main suite as before.
 
@@ -27,9 +27,24 @@ Microsoft references: [Open with registration](https://learn.microsoft.com/en-us
 
 ## Validation
 
-- 89 source tests passed locally; Windows, Intel macOS and Apple Silicon CI all passed on commit `7d96bc0` (run `40374306166`).
-- Windows installer and portable ZIP match both the release checksum manifest and GitHub asset digests. The installed main executable and all eight launchers match the verified CI package.
-- Installed Office imports, media-engine initialization, native document round trip and editable PDF conversion passed. The private sample retains all selectable non-whitespace text in order, nine embedded image files and eleven positioned pictures; the original PDF hash is unchanged. The editable copy is local only.
-- All 35 recorded default-app choices remained unchanged after installation. Windows' native `SHAssocEnumHandlers` recognizes Play as recommended, with a valid executable, display name and icon.
-- **Unresolved:** this Windows 11 Explorer still omits Play and Pages from its short Open with menu, including after an Explorer restart. Extra registry/cache experiments did not resolve it and were removed. The system app chooser is not exposed as a targetable window by the computer helper; a one-time manual selection is pending before further UI verification. Do not interpret registration tests as proof that the visible menu issue is fixed.
-- Version 0.26.2 remains a draft release pending that check. No personal document content is included in the public repository.
+- 89 source tests passed locally. Windows, Intel macOS and Apple Silicon CI passed on commit `ec38ded` ([run 40448573166](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/runs/40448573166)).
+- The downloaded Windows installer and portable ZIP match the release SHA-256 manifest and GitHub asset digests. The installed main executable and all eight launchers match the CI portable package byte for byte.
+- Installed workspace imports, playback-engine initialization, native document round trip and editable PDF conversion passed. A real conversion through the installed UI also produced an editable DOCX with its separate image. The private sample retains all selectable non-whitespace text in order, nine embedded image files and eleven positioned pictures; the original PDF hash is unchanged. Its editable copy remains local.
+- All 35 recorded default-app choices remained unchanged after installation.
+- Actual Windows 11 Explorer menus were checked for **MP4 → Play, DOCX → Pages, XLSX → Tables and PPTX → Dazzle**. Files opened in the matching app; Play rendered video frames and Pages exposed selectable editable text. Version 0.26.2 hides the legacy media candidate, leaving one Play entry.
+- During validation, registration from the build-tool context did not update the visible Explorer menu, despite successful registry/API checks. Running the installed registration action through normal Explorer activation made the handlers visible. This is an observed difference between those launch paths; the underlying Windows context behavior was not fully traced. The installer now adds **Start → Drunk Peanuts → Repair Open with registration** as a terminal-free recovery action. Launch it normally from Windows if an old installation's menus remain missing.
+- No personal document content is included in this repository or release screenshots. Screenshots use synthetic documents and video.
+
+![Play in Windows Explorer Open with](play-openwith-026.png)
+
+![Pages in Windows Explorer Open with](pages-openwith-026.png)
+
+![Tables in Windows Explorer Open with](tables-openwith-026.png)
+
+![Dazzle in Windows Explorer Open with](dazzle-openwith-026.png)
+
+![Selectable PDF-derived text in Pages](editable-pdf-pages-026.png)
+
+![Video opened from Explorer in Play](play-explorer-026.png)
+
+![Installed 0.26.2 converting PDF to editable DOCX](converter-editable-026.png)
