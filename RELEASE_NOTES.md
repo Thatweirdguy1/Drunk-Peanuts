@@ -6,6 +6,8 @@ Play now supports **volume up to 200%**, with a visible percentage readout and i
 
 Folder actions and saved M3U/M3U8 playlists remain available. See the [PiP and volume report](https://github.com/Thatweirdguy1/Drunk-Peanuts/blob/main/docs/PLAY_PIP_VOLUME_028.md) for behavior, native VLC investigation, checks and limits.
 
+94 source tests and all three platform builds passed. The installed Windows build was visually checked with synthetic video: PiP kept rendering, playback continued, and restore retained the queue and 200% volume. README screenshots show the installed app. Incoming queue items preserve compact/fullscreen layouts.
+
 ### Downloads
 
 - DrunkPeanuts-0.28.1-Setup.exe — Windows Desktop/Start menu installer.

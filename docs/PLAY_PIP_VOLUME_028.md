@@ -19,3 +19,13 @@ These observations cover native volume control, not every VLC feature. PiP windo
 ## Automated checks
 
 `python -m unittest test_watchit test_ui_regressions test_play_queue -q` checks the 200% bound/readout, PiP controls and sizing, topmost hint, stable window/surface handles, unchanged player/queue, geometry/maximized-state restoration and fullscreen transitions. The packaged `--playlist-self-check` also checks the 200% control and PiP handle/flag round trip on all release platforms.
+
+94 source tests passed. The [0.28.1 build](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/runs/40575973703) passed for Windows x64, Intel macOS and Apple Silicon, including packaged PiP/volume, playlist, OCR, playback-engine and native-conversion checks. Incoming media is also covered: enqueueing while PiP is active preserves the compact view and the previous playlist visibility.
+
+The Windows installer and portable ZIP matched their published checksums and GitHub digests. Installed version 0.28.1 and all eight launchers matched the CI portable package; installed suite and native-conversion checks passed.
+
+Computer control was reserved for the final installed visual check with a synthetic video and silent audio. The UI accepted 200%, Ctrl+Shift+P displayed decoded video in the compact window, and Escape restored the full layout, queue and 200% value. Playback advanced through the switch instead of restarting. The test window was then closed. No unrelated apps were controlled.
+
+![Installed 200 percent volume control](play-volume-028.png)
+
+![Installed PiP with decoded video](play-pip-028.png)
