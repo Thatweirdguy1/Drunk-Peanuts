@@ -1,4 +1,4 @@
-# Editable PDF and Windows Open with — 0.26.1
+# Editable PDF and Windows Open with — 0.26.2
 
 PDF → DOCX now defaults to **Editable text and images**. Selectable PDF text becomes normal Word paragraphs; embedded raster pictures become independently positioned Word images. This uses the bundled PDFium engine and works offline without installing Word. The reported private letter was checked locally: editable body text, separate letterhead/signature images, and a one-page LibreOffice rendering. The original was left untouched; private content is excluded from this repository.
 
@@ -32,4 +32,4 @@ Microsoft references: [Open with registration](https://learn.microsoft.com/en-us
 - Installed Office imports, media-engine initialization, native document round trip and editable PDF conversion passed. The private sample retains all selectable non-whitespace text in order, nine embedded image files and eleven positioned pictures; the original PDF hash is unchanged. The editable copy is local only.
 - All 35 recorded default-app choices remained unchanged after installation. Windows' native `SHAssocEnumHandlers` recognizes Play as recommended, with a valid executable, display name and icon.
 - **Unresolved:** this Windows 11 Explorer still omits Play and Pages from its short Open with menu, including after an Explorer restart. Extra registry/cache experiments did not resolve it and were removed. The system app chooser is not exposed as a targetable window by the computer helper; a one-time manual selection is pending before further UI verification. Do not interpret registration tests as proof that the visible menu issue is fixed.
-- Version 0.26.1 remains a draft release pending that check. No personal document content is included in the public repository.
+- Version 0.26.2 remains a draft release pending that check. No personal document content is included in the public repository.

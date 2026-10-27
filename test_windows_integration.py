@@ -18,6 +18,8 @@ class WindowsIntegrationTest(unittest.TestCase):
         for extension in MEDIA_EXTENSIONS:
             self.assertIn(('Software\\Classes\\' + extension + '\\OpenWithProgids', 'FreeConvert.Media', ''), values)
         self.assertFalse(any('UserChoice' in path or name == 'ProgId' for path, name, _ in values))
+        self.assertIn(('Software\\Classes\\FreeConvert.Media', 'NoOpenWith', ''), values)
+        self.assertIn(('Software\\Classes\\Applications\\LocalFileConverter.exe', 'NoOpenWith', ''), values)
 
     def test_open_with_dispatches_each_office_file_without_overwriting_open_work(self):
         import os

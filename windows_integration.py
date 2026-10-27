@@ -33,6 +33,9 @@ def registration_values(executable):
         ('Software\\FreeConvert\\Capabilities', 'ApplicationDescription', 'Local conversion, Office Suite and Play media player'),
         ('Software\\RegisteredApplications', 'FreeConvert', 'Software\\FreeConvert\\Capabilities'),
         ('Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\LocalFileConverter.exe', '', executable),
+        # Keep legacy defaults launchable; only the dedicated Play launcher is offered.
+        (classes + 'FreeConvert.Media', 'NoOpenWith', ''),
+        (classes + 'Applications\\LocalFileConverter.exe', 'NoOpenWith', ''),
     ]
     for extension in MEDIA_EXTENSIONS:
         values.extend([

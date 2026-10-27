@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.26.1"
+  #define AppVersion "0.26.2"
 #endif
 #ifndef PackageDir
   #define PackageDir "dist\ui-021\LocalFileConverter"
@@ -34,6 +34,7 @@ Name: "{autodesktop}\Drunk Peanuts"; Filename: "{app}\LocalFileConverter.exe"; W
 Name: "{userprograms}\Drunk Peanuts\Drunk Peanuts"; Filename: "{app}\LocalFileConverter.exe"; WorkingDir: "{app}"
 Name: "{userprograms}\Drunk Peanuts\Uninstall Drunk Peanuts"; Filename: "{uninstallexe}"
 Name: "{userprograms}\Drunk Peanuts\Office templates"; Filename: "{app}\_internal\assets\templates"
+Name: "{userprograms}\Drunk Peanuts\Repair Open with registration"; Filename: "{app}\LocalFileConverter.exe"; Parameters: "--register-windows"; WorkingDir: "{app}"
 
 [Run]
 Filename: "{app}\LocalFileConverter.exe"; Parameters: "--register-windows"; Flags: runhidden waituntilterminated
