@@ -48,3 +48,5 @@ Microsoft references: [Open with registration](https://learn.microsoft.com/en-us
 ![Video opened from Explorer in Play](play-explorer-026.png)
 
 ![Installed 0.26.2 converting PDF to editable DOCX](converter-editable-026.png)
+
+Published [v0.26.2](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/tag/v0.26.2) as the latest release. All five public assets (Windows installer, Windows portable ZIP, two macOS ZIPs and checksums) returned HTTP 200 without authentication.
