@@ -27,4 +27,9 @@ Microsoft references: [Open with registration](https://learn.microsoft.com/en-us
 
 ## Validation
 
-Source checks cover PDF text/image preservation, explicit visual/text modes, quoted handler paths, no default changes, and independent Office document windows. Packaged native checks also exercise editable PDF conversion. Release and installed-app results are recorded after artifact verification.
+- 89 source tests passed locally; Windows, Intel macOS and Apple Silicon CI all passed on commit `7d96bc0` (run `40374306166`).
+- Windows installer and portable ZIP match both the release checksum manifest and GitHub asset digests. The installed main executable and all eight launchers match the verified CI package.
+- Installed Office imports, media-engine initialization, native document round trip and editable PDF conversion passed. The private sample retains all selectable non-whitespace text in order, nine embedded image files and eleven positioned pictures; the original PDF hash is unchanged. The editable copy is local only.
+- All 35 recorded default-app choices remained unchanged after installation. Windows' native `SHAssocEnumHandlers` recognizes Play as recommended, with a valid executable, display name and icon.
+- **Unresolved:** this Windows 11 Explorer still omits Play and Pages from its short Open with menu, including after an Explorer restart. Extra registry/cache experiments did not resolve it and were removed. The system app chooser is not exposed as a targetable window by the computer helper; a one-time manual selection is pending before further UI verification. Do not interpret registration tests as proof that the visible menu issue is fixed.
+- Version 0.26.1 remains a draft release pending that check. No personal document content is included in the public repository.
