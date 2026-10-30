@@ -194,6 +194,11 @@ def install(owner):
     channel = QWebChannel(page)
     channel.registerObject('desktop', bridge)
     page.setWebChannel(channel)
+    # Qt setters keep C++ pointers; retain Python overrides for the view's lifetime.
+    view.local_profile = profile
+    view.local_requests = interceptor
+    view.local_page = page
+    view.local_channel = channel
     view.loadFinished.connect(lambda ok: view.focusProxy().installEventFilter(view) if ok and view.focusProxy() else None)
     view.load(QUrl.fromLocalFile(str(ASSETS / 'index.html')))
     home_action = QAction('Home', owner)

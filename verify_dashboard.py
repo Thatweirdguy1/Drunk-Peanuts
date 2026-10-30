@@ -52,11 +52,12 @@ def run(screenshot_dir=None):
         loaded = []
         owner.dashboard_bridge.stateChanged.connect(loaded.append)
         wait(lambda: bool(loaded))
+        wait(lambda: javascript('document.body.innerText.includes("Local workspace")'))
         text = javascript('document.body.innerText')
         assert 'What are we making?' in text and 'Local workspace' in text
         assert 'Sample recent files' not in text and 'Dashboard preview' not in text
         assert javascript('document.querySelectorAll(".tool-card").length') == 9
-        assert javascript('document.querySelector("img").naturalWidth > 0')
+        wait(lambda: javascript('document.querySelector("img")?.naturalWidth > 0'))
         # Send an actual DOM click through QWebChannel into the existing editor.
         javascript('[...document.querySelectorAll("nav button")].find(b => b.innerText === "Pages").click()')
         wait(lambda: 'Pages' in owner.workspaces)
