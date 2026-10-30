@@ -1,6 +1,7 @@
 """Run the real bundled React screen and native bridge with temporary local files."""
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import time
@@ -9,7 +10,8 @@ from unittest.mock import patch
 
 def run(screenshot_dir=None):
     if not screenshot_dir:
-        os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+        if sys.platform != 'darwin':
+            os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
         os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--disable-gpu')
     from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt, QUrl
     QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)

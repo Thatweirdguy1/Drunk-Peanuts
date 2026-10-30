@@ -1,4 +1,4 @@
-# React Home — 0.29.0
+# React Home — 0.29.1
 
 The startup Home screen uses React, Tailwind CSS and Lucide icons, taking the Stitch dashboard's navigation / launch cards / tool grid / recent-file structure as inspiration. Black, yellow and purple, the original wordmark, labeled navigation, keyboard focus, reduced motion, local file dialogs, search and category filters are shared across the launcher.
 

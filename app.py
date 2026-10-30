@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.29.0"
+VERSION = "0.29.1"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -1247,8 +1247,15 @@ class Window(QMainWindow):
 
 def main():
     if sys.argv[1:2] == ['--dashboard-self-check']:
-        from verify_dashboard import run
-        run(sys.argv[2] if len(sys.argv) > 2 else None)
+        try:
+            from verify_dashboard import run
+            run(sys.argv[2] if len(sys.argv) > 2 else None)
+        except Exception:
+            import tempfile
+            import traceback
+            report = Path(tempfile.gettempdir()) / 'DrunkPeanuts-dashboard-check-error.txt'
+            report.write_text(traceback.format_exc(), encoding='utf-8')
+            raise SystemExit(1)
         return
     if sys.argv[1:] == ["--register-windows"]:
         from windows_integration import register
