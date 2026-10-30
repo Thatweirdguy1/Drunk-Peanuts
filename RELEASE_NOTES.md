@@ -1,18 +1,20 @@
-## Drunk Peanuts 0.28.1
+## Drunk Peanuts 0.29.0
 
-Play now supports **volume up to 200%**, with a visible percentage readout and independent mute. The selected VLC gain is reapplied after audio initialization so it survives playback startup.
+A new Home screen brings Convert, Create and Play into one local creative workspace. The React UI uses Tailwind CSS and Lucide icons with the original wordmark, black/yellow/purple identity, a collapsible navigation rail, tool search, category filters and recent local files.
 
-**Picture in Picture** opens a compact, resizable, always-on-top player. Use the PiP icon or **Ctrl+Shift+P**; press **Escape** or the restore icon to return to the original window layout. Playback, the native video surface, playlist, volume and mute state are retained. Play/pause, previous/next, mute and seek remain available in PiP.
+Buttons open the existing native tools: conversion, Pages, Tables, Dazzle, Sketch, Organize, Formulaic, Writer and Play. Native file dialogs and drag/drop add files without uploads. Home in the menu or Ctrl+Shift+H returns from the converter without clearing its queue. The installed app contains the built UI and Qt WebEngine runtime; no Node, server or network connection is required.
 
-Folder actions and saved M3U/M3U8 playlists remain available. See the [PiP and volume report](https://github.com/Thatweirdguy1/Drunk-Peanuts/blob/main/docs/PLAY_PIP_VOLUME_028.md) for behavior, native VLC investigation, checks and limits.
+The Home bridge blocks outside navigation and network resources, and only reopens previously selected local paths. Recent-list clearing forgets paths without deleting files. Native editors, file-format limits, save protections, playlists, PiP and the 200% volume control retain their existing behavior.
 
-94 source tests and all three platform builds passed. The installed Windows build was visually checked with synthetic video: PiP kept rendering, playback continued, and restore retained the queue and 200% volume. README screenshots show the installed app. Incoming queue items preserve compact/fullscreen layouts.
+### Checks
+
+94 Python regression tests, the dashboard's Node check and the actual React/native bridge self-check pass locally. Release builds run packaged dashboard, OCR, native conversion, playlist and playback checks on Windows x64, macOS Intel and Apple Silicon. See docs/DASHBOARD_029.md for scope and verification.
 
 ### Downloads
 
-- DrunkPeanuts-0.28.1-Setup.exe — Windows Desktop/Start menu installer.
-- DrunkPeanuts-Windows-x64.zip — extract the entire portable folder.
+- DrunkPeanuts-0.29.0-Setup.exe — Windows installer.
+- DrunkPeanuts-Windows-x64.zip — complete portable folder.
 - DrunkPeanuts-macOS-Apple-Silicon.zip and DrunkPeanuts-macOS-Intel.zip.
 - SHA256SUMS.txt — checksums.
 
-Windows builds remain unsigned; macOS builds are not notarized. PiP is a desktop mini-player, not a browser or protected-system overlay. Full Office parity remains in progress.
+The Home screen uses React; the editors and player remain native Qt workspaces. Windows binaries remain unsigned and macOS builds unnotarized.

@@ -25,7 +25,7 @@ from converter import (available_formats, compress, convert, edit_image, extract
                        trim_media, zip_entries, pdfium_guard)
 from office_pdf import LEGACY_FORMATS, LIBREOFFICE_FORMATS, available_engines, resolve_engine
 
-VERSION = "0.28.1"
+VERSION = "0.29.0"
 
 
 def numbered_target(folder: Path, stem: str, suffix: str, reserved: set[str], pages: int = 1) -> Path:
@@ -339,7 +339,7 @@ class Window(QMainWindow):
         file_menu.addAction("Exit", self.close)
         tools_menu = self.menuBar().addMenu("Tools")
         for index, name in enumerate(("Convert files", "Reduce file size", "Create ZIP", "Extract ZIP")):
-            tools_menu.addAction(name, lambda checked=False, i=index: self.task_tabs.setCurrentIndex(i))
+            tools_menu.addAction(name, lambda checked=False, i=index: self._show_converter_task(i))
         from office_templates import TEMPLATES
         templates = self.menuBar().addMenu("Templates")
         for workspace, names in TEMPLATES.items():
@@ -746,9 +746,16 @@ class Window(QMainWindow):
         elif names:
             self.watchit.add_media(names, autoplay=not enqueue)
 
+    def _show_converter_task(self, index):
+        if hasattr(self, 'dashboard_converter'):
+            self.dashboard_converter()
+        self.task_tabs.setCurrentIndex(index)
+
     def _add_files(self, files: list[Path]):
         if self.worker and self.worker.isRunning():
             return
+        if files and hasattr(self, 'dashboard_converter'):
+            self.dashboard_converter()
         rejected = 0
         for path in files:
             try:
@@ -1239,6 +1246,10 @@ class Window(QMainWindow):
 
 
 def main():
+    if sys.argv[1:2] == ['--dashboard-self-check']:
+        from verify_dashboard import run
+        run(sys.argv[2] if len(sys.argv) > 2 else None)
+        return
     if sys.argv[1:] == ["--register-windows"]:
         from windows_integration import register
         register()
@@ -1339,6 +1350,7 @@ def main():
         player.release()
         engine.release()
         return
+    QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
     app = QApplication(sys.argv)
     app.setApplicationName("Drunk Peanuts")
     app.setApplicationVersion(VERSION)
@@ -1349,6 +1361,12 @@ def main():
         if forward_play(sys.argv[2:], enqueue=sys.argv[1] == '--enqueue'):
             return
     window = Window()
+    if not sys.argv[1:]:
+        try:
+            from desktop_dashboard import install
+            install(window)
+        except (ImportError, FileNotFoundError) as error:
+            window.status.setText(f"Home unavailable: {error}. Native tools are ready.")
     if not sys.argv[1:]:window.show()
     QTimer.singleShot(0, lambda: window.open_arguments(sys.argv[1:]))
     sys.exit(app.exec())

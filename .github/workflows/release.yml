@@ -26,6 +26,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Build local React dashboard
+        working-directory: dashboard
+        run: |
+          npm ci
+          npm test
+          npm run build
       - name: Install dependencies
         run: python -m pip install -r requirements.txt pyinstaller
       - name: Run checks
@@ -72,6 +83,15 @@ jobs:
       - name: Verify packaged OCR on Windows
         if: runner.os == 'Windows'
         run: python verify_release_ocr.py dist/LocalFileConverter/LocalFileConverter.exe
+      - name: Verify packaged dashboard on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath (Resolve-Path dist/LocalFileConverter/LocalFileConverter.exe).Path -ArgumentList '--dashboard-self-check' -Wait -PassThru -WindowStyle Hidden
+          if ($process.ExitCode -ne 0) { exit $process.ExitCode }
+      - name: Verify packaged dashboard on macOS
+        if: runner.os == 'macOS'
+        run: dist/DrunkPeanuts.app/Contents/MacOS/DrunkPeanuts --dashboard-self-check
       - name: Verify packaged OCR on macOS
         if: runner.os == 'macOS'
         run: python verify_release_ocr.py dist/DrunkPeanuts.app/Contents/MacOS/DrunkPeanuts

@@ -8,51 +8,17 @@
 
 A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with Play.
 
-**Version 0.28.1** adds **200% volume** and **Picture in Picture** to Play. The volume slider now shows its percentage, with 100% as normal volume. Click the PiP icon or press **Ctrl+Shift+P** for a small, resizable, always-on-top player. Press **Escape** or click its restore icon to return to the original layout. Playback, the playlist, volume and mute state are retained. See the [PiP and volume report](docs/PLAY_PIP_VOLUME_028.md).
+**Version 0.29.0** introduces a new **Home workspace**: a React dashboard built with Tailwind CSS and Lucide icons, inspired by the Drunk Peanuts Stitch design. Convert, Create and Play sit together in a compact black, yellow and purple workspace with searchable tools, a collapsible navigation rail and local recent files.
 
-![Installed Play showing 200 percent volume](docs/play-volume-028.png)
+Choose files to open the native conversion queue, or launch Pages, Tables, Dazzle, Sketch, Organize, Formulaic, Writer and Play directly. Use **Home** in the menu or **Ctrl+Shift+H** to return from conversion. Editors retain their native interfaces and save protections; this release redesigns the launcher, rather than replacing the editing engines.
 
-![Installed Play Picture in Picture with live video](docs/play-pip-028.png)
+![Drunk Peanuts Home, rendered inside the native Windows app](docs/dashboard-native-029.png)
 
-Play also supports folder playback and editable playlists. Right-click a folder → **Show more options** → **Play with Drunk Peanuts Play** or **Add to Drunk Peanuts Play playlist**. Enqueue adds tracks to the existing Play window without interrupting playback. Default apps and VLC's commands are preserved.
+![Compact Home layout inside the native Windows app](docs/dashboard-compact-029.png)
 
-In Play, toggle the playlist icon to add files/folders, open or save an M3U/M3U8 playlist, move tracks up/down (or drag), remove selected tracks, or clear the queue. Folders include supported media in subfolders; scans run in the background. Play starts a queued track; double-click any track to play it. Saved lists reference your local media rather than copying it. See the [playlist report](docs/PLAYLISTS_027.md).
+The dashboard assets, icons and Qt web runtime are bundled locally. Installed users need neither Node nor Python, and the launcher needs no server, remote font, account or connection. Its recent list records files explicitly chosen through Home; clearing that list does not delete files. See the [dashboard implementation and checks](docs/DASHBOARD_029.md) and [React source](dashboard).
 
-![Installed Play with a three-track local playlist](docs/play-playlist-027.png)
-
-<img src="docs/play-folder-menu-027.png" alt="Windows folder menu with Play and Add to Drunk Peanuts Play playlist" width="320">
-
-Editable PDF-to-DOCX and the separate **Pages, Tables, Dazzle, Sketch, Organize, Formulaic, Writer and Play** Open with handlers remain available.
-
-![Installed converter with editable PDF to DOCX mode](docs/converter-editable-026.png)
-
-If an older Windows installation still omits the suite from Explorer, run **Start → Drunk Peanuts → Repair Open with registration**, then reopen the menu. This keeps your existing default apps.
-
-![Play in Explorer Open with](docs/play-openwith-026.png)
-
-![Editable PDF-derived text with a separate letterhead image in Pages](docs/editable-pdf-pages-026.png)
-
-![Calculated totals with original formula in the formula bar](docs/tables-results-025.png)
-
-See the [editable PDF and Open with report](docs/EDITABLE_OPEN_WITH_026.md) for this batch and the [formula report](docs/FORMULAS_PDF_025.md) for supported calculations.
-
-Drunk Peanuts also includes the original DP icon and editable headers, footers and live page-number fields in Pages. The Office ribbon, conversion, compression, OCR, Play and PDF tools remain available. Use **Insert → Header / Footer / Page numbers**; DOCX contains live PAGE/NUMPAGES fields and PDF export numbers the actual output pages.
-
-Read the [rename and header/footer report](docs/DRUNK_PEANUTS_021.md). See [shipped batches and remaining Office features](docs/OFFICE_BATCHES.md). Full Office feature parity is in progress; only working controls are exposed. The earlier [object editor and PDF organizer report](docs/OFFICE_FEATURES_019.md) details the underlying native models and limits.
-
-![Pages heading outline and native document editing](docs/pages-outline-023.png)
-
-In Pages, use **View → Document outline**, **Review → Document statistics**, and **File → Document properties**. Properties save in DOCX; the outline navigates Heading 1–3 sections. See the [productivity batch report](docs/PAGES_PRODUCTIVITY_023.md).
-
-In Tables, use **Layout → Worksheet print layout**, then save as XLSX. Settings apply to the active sheet and are used by Excel/LibreOffice rendering; the grid is not a print preview. See the [print-layout report](docs/TABLES_PRINT_024.md).
-
-![Tables worksheet print layout](docs/tables-print-024.png)
-
-![Neutral charcoal converter theme](docs/main-022.png)
-
-Use **Dazzle → View → Speaker notes**, **Design → Slide size**, and **Slide show** to present. F5 starts at the beginning; Shift+F5 starts at the current slide. Home/End navigate to the first/last slide, B toggles a black screen, and Escape exits. Notes stay inside PPTX/Dazzle files and off the projected slides/PDF. See the [batch report and limits](docs/DAZZLE_BATCH_022.md).
-
-![Dazzle speaker notes](docs/dazzle-notes-022.png)
+Play continues to offer editable local playlists, **Picture in Picture** and **volume up to 200%**. Existing OCR, PDF tools, document editing, spreadsheet formulas, presentation mode and Windows Open with handlers remain available. See [Play controls](docs/PLAY_PIP_VOLUME_028.md), [playlists](docs/PLAYLISTS_027.md), [Office batches and limitations](docs/OFFICE_BATCHES.md), and [editable PDF conversion](docs/EDITABLE_OPEN_WITH_026.md).
 
 ## Download
 
@@ -60,7 +26,7 @@ Get the app from the [latest release](https://github.com/Thatweirdguy1/Drunk-Pea
 
 | Platform | Download | How to open |
 | --- | --- | --- |
-| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.28.1-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and Office and media-file registration. |
+| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.29.0-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and Office and media-file registration. |
 | Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
 | macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Apple-Silicon.zip) | Extract and open `DrunkPeanuts.app`. |
 | macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Intel.zip) | Extract and open `DrunkPeanuts.app`. |
@@ -85,7 +51,6 @@ The original bundled starters are covered by this repository's MIT license. No M
 | Formulaic | Equations |
 | Writer's Drafts | Screenplay |
 
-![Pages with rich images, charts and tables](docs/pages-019.jpg)
 
 
 
@@ -197,13 +162,18 @@ Inputs are never overwritten. Existing output names and collisions within a batc
 
 ## Run from source
 
-Python 3.11+ is required.
+Python 3.11+ and Node 24 (to build Home) are required. Release downloads include their own runtime; Node is only a source-build dependency.
 
 ```bash
 python -m venv .venv
 # Windows: .venv\Scripts\activate
 # macOS: source .venv/bin/activate
 python -m pip install -r requirements.txt
+cd dashboard
+npm ci
+npm test
+npm run build
+cd ..
 python app.py
 ```
 

@@ -1,3 +1,17 @@
+# Dashboard components
+
+Home bundles React and React DOM (MIT), Tailwind CSS (MIT), and Lucide icons
+(ISC). Their license texts are in `THIRD_PARTY_LICENSES/React-MIT.txt`,
+`React-DOM-MIT.txt`, `Tailwind-MIT.txt`, and `Lucide-ISC.txt`.
+Sources: https://github.com/facebook/react, https://github.com/tailwindlabs/tailwindcss,
+and https://github.com/lucide-icons/lucide.
+
+Qt for Python / Qt WebEngine 6.12 renders the local dashboard. The Qt for Python
+bindings are available under LGPLv3/GPLv2/GPLv3 or commercial terms. Qt and its
+Chromium components retain their own licenses. Upstream source and licensing:
+https://code.qt.io/cgit/pyside/pyside-setup.git/ and
+https://doc.qt.io/qt-6/qtwebengine-licensing.html .
+
 # OCR components
 
 This application includes RapidOCR 3.9.2, copyright 2021 RapidOCR Authors,

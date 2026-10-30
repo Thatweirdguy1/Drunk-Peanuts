@@ -6,3 +6,4 @@ dist/
 *.spec
 .pytest_cache/
 .claude-flow/
+assets/dashboard/
