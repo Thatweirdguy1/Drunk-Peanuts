@@ -59,7 +59,7 @@ def run(screenshot_dir=None):
         assert javascript('document.querySelectorAll(".tool-card").length') == 9
         wait(lambda: javascript('document.querySelector("img")?.naturalWidth > 0'))
         # Send an actual DOM click through QWebChannel into the existing editor.
-        javascript('[...document.querySelectorAll("nav button")].find(b => b.innerText === "Pages").click()')
+        javascript('[...document.querySelectorAll("nav button")].find(b => b.textContent.trim() === "Pages").click()')
         wait(lambda: 'Pages' in owner.workspaces)
         assert owner.workspaces['Pages'].isVisible()
         owner.workspaces['Pages'].close()

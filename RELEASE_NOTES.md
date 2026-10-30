@@ -1,4 +1,4 @@
-## Drunk Peanuts 0.29.1
+## Drunk Peanuts 0.29.2
 
 A new Home screen brings Convert, Create and Play into one local creative workspace. The React UI uses Tailwind CSS and Lucide icons with the original wordmark, black/yellow/purple identity, a collapsible navigation rail, tool search, category filters and recent local files.
 
@@ -12,7 +12,7 @@ The Home bridge blocks outside navigation and network resources, and only reopen
 
 ### Downloads
 
-- DrunkPeanuts-0.29.1-Setup.exe — Windows installer.
+- DrunkPeanuts-0.29.2-Setup.exe — Windows installer.
 - DrunkPeanuts-Windows-x64.zip — complete portable folder.
 - DrunkPeanuts-macOS-Apple-Silicon.zip and DrunkPeanuts-macOS-Intel.zip.
 - SHA256SUMS.txt — checksums.
