@@ -42,7 +42,7 @@ jobs:
       - name: Run checks
         run: python -m unittest -q
       - name: Verify source dashboard
-        run: python app.py --dashboard-self-check
+        run: python -X faulthandler app.py --dashboard-self-check
       - name: Install VLC runtime on Windows
         if: runner.os == 'Windows'
         run: choco install vlc --yes --no-progress

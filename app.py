@@ -1255,6 +1255,8 @@ def main():
             import traceback
             report = Path(tempfile.gettempdir()) / 'DrunkPeanuts-dashboard-check-error.txt'
             report.write_text(traceback.format_exc(), encoding='utf-8')
+            if sys.stderr is not None:
+                print(report.read_text(encoding='utf-8'), file=sys.stderr)
             raise SystemExit(1)
         return
     if sys.argv[1:] == ["--register-windows"]:
