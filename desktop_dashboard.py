@@ -11,7 +11,7 @@ from PySide6.QtWebEngineCore import (QWebEnginePage, QWebEngineProfile,
                                     QWebEngineSettings, QWebEngineUrlRequestInterceptor)
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
-ASSETS = Path(__file__).resolve().parent / 'assets' / 'dashboard'
+ASSETS = (Path(__file__).resolve().parent / 'assets' / 'dashboard').resolve()
 WORKSPACES = {'pages': 'Pages', 'tables': 'Tables', 'dazzle': 'Dazzle',
               'sketch': 'Sketch', 'organize': 'Organize', 'formulaic': 'Formulaic'}
 
