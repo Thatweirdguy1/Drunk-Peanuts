@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QEvent, Qt, QUrl, Signal, Slot
 from PySide6.QtGui import QAction, QColor
-from PySide6.QtWidgets import QFileDialog, QMessageBox, QStackedWidget, QToolBar
+from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox, QStackedWidget, QToolBar
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import (QWebEnginePage, QWebEngineProfile,
                                     QWebEngineSettings, QWebEngineUrlRequestInterceptor)
@@ -162,6 +162,11 @@ def install(owner):
     """Install Home without replacing or duplicating any native editor logic."""
     if not (ASSETS / 'index.html').is_file():
         raise FileNotFoundError('Build the dashboard first: cd dashboard; npm ci; npm run build')
+    application = QApplication.instance()
+    if hasattr(application, '_hover_feedback'):
+        # macOS WebEngine owns internal objects that cannot cross a global Python
+        # event filter. Native stylesheet hover remains; React handles its own motion.
+        application.removeEventFilter(application._hover_feedback)
     original = owner.takeCentralWidget()
     stack = QStackedWidget(owner)
     view = DashboardView(stack)

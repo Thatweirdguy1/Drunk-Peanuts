@@ -45,7 +45,7 @@ jobs:
         run: python -X faulthandler app.py --dashboard-self-check
       - name: Diagnose macOS dashboard crash
         if: failure() && runner.os == 'macOS'
-        run: lldb --batch -o 'settings set target.process.stop-on-exec false' -o run -o 'thread backtrace all' -- $(which python) app.py --dashboard-self-check
+        run: lldb --batch -o 'settings set target.process.stop-on-exec false' -o run -k 'thread backtrace all' -- $(which python) app.py --dashboard-self-check
       - name: Install VLC runtime on Windows
         if: runner.os == 'Windows'
         run: choco install vlc --yes --no-progress

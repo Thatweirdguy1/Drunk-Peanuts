@@ -6,7 +6,7 @@ Home bundles React and React DOM (MIT), Tailwind CSS (MIT), and Lucide icons
 Sources: https://github.com/facebook/react, https://github.com/tailwindlabs/tailwindcss,
 and https://github.com/lucide-icons/lucide.
 
-Qt for Python / Qt WebEngine 6.11.3 renders the local dashboard. The Qt for Python
+Qt for Python / Qt WebEngine 6.12 renders the local dashboard. The Qt for Python
 bindings are available under LGPLv3/GPLv2/GPLv3 or commercial terms. Qt and its
 Chromium components retain their own licenses. Upstream source and licensing:
 https://code.qt.io/cgit/pyside/pyside-setup.git/ and
