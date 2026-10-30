@@ -73,7 +73,7 @@ def run(screenshot_dir=None):
         wait(lambda: owner.preview_worker is None)
         owner.dashboard_home()
         assert owner.centralWidget().currentWidget() is view
-        owner.dashboard_bridge.openRecent(str(picture))
+        owner.dashboard_bridge.openRecent(str(picture.resolve()))
         assert owner.centralWidget().currentWidget() is not view
         owner.dashboard_home()
         owner.dashboard_bridge.clearRecent()
