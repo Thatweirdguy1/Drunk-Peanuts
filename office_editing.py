@@ -101,35 +101,49 @@ def setup_pages_tools(pages):
     command(pages,'View','Zoom out',lambda:pages.editor.zoomOut(1),'settings','Ctrl+-')
 
 
+def presentation_copier(source,target):
+    """Copy editable related parts, sharing immutable images and the existing theme."""
+    from pathlib import PurePosixPath
+    from pptx.opc.packuri import PackURI
+    from lxml import etree
+    package=target.package;used={str(p.partname) for p in package.iter_parts()};cloned={};drawing_ids={}
+    relation_ns='{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'
+    def clone_part(part):
+        if part in cloned:return cloned[part]
+        name=PurePosixPath(str(part.partname));index=1
+        while str(name.with_name(name.stem+f'_copy{index}'+name.suffix)) in used:index+=1
+        destination=str(name.with_name(name.stem+f'_copy{index}'+name.suffix));used.add(destination)
+        result=type(part).load(PackURI(destination),part.content_type,package,part.blob);cloned[part]=result
+        mapping={}
+        for rel in part.rels.values():mapping[rel.rId]=result.relate_to(rel.target_ref if rel.is_external else clone_part(rel.target_part),rel.reltype,rel.is_external)
+        if part.content_type.endswith('+xml'):
+            root=result._element if hasattr(result,'_element') else etree.fromstring(result.blob)
+            for node in root.iter():
+                for key,value in list(node.attrib.items()):
+                    if key.startswith(relation_ns) and value in mapping:node.set(key,mapping[value])
+                    elif etree.QName(node).localname=='dataModelExt' and key=='relId' and value in drawing_ids:node.set(key,drawing_ids[value])
+            if not hasattr(result,'_element'):result._blob=etree.tostring(root,xml_declaration=True,encoding='UTF-8',standalone=True)
+        return result
+    for rel in list(source.rels.values()):
+        if rel.reltype.endswith('/diagramDrawing'):drawing_ids[rel.rId]=target.relate_to(clone_part(rel.target_part),rel.reltype)
+    def copy_node(source_node):
+        element=copy.deepcopy(source_node)
+        for node in element.iter():
+            for key,value in list(node.attrib.items()):
+                if key.startswith(relation_ns):
+                    rel=source.rels[value]
+                    editable=rel.reltype.endswith(('/chart','/diagramData','/diagramLayout','/diagramQuickStyle','/diagramColors','/diagramDrawing'))
+                    related=rel.target_ref if rel.is_external else clone_part(rel.target_part) if editable else rel.target_part
+                    node.set(key,target.relate_to(related,rel.reltype,rel.is_external))
+        return element
+    return copy_node
+
+
 def duplicate_slide(editor):
     def duplicate():
-        from pathlib import PurePosixPath
-        from pptx.opc.packuri import PackURI
-        from pptx.opc.constants import RELATIONSHIP_TYPE as RT
-        package=editor.deck.part.package;used={str(p.partname) for p in package.iter_parts()};cloned={}
-        def clone_part(part):
-            if part in cloned:return cloned[part]
-            name=PurePosixPath(str(part.partname));index=1
-            while str(name.with_name(name.stem+f'_copy{index}'+name.suffix)) in used:index+=1
-            target=str(name.with_name(name.stem+f'_copy{index}'+name.suffix));used.add(target)
-            result=type(part).load(PackURI(target),part.content_type,package,part.blob);cloned[part]=result
-            mapping={}
-            for rel in part.rels.values():mapping[rel.rId]=result.relate_to(rel.target_ref if rel.is_external else clone_part(rel.target_part),rel.reltype,rel.is_external)
-            if hasattr(result,'_element'):
-                for node in result._element.iter():
-                    for key,value in list(node.attrib.items()):
-                        if key.startswith('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}') and value in mapping:node.set(key,mapping[value])
-            return result
-        source=editor.deck.slides[editor.index];slide=editor.deck.slides.add_slide(editor.deck.slide_layouts[6])
-        def copy_node(source_node):
-            element=copy.deepcopy(source_node)
-            for node in element.iter():
-                for key,value in list(node.attrib.items()):
-                    if key.startswith('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'):
-                        rel=source.part.rels[value]
-                        target=rel.target_ref if rel.is_external else clone_part(rel.target_part) if rel.reltype==RT.CHART else rel.target_part
-                        node.set(key,slide.part.relate_to(target,rel.reltype,rel.is_external))
-            return element
+        source=editor.deck.slides[editor.index];slide=editor.deck.slides.add_slide(source.slide_layout)
+        for placeholder in list(slide.shapes):placeholder._element.getparent().remove(placeholder._element)
+        copy_node=presentation_copier(source.part,slide.part)
         for shape in source.shapes:
             element=copy_node(shape.element)
             slide.shapes._spTree.insert_element_before(element,'p:extLst')
@@ -156,17 +170,8 @@ def duplicate_slide(editor):
 
 
 def align_object(editor,edge):
-    shape=editor.selected_shape()
-    if shape is None:raise ValueError('Select a slide object first.')
-    width,height=editor.deck.slide_width,editor.deck.slide_height
-    def align():
-        if edge=='Left':shape.left=0
-        elif edge=='Center':shape.left=max(0,(width-shape.width)//2)
-        elif edge=='Right':shape.left=max(0,width-shape.width)
-        elif edge=='Top':shape.top=0
-        elif edge=='Middle':shape.top=max(0,(height-shape.height)//2)
-        else:shape.top=max(0,height-shape.height)
-    editor.change(align)
+    from presentation_tools import arrange_objects
+    arrange_objects(editor,edge)
 
 
 def setup_slide_tools(editor):

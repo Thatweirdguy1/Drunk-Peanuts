@@ -60,7 +60,10 @@ class WorkspaceBridge(QObject):
         if tool == 'pages':
             state.update(font=w.font_family.currentText(), size=w.font_size.value(), words=len(w.editor.toPlainText().split()))
         if tool == 'tables':state.update(address=w.cell_address.text(), formula=w.formula.text())
-        if tool == 'dazzle':state.update(previewRevision=w.preview_revision,slideAspect=w.deck.slide_width/w.deck.slide_height)
+        if tool == 'dazzle':
+            shape=w.selected_shape()
+            state.update(previewRevision=w.preview_revision,slideAspect=w.deck.slide_width/w.deck.slide_height,
+                         textSelected=bool(shape is not None and shape.has_text_frame),font=w.font_family.currentText(),size=w.font_size.value())
         listing = getattr(w, {'writer':'scenes','organize':'tables','dazzle':'list'}.get(tool,''), None)
         if listing is not None:
             state.update(items=[listing.item(i).text() for i in range(listing.count())], current=listing.currentRow())
@@ -130,6 +133,9 @@ class WorkspaceBridge(QObject):
             elif self.tool == 'pages':
                 if key == 'font' and value in [w.font_family.itemText(i) for i in range(w.font_family.count())]:w.font_family.setCurrentText(value)
                 elif key == 'size':w.font_size.setValue(max(6,min(96,int(value))))
+            elif self.tool == 'dazzle':
+                if key == 'font' and value in [w.font_family.itemText(i) for i in range(w.font_family.count())]:w.format_object(name=value)
+                elif key == 'size':w.format_object(size=max(6,min(180,float(value))))
             elif self.tool == 'tables' and key == 'formula' and isinstance(value,str) and len(value) <= 32767:
                 w.formula.setText(value);w._apply_formula()
             elif self.tool == 'writer':

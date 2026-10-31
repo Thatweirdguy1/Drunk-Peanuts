@@ -10,7 +10,13 @@ A free, local desktop converter and creative suite for Windows and macOS. Conver
 
 **Version 0.30.3** extends the Stitch-inspired React interface across **Pages, Tables, Dazzle, Organize, Sketch, Formulaic, Writer and Play**. Tailwind CSS, Lucide icons and the original DP identity bring a shared black, yellow and purple workspace to the desktop suite.
 
-**Version 0.30.4 fixes Dazzle slide visibility:** a distinct editing surface and page edge, warm-white new slides with readable text, purple selection handles, and real slide thumbnails that update as you edit. Existing presentation colors are preserved.
+**Version 0.31.0 expands the independent Dazzle editor:** dedicated File, Home, Text, Insert, Design, Arrange and Present tabs; multi-object selection, grouping, clipboard, alignment/distribution, rich text, picture crop/flip, connectors, hyperlinks, presenter notes, and PNG slide export. It runs locally without Microsoft Office.
+
+![Dazzle independent editor with a synthetic production presentation](docs/dazzle-independent-031.jpg)
+
+![Dazzle presenter notes and current/next slide previews](docs/dazzle-presenter-031.jpg)
+
+PPTX rendering now includes cached SmartArt diagrams and icons, slide master/layout artwork, theme colors/fonts, gradients, grouped objects, image crops, and improved text inheritance. Canvas, thumbnails, slideshow and PDF export share this renderer. See the [Dazzle feature and compatibility guide](docs/DAZZLE_031.md): **this is an independent editor, not full PowerPoint feature parity**.
 
 | Dazzle: light canvas | Dazzle: preserved dark slides |
 | --- | --- |
@@ -36,7 +42,7 @@ Get the app from the [latest release](https://github.com/Thatweirdguy1/Drunk-Pea
 
 | Platform | Download | How to open |
 | --- | --- | --- |
-| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.30.4-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and Office and media-file registration. |
+| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.31.0-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and Office and media-file registration. |
 | Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
 | macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Apple-Silicon.zip) | Extract and open `DrunkPeanuts.app`. |
 | macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Intel.zip) | Extract and open `DrunkPeanuts.app`. |

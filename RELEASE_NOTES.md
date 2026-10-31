@@ -1,18 +1,22 @@
-## Drunk Peanuts 0.30.4
+## Drunk Peanuts 0.31.0
 
-Dazzle slides are now clearly separated from the dark editing workspace. New presentations start with a warm-white page and readable dark text. Existing slide backgrounds are preserved, and added slides inherit the current slide palette.
+Dazzle expands as an independent local presentation editor. Office is not required. File, Home, Text, Insert, Design, Arrange and Present tabs connect to the native PPTX model.
 
-The slide navigator now shows actual rendered thumbnails instead of placeholder cards. Visible previews load on demand, update after edits, and retain the presentation's aspect ratio. Rendering previews does not modify slide XML or mark the presentation as edited.
+- Multi-selection, cut/copy/paste, independent duplication, grouping/ungrouping, align/distribute, keyboard nudge, picture crop and flips.
+- Rich text, paragraph alignment, lists, connectors, safe hyperlinks, slide layouts and hidden slides.
+- Notes/rehearsal presenter view with current/next previews and elapsed clock; PNG slide batches alongside PPTX/Dazzle/PDF.
+- General rendering of cached SmartArt/icons, themes, master/layout artwork, gradients, groups, crops/flips and improved text inheritance/overflow.
+- Independent chart/diagram copies; read-only previews; imported originals initially require Save as.
 
-The editor adds a visible page edge and purple object-selection handles. The page edge is editor chrome and is not included in exported slides or PDFs. New text boxes use the slide's text color.
+This is not full PowerPoint parity. Morph, arbitrary imported animation timelines, SmartArt layout generation, OLE/ActiveX, macros, 3D, recording, full master editing and some advanced styles/effects remain unsupported. See docs/DAZZLE_031.md. Private compatibility-check documents/images are not distributed.
 
 ### Validation
 
-95 Python regression tests, the frontend Node check and the real React/native suite check. Added coverage verifies blank-slide visibility, readable text colors, real thumbnails, preserved dark imports, and preview updates. The packaged suite check verifies thumbnail loading through QWebChannel on Windows and both macOS architectures.
+98 Python regression tests, frontend Node checks and real React/native suite checks. Release builds verify Windows x64 and macOS Intel/Apple Silicon, including native grouping and text formatting commands.
 
 ### Downloads
 
-- DrunkPeanuts-0.30.4-Setup.exe — Windows installer.
+- DrunkPeanuts-0.31.0-Setup.exe — Windows installer.
 - DrunkPeanuts-Windows-x64.zip — portable folder.
 - DrunkPeanuts-macOS-Apple-Silicon.zip and DrunkPeanuts-macOS-Intel.zip.
 - SHA256SUMS.txt — checksums.

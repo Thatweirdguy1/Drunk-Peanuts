@@ -2,7 +2,6 @@
 from __future__ import annotations
 import base64
 import copy
-import html
 import io
 import json
 import math
@@ -20,7 +19,7 @@ from pptx.enum.chart import XL_CHART_TYPE
 from pptx.chart.data import CategoryChartData, XyChartData
 from pptx.oxml.xmlchemy import OxmlElement
 from PySide6.QtCore import Qt, QRectF, QSignalBlocker, QVariantAnimation, QTimer
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QImage, QPainter, QPen, QTextDocument, QAction, QPixmap
+from PySide6.QtGui import QColor, QFontDatabase, QImage, QPainter, QPen, QAction
 from PySide6.QtWidgets import (QApplication, QGraphicsObject, QGraphicsScene, QGraphicsView, QDockWidget,
  QWidget, QVBoxLayout, QFormLayout, QDoubleSpinBox, QComboBox, QToolBar, QTextEdit, QPushButton,
  QColorDialog, QInputDialog, QFileDialog, QMessageBox, QListWidget, QAbstractItemView)
@@ -28,6 +27,7 @@ from office_insert import ask_chart, chart_png, image_bytes, video_poster, valid
 from office_templates import SLIDE_COLORS, style_slide
 from office_surgery import replace_text_frame
 from ui import icon, palette
+from slide_rendering import SlideTheme, background, background_brush, inherited_shapes, diagram_image, paint_geometry, paint_text
 
 from office_base import Workspace, button
 from PySide6.QtWidgets import QHBoxLayout, QSplitter, QGraphicsItem
@@ -121,22 +121,6 @@ def native_chart_data(kind,data):
         for series in data['series']:result.add_series(series['name'],series['values'])
     return result
 
-def shape_html(shape):
-    blocks=[]
-    for paragraph in shape.text_frame.paragraphs:
-        runs=[]
-        for run in paragraph.runs:
-            f=run.font;pf=paragraph.font
-            size=f.size or pf.size or Pt(20);family=f.name or pf.name or 'Calibri'
-            css=f'font-family:{html.escape(family,quote=True)};font-size:{size.pt}px;color:{rgb(f.color,rgb(pf.color))};'
-            if f.bold or (f.bold is None and pf.bold):css+='font-weight:bold;'
-            if f.italic or (f.italic is None and pf.italic):css+='font-style:italic;'
-            if f.underline:css+='text-decoration:underline;'
-            runs.append('<span style="'+css+'">'+html.escape(run.text).replace('\v','<br>')+'</span>')
-        align={2:'center',3:'right'}.get(paragraph.alignment,'left')
-        blocks.append('<p style="margin:0;text-align:'+align+'">'+(''.join(runs) or '<br>')+'</p>')
-    return ''.join(blocks)
-
 def chart_info(shape):
     chart=shape.chart;kind=next((name for name,value in CHARTS.items() if chart.chart_type==value),'Column')
     if kind=='Scatter':categories=[float(n.text) for n in chart.series[0]._element.xpath('.//c:xVal/c:numRef/c:numCache/c:pt/c:v')]
@@ -145,11 +129,23 @@ def chart_info(shape):
     return kind,{'categories':categories,'series':[{'name':s.name,'values':list(s.values)} for s in chart.series]}
 
 class SlideObject(QGraphicsObject):
-    def __init__(self, owner, shape, interactive=True):
-        super().__init__();self.owner=owner;self.native_shape=shape;self.interactive=interactive;self.preview_size=None;self.resizing=False
+    def __init__(self, owner, shape, interactive=True, theme=None):
+        super().__init__();self.owner=owner;self.native_shape=shape;self.interactive=interactive;self.theme=theme or SlideTheme(owner.deck.slides[owner.index]);self.preview_size=None;self.resizing=False
         self.setPos(shape.left/EMU,shape.top/EMU);self.setTransformOriginPoint(self.boundingRect().center());self.setRotation(shape.rotation)
+        from slide_rendering import child,properties
+        xf=child(properties(shape._element),"xfrm")
+        if xf is not None and (xf.get("flipH") in {"1","true"} or xf.get("flipV") in {"1","true"}):
+            from PySide6.QtGui import QTransform
+            rect=self.boundingRect();flip=QTransform();flip.translate(rect.width()/2,rect.height()/2);flip.scale(-1 if xf.get("flipH") in {"1","true"} else 1,-1 if xf.get("flipV") in {"1","true"} else 1);flip.translate(-rect.width()/2,-rect.height()/2);self.setTransform(flip)
         if interactive:self.setFlags(QGraphicsItem.ItemIsSelectable|QGraphicsItem.ItemIsMovable)
-        self.image=None;self.text=None
+        self.image=None;self.text=None;self.children=[]
+        if shape.shape_type==MSO_SHAPE_TYPE.GROUP:
+            from PySide6.QtGui import QTransform
+            from slide_rendering import child, properties, number
+            xf=child(properties(shape._element),"xfrm");ext=child(xf,"ext");ce=child(xf,"chExt");co=child(xf,"chOff")
+            sx=number(ext,"cx",shape.width)/max(1,number(ce,"cx",shape.width));sy=number(ext,"cy",shape.height)/max(1,number(ce,"cy",shape.height))
+            for z,nested in enumerate(shape.shapes):
+                item=SlideObject(owner,nested,False,self.theme);item.setParentItem(self);item.setTransform(QTransform.fromScale(sx,sy),True);item.setPos((nested.left-number(co,"x"))/EMU*sx,(nested.top-number(co,"y"))/EMU*sy);item.setZValue(z);self.children.append(item)
         try:
             if shape.shape_type in (MSO_SHAPE_TYPE.PICTURE,MSO_SHAPE_TYPE.MEDIA):
                 self.image=QImage.fromData(shape.image.blob)
@@ -157,49 +153,40 @@ class SlideObject(QGraphicsObject):
                 data=chart_info(shape)
                 if data:self.image=QImage.fromData(chart_png(data[1],data[0]))
         except (AttributeError,ValueError,KeyError):pass
-        if shape.has_text_frame:
-            self.text=QTextDocument();self.text.setDocumentMargin(4);self.text.setHtml(shape_html(shape));self.text.setTextWidth(max(1,shape.width/EMU))
+        if self.image is None:self.image=diagram_image(shape,self.theme)
     def boundingRect(self):
         w,h=self.preview_size or (self.native_shape.width/EMU,self.native_shape.height/EMU)
         return QRectF(0,0,max(1,w),max(1,h))
     def paint(self,painter,option,widget=None):
         rect=self.boundingRect();shape=self.native_shape;painter.setRenderHint(QPainter.Antialiasing)
-        if self.image is not None and not self.image.isNull():painter.drawImage(rect,self.image)
+        if self.image is not None and not self.image.isNull():painter.drawImage(rect,self.image,QRectF(self.image.rect()).adjusted(self.image.width()*float(getattr(shape,"crop_left",0)),self.image.height()*float(getattr(shape,"crop_top",0)),-self.image.width()*float(getattr(shape,"crop_right",0)),-self.image.height()*float(getattr(shape,"crop_bottom",0))))
         elif shape.has_table:
-            table=shape.table;cw=rect.width()/len(table.columns);rh=rect.height()/len(table.rows)
-            painter.setFont(QFont('Calibri',12))
+            from slide_rendering import child
+            from types import SimpleNamespace
+            table=shape.table;total_width=sum(c.width for c in table.columns);total_height=sum(r.height for r in table.rows);y=0
             for row in range(len(table.rows)):
+                x=0;rh=rect.height()*table.rows[row].height/max(1,total_height)
                 for col in range(len(table.columns)):
-                    cell=QRectF(col*cw,row*rh,cw,rh);painter.fillRect(cell,QColor('#333333' if row==0 else '#ffffff'));painter.setPen(QColor('#888888'));painter.drawRect(cell);painter.setPen(QColor('#ffdd22' if row==0 else '#111111'));painter.drawText(cell.adjusted(4,3,-4,-3),Qt.TextWordWrap,table.cell(row,col).text)
-        else:
-            fill=QColor(rgb(shape.fill.fore_color,'#39331a')) if hasattr(shape,'fill') and shape.fill.type==1 else QColor(Qt.transparent)
-            line=QColor('#888888')
-            try:line=QColor(rgb(shape.line.color,'#888888'))
-            except (AttributeError,ValueError):pass
-            painter.setPen(QPen(line,1));painter.setBrush(fill)
-            auto=shape.auto_shape_type if shape.shape_type==MSO_SHAPE_TYPE.AUTO_SHAPE else None
-            if auto==MSO_SHAPE.OVAL:painter.drawEllipse(rect)
-            elif auto==MSO_SHAPE.ISOSCELES_TRIANGLE:
-                from PySide6.QtGui import QPolygonF
-                from PySide6.QtCore import QPointF
-                painter.drawPolygon(QPolygonF([QPointF(rect.width()/2,0),rect.bottomRight(),rect.bottomLeft()]))
-            elif auto in (MSO_SHAPE.RIGHT_ARROW,MSO_SHAPE.STAR_5_POINT):
-                from PySide6.QtGui import QPolygonF
-                from PySide6.QtCore import QPointF
-                w,h=rect.width(),rect.height()
-                if auto==MSO_SHAPE.RIGHT_ARROW:points=[(0,h*.25),(w*.65,h*.25),(w*.65,0),(w,h*.5),(w*.65,h),(w*.65,h*.75),(0,h*.75)]
-                else:points=[(w/2+math.cos(-math.pi/2+i*math.pi/5)*w/2*(1 if i%2==0 else .45),h/2+math.sin(-math.pi/2+i*math.pi/5)*h/2*(1 if i%2==0 else .45)) for i in range(10)]
-                painter.drawPolygon(QPolygonF([QPointF(x,y) for x,y in points]))
-            elif shape.shape_type==MSO_SHAPE_TYPE.LINE:painter.drawLine(rect.topLeft(),rect.bottomRight())
-            elif not shape.has_text_frame or auto:painter.drawRoundedRect(rect,4,4)
-            if not shape.has_text_frame and not auto and shape.shape_type!=MSO_SHAPE_TYPE.LINE:
-                painter.setPen(QColor('#eeeeee'));painter.drawText(rect,Qt.AlignCenter,'Object preserved\n'+shape.name)
-        if self.text is not None:self.text.drawContents(painter,rect)
+                    value=table.cell(row,col);cw=rect.width()*table.columns[col].width/max(1,total_width)
+                    if not value.is_spanned:
+                        width=rect.width()*sum(table.columns[c].width for c in range(col,min(len(table.columns),col+value.span_width)))/max(1,total_width)
+                        height=rect.height()*sum(table.rows[r].height for r in range(row,min(len(table.rows),row+value.span_height)))/max(1,total_height)
+                        cell=QRectF(x,y,width,height);props=value._tc.find('{'+NS['a']+'}tcPr');brush=self.theme.brush(props,cell)
+                        painter.fillRect(cell,brush if brush.style()!=Qt.NoBrush else QColor('#ffffff'));painter.setPen(QPen(QColor('#b7bdc7'),.5));painter.drawRect(cell)
+                        proxy=SimpleNamespace(_element=value._tc,is_placeholder=False)
+                        painter.save();painter.translate(x,y);paint_text(painter,proxy,self.theme,QRectF(0,0,width,height));painter.restore()
+                    x+=cw
+                y+=rh
+        elif shape.shape_type!=MSO_SHAPE_TYPE.GROUP:
+            paint_geometry(painter,shape._element,self.theme,rect,shape.shape_type!=MSO_SHAPE_TYPE.TEXT_BOX)
+        if shape.has_text_frame:paint_text(painter,shape,self.theme,rect)
         if self.isSelected():
             pen=QPen(QColor('#9457ff'),1.5,Qt.DashLine);pen.setCosmetic(True)
             painter.setPen(pen);painter.setBrush(Qt.NoBrush);painter.drawRect(rect.adjusted(.5,.5,-.5,-.5));painter.fillRect(QRectF(rect.right()-8,rect.bottom()-8,8,8),QColor('#9457ff'))
     def mousePressEvent(self,event):
         self.before=self.pos()
+        if self.interactive and event.modifiers() & Qt.ShiftModifier:
+            self.setSelected(not self.isSelected());event.accept();return
         if self.interactive and self.isSelected() and QRectF(self.boundingRect().right()-12,self.boundingRect().bottom()-12,12,12).contains(event.pos()):
             self.resizing=True;self.setFlag(QGraphicsItem.ItemIsMovable,False);event.accept();return
         super().mousePressEvent(event)
@@ -211,7 +198,9 @@ class SlideObject(QGraphicsObject):
         if self.resizing:
             self.resizing=False;w,h=self.preview_size or (self.native_shape.width/EMU,self.native_shape.height/EMU);self.owner.resize_object(self.native_shape,w,h);event.accept();return
         super().mouseReleaseEvent(event)
-        if self.pos()!=self.before:self.owner.move_object(self.native_shape,self.pos().x(),self.pos().y())
+        if self.pos()!=self.before:
+            moved=[(item.native_shape,item.pos()) for item in self.scene().selectedItems() if item.interactive]
+            self.owner.change(lambda:[(setattr(shape,"left",Pt(pos.x())),setattr(shape,"top",Pt(pos.y()))) for shape,pos in moved])
     def mouseDoubleClickEvent(self,event):
         if self.native_shape.shape_type==MSO_SHAPE_TYPE.MEDIA:self.owner.play_video(self.native_shape)
         elif self.interactive:self.owner.edit_object(self.native_shape)
@@ -223,6 +212,15 @@ class SlideView(QGraphicsView):
         pen=QPen(QColor('#898596'),1);pen.setCosmetic(True)
         painter.save();painter.setPen(pen);painter.setBrush(Qt.NoBrush)
         painter.drawRect(self.sceneRect().adjusted(.5,.5,-.5,-.5));painter.restore()
+    def keyPressEvent(self,event):
+        owner=getattr(self,'owner',None)
+        if owner is not None and event.key() in (Qt.Key_Left,Qt.Key_Right,Qt.Key_Up,Qt.Key_Down):
+            from presentation_tools import selected
+            shapes=selected(owner);distance=10 if event.modifiers() & Qt.ShiftModifier else 1
+            dx=distance if event.key()==Qt.Key_Right else -distance if event.key()==Qt.Key_Left else 0
+            dy=distance if event.key()==Qt.Key_Down else -distance if event.key()==Qt.Key_Up else 0
+            if shapes:owner.change(lambda:[(setattr(s,'left',s.left+Pt(dx)),setattr(s,'top',s.top+Pt(dy))) for s in shapes]);event.accept();return
+        super().keyPressEvent(event)
     def resizeEvent(self,event):
         super().resizeEvent(event)
         if self.scene():self.fitInView(self.sceneRect(),Qt.KeepAspectRatio)
@@ -235,7 +233,7 @@ class SlideShow(QGraphicsView):
         old=self.scene();self.animations=[];scene=self.owner.make_scene(self.index,False);self.setScene(scene);self.pending=[]
         if old:old.deleteLater()
         for item in reversed(scene.items()):
-            seconds=effects(self.owner.deck.slides[self.index]).get(item.native_shape.shape_id)
+            seconds=effects(self.owner.deck.slides[self.index]).get(item.native_shape.shape_id) if item.native_shape.part is self.owner.deck.slides[self.index].part else None
             if seconds:item.setOpacity(0);self.pending.append((item,seconds))
         self.fitInView(scene.sceneRect(),Qt.KeepAspectRatio)
         if self.owner.deck.slides[self.index]._element.find('p:transition/p:fade',NS) is not None:
@@ -252,17 +250,31 @@ class SlideShow(QGraphicsView):
         elif event.key()==Qt.Key_Home:self.index=0;self.show_slide()
         elif event.key()==Qt.Key_End:self.index=len(self.owner.deck.slides)-1;self.show_slide()
         elif event.key() in (Qt.Key_Space,Qt.Key_Right,Qt.Key_PageDown):self.advance()
-        elif event.key() in (Qt.Key_Left,Qt.Key_PageUp):self.index=max(0,self.index-1);self.show_slide()
+        elif event.key() in (Qt.Key_Left,Qt.Key_PageUp):
+            self.index=next((i for i in range(self.index-1,-1,-1) if self.owner.deck.slides[i]._element.get('show')!='0'),self.index);self.show_slide()
         else:super().keyPressEvent(event)
     def mousePressEvent(self,event):
         if self.blackout:return
         item=self.itemAt(event.pos())
         if item is not None and hasattr(item,'native_shape') and item.native_shape.shape_type==MSO_SHAPE_TYPE.MEDIA:self.owner.play_video(item.native_shape);return
+        if item is not None and hasattr(item,'native_shape'):
+            from slide_rendering import R,A
+            link=item.native_shape._element.find('.//{'+A+'}hlinkClick')
+            if link is not None:
+                rid=link.get('{'+R+'}id');part=item.native_shape.part
+                if rid in part.rels and part.rels[rid].is_external:
+                    from urllib.parse import urlparse
+                    address=part.rels[rid].target_ref
+                    if urlparse(address).scheme.lower() in {'http','https','mailto'}:
+                        from PySide6.QtCore import QUrl
+                        from PySide6.QtGui import QDesktopServices
+                        QDesktopServices.openUrl(QUrl(address));return
         if event.button()==Qt.LeftButton:self.advance()
     def advance(self):
         if self.pending:
             item,seconds=self.pending.pop(0);animation=QVariantAnimation(self);animation.setDuration(round(seconds*1000));animation.setStartValue(0.0);animation.setEndValue(1.0);animation.valueChanged.connect(item.setOpacity);self.animations.append(animation);animation.start()
-        elif self.index+1<len(self.owner.deck.slides):self.index+=1;self.show_slide()
+        elif any(self.owner.deck.slides[i]._element.get('show')!='0' for i in range(self.index+1,len(self.owner.deck.slides))):
+            self.index=next(i for i in range(self.index+1,len(self.owner.deck.slides)) if self.owner.deck.slides[i]._element.get('show')!='0');self.show_slide()
         else:self.close()
     def resizeEvent(self,event):
         super().resizeEvent(event)
@@ -281,7 +293,7 @@ class Dazzle(Workspace):
         self.preview_revision=0;self._thumbnail_cache={}
         self.title=QTextEdit(self);self.body=QTextEdit(self);self.title.hide();self.body.hide()
         self.list=QListWidget();self.list.setMaximumWidth(225)
-        self.slide_page=SlideView();self.slide_page.setFrameShape(QGraphicsView.NoFrame)
+        self.slide_page=SlideView();self.slide_page.owner=self;self.slide_page.setFrameShape(QGraphicsView.NoFrame)
         self.slide_stage=QWidget();self.slide_stage.setObjectName('slideStage');self.slide_stage.setStyleSheet('QWidget#slideStage {background:#25252f;}');layout=QHBoxLayout(self.slide_stage);layout.setContentsMargins(24,24,24,24);layout.addStretch();layout.addWidget(self.slide_page);layout.addStretch()
         split=QSplitter();split.addWidget(self.list);split.addWidget(self.slide_stage);split.setStretchFactor(1,1);self.setCentralWidget(split)
         self.deck=self._from_legacy([('','')],[dict(NEW_SLIDE_COLORS)]);self.scene=None
@@ -294,6 +306,8 @@ class Dazzle(Workspace):
         command(self,'Slide','Speaker notes',self.edit_notes,'pen')
         command(self,'Design','Slide size',self.choose_slide_size,'settings')
         command(self,'Slide','Present from beginning',lambda:self.present(0),'play','F5')
+        from presentation_tools import setup
+        setup(self)
     def eventFilter(self,watched,event):
         if watched is self.slide_stage and event.type()==QEvent.Resize:
             scale=min(max(1,watched.width()-48)/(self.deck.slide_width/EMU),max(1,watched.height()-48)/(self.deck.slide_height/EMU))
@@ -307,20 +321,16 @@ class Dazzle(Workspace):
         if name:self.report(lambda:self._write(Path(name)))
     @staticmethod
     def _read_slide_colors(slide):
-        from pptx.enum.dml import MSO_FILL, MSO_COLOR_TYPE
-        colors = dict(background='#ffffff', title='#202b3d', body='#202b3d')
-        fill = slide.background.fill
-        if fill.type == MSO_FILL.SOLID and fill.fore_color.type == MSO_COLOR_TYPE.RGB:
-            colors['background'] = '#' + str(fill.fore_color.rgb).lower()
-            if QColor(colors['background']).lightness() < 128:
-                colors.update(title='#f2f2ed', body='#f2f2ed')
-        shapes = [shape for shape in slide.shapes if shape.has_text_frame and shape.text.strip()]
-        for role, shape in zip(('title', 'body'), shapes):
-            fonts = [font for paragraph in shape.text_frame.paragraphs
-                     for font in [*(run.font for run in paragraph.runs), paragraph.font]]
-            rgb = next((font.color.rgb for font in fonts if font.color.type == MSO_COLOR_TYPE.RGB), None)
-            if rgb is not None:
-                colors[role] = '#' + str(rgb).lower()
+        theme=SlideTheme(slide)
+        colors=dict(background=background(slide,theme).name(),title='#202b3d',body='#202b3d')
+        if QColor(colors['background']).lightness()<128:colors.update(title='#f2f2ed',body='#f2f2ed')
+        from slide_rendering import child
+        for role,shape in zip(('title','body'),[s for s in slide.shapes if s.has_text_frame and s.text.strip()]):
+            style=theme.text_style(shape)
+            for paragraph in shape.text_frame.paragraphs:
+                style.update(theme.font_properties(child(child(paragraph._p,'pPr'),'defRPr')))
+                if paragraph.runs:style.update(theme.font_properties(paragraph.runs[0]._r.find('{'+NS['a']+'}rPr')));break
+            colors[role]=style['color']
         return colors
 
     def _from_legacy(self,slides,styles):
@@ -342,6 +352,8 @@ class Dazzle(Workspace):
         tool(self.insert_menu,'Shape','pen',self.ask_shape)
         tool(self.insert_menu,'Chart / graph','table',self.insert_chart)
         tool(self.insert_menu,'Table','row',self.insert_table)
+        tool(self.arrange_menu,'Edit object','pen',self.edit_object,'F2')
+        tool(self.arrange_menu,'Duplicate object','copy',self.duplicate_object,'Ctrl+D')
         tool(self.design_menu,'Background color','color',self.background_color)
         tool(self.design_menu,'Background image','open',self.background_image)
         tool(self.design_menu,'Slide transition','timer',self.choose_transition)
@@ -374,7 +386,10 @@ class Dazzle(Workspace):
         stream=io.BytesIO();self.deck.save(stream);return stream.getvalue()
     def change(self,operation):
         self._store();before=self._bytes();index=self.index
-        try:result=operation()
+        try:
+            result=operation()
+            from presentation_tools import sync_connectors
+            sync_connectors(self)
         except Exception:
             self.deck=Presentation(io.BytesIO(before));self.index=index;self.refresh();raise
         self.history.append((before,index));self.history=self.history[-15:]
@@ -406,20 +421,20 @@ class Dazzle(Workspace):
             self.slides=[tuple(s.text if s is not None else '' for s in primary(slide)) for slide in self.deck.slides]
             self.slide_styles=[self._read_slide_colors(slide) for slide in self.deck.slides]
             with QSignalBlocker(self.list):
-                self.list.clear();self.list.addItems([pair[0] or f'Slide {i+1}' for i,pair in enumerate(self.slides)]);self.list.setCurrentRow(self.index)
+                self.list.clear();self.list.addItems([('Hidden · ' if self.deck.slides[i]._element.get('show')=='0' else '')+(pair[0] or f'Slide {i+1}') for i,pair in enumerate(self.slides)]);self.list.setCurrentRow(self.index)
             colors=self.slide_styles[self.index]
             for role,widget,value in zip(('title','body'),(self.title,self.body),self.slides[self.index]):
                 with QSignalBlocker(widget):widget.setPlainText(value);widget.setStyleSheet('color:'+colors[role])
             self.refresh_scene()
         finally:self.loading=False
     def make_scene(self,index,interactive=True):
-        scene=QGraphicsScene(self);scene.setSceneRect(0,0,self.deck.slide_width/EMU,self.deck.slide_height/EMU);scene.setBackgroundBrush(QColor(self._read_slide_colors(self.deck.slides[index])['background']))
-        for z,shape in enumerate(self.deck.slides[index].shapes):
-            if not interactive:
-                # python-pptx style getters can create XML; previews must be read-only.
-                from pptx.shapes.shapetree import SlideShapeFactory
-                shape=SlideShapeFactory(copy.deepcopy(shape._element),self.deck.slides[index].shapes)
-            item=SlideObject(self,shape,interactive);item.setZValue(z);scene.addItem(item)
+        slide=self.deck.slides[index];theme=SlideTheme(slide)
+        scene=QGraphicsScene(self);scene.setSceneRect(0,0,self.deck.slide_width/EMU,self.deck.slide_height/EMU);scene.setBackgroundBrush(background_brush(slide,theme,scene.sceneRect()))
+        from pptx.shapes.shapetree import SlideShapeFactory
+        layers=[(s,False) for s in inherited_shapes(slide)]+[(s,interactive) for s in slide.shapes]
+        for z,(shape,editable) in enumerate(layers):
+            if not editable:shape=SlideShapeFactory(copy.deepcopy(shape._element),shape._parent)
+            item=SlideObject(self,shape,editable,theme);item.setZValue(z);scene.addItem(item)
         return scene
     def thumbnail(self,index):
         if not 0<=index<len(self.deck.slides):return ''
@@ -439,14 +454,14 @@ class Dazzle(Workspace):
     def refresh_scene(self):
         if not getattr(self,'ready',False) or not hasattr(self,'deck'):return
         self.preview_revision+=1;self._thumbnail_cache.clear()
-        selected=self.selected_shape().shape_id if getattr(self,'scene',None) and self.selected_shape() is not None else None
+        selected={item.native_shape.shape_id for item in self.scene.selectedItems() if item.interactive} if getattr(self,'scene',None) else set()
         old=self.scene;self.scene=self.make_scene(self.index);self.slide_page.setScene(self.scene);self.slide_page.fitInView(self.scene.sceneRect(),Qt.KeepAspectRatio)
         self.scene.selectionChanged.connect(self.selection_changed)
         with QSignalBlocker(self.object_list):
             self.object_list.clear();self.object_list.addItems([s.name for s in self.deck.slides[self.index].shapes])
         if selected:
             for item in self.scene.items():
-                if item.native_shape.shape_id==selected:item.setSelected(True);break
+                if item.interactive and item.native_shape.shape_id in selected:item.setSelected(True)
         if old:old.deleteLater()
     def selected_shape(self):
         selected=self.scene.selectedItems() if getattr(self,'scene',None) else []
@@ -455,7 +470,7 @@ class Dazzle(Workspace):
         if self.loading or not self.scene:return
         self.scene.clearSelection()
         for item in self.scene.items():
-            if item.native_shape.shape_id == self.deck.slides[self.index].shapes[index].shape_id:item.setSelected(True);break
+            if item.interactive and item.native_shape.shape_id == self.deck.slides[self.index].shapes[index].shape_id:item.setSelected(True);break
     def selection_changed(self):
         shape=self.selected_shape()
         if shape is None:return
@@ -478,7 +493,7 @@ class Dazzle(Workspace):
     def choose(self,shape):
         self.scene.clearSelection()
         for item in self.scene.items():
-            if item.native_shape.shape_id==shape.shape_id:item.setSelected(True);break
+            if item.interactive and item.native_shape.shape_id==shape.shape_id:item.setSelected(True);break
     def new(self):
         if not self.discard_changes():return
         self.deck=self._from_legacy([('','')],[dict(NEW_SLIDE_COLORS)]);self.index=0;self.path=self.imported_pptx=self._loaded_path=None;self.history=[];self.future=[];self._native_changed=False;self.refresh();self.dirty=False
@@ -547,7 +562,18 @@ class Dazzle(Workspace):
     def edit_object(self,shape=None,text=None):
         shape=shape or self.selected_shape()
         if shape is None:return
-        if shape.has_table:
+        from slide_rendering import diagram_nodes,replace_diagram_node,A
+        diagram=diagram_nodes(shape)
+        if diagram is not None:
+            nodes=diagram[4]
+            if not nodes:raise ValueError('This diagram has no editable cached text. It remains preserved in the file.')
+            labels=[' '.join(t.text or '' for t in body.findall('.//{'+A+'}t')) for body,_ in nodes]
+            choice,ok=QInputDialog.getItem(self,'Edit diagram text','Node',[f'{i+1}. {label[:90]}' for i,label in enumerate(labels)],0,False)
+            if not ok:return
+            index=int(choice.split('.',1)[0])-1
+            value,ok=QInputDialog.getMultiLineText(self,'Edit diagram node','Text (existing layout retained)',labels[index])
+            if ok:self.change(lambda:replace_diagram_node(shape,index,value))
+        elif shape.has_table:
             row,ok=QInputDialog.getInt(self,'Edit table cell','Row',1,1,len(shape.table.rows))
             if not ok:return
             col,ok=QInputDialog.getInt(self,'Edit table cell','Column',1,1,len(shape.table.columns))
@@ -572,9 +598,11 @@ class Dazzle(Workspace):
     def _format_if_selected(self,**values):
         if not self.loading and self.selected_shape() is not None:self.report(lambda:self.format_object(**values))
     def format_object(self,**values):
-        shape=self.selected_shape()
-        if shape is None or not shape.has_text_frame:return
+        from presentation_tools import selected
+        shapes=[s for s in selected(self) if s.has_text_frame]
+        if not shapes:return
         def apply():
+          for shape in shapes:
             for paragraph in shape.text_frame.paragraphs:
                 for font in [paragraph.font]+[r.font for r in paragraph.runs]:
                     for key,value in values.items():
@@ -645,13 +673,17 @@ class Dazzle(Workspace):
         if shape is None:raise ValueError('Select an object first.')
         if seconds is not None and not .1<=seconds<=10:raise ValueError('Animation duration must be 0.1–10 seconds.')
         self.change(lambda:set_effect(self.deck.slides[self.index],shape.shape_id,seconds))
+    def duplicate_object(self):
+        from presentation_tools import copy_objects,paste_objects,selected
+        if not selected(self):return
+        previous=getattr(self,'_object_clipboard',None)
+        try:copy_objects(self);paste_objects(self)
+        finally:self._object_clipboard=previous
+
     def delete_object(self):
-        shape=self.selected_shape()
-        if shape:
-            def remove():
-                if shape.shape_id in effects(self.deck.slides[self.index]):set_effect(self.deck.slides[self.index],shape.shape_id,None)
-                shape._element.getparent().remove(shape._element)
-            self.change(remove)
+        from presentation_tools import delete_objects
+        return delete_objects(self)
+
     def reorder_object(self,front):
         shape=self.selected_shape()
         if shape:
@@ -659,6 +691,9 @@ class Dazzle(Workspace):
                 tree=shape._element.getparent();tree.remove(shape._element);tree.insert(len(tree) if front else 2,shape._element)
             self.change(move)
     def present(self,start=None):
+        if start==0:
+            start=next((i for i,s in enumerate(self.deck.slides) if s._element.get('show')!='0'),None)
+            if start is None:raise ValueError('All slides are hidden. Show at least one slide before presenting.')
         self._store();self.show_window=SlideShow(self,start)
 
     def set_notes(self,text):

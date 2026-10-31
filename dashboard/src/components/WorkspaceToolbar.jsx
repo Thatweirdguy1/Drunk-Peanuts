@@ -46,6 +46,7 @@ export default function WorkspaceToolbar({
 }) {
   const [menu, setMenu] = useState(false);
   const [query, setQuery] = useState("");
+  const [slideTab, setSlideTab] = useState("Home");
   function showMenu(open) {
     setMenu(open);
     onMenu(open);
@@ -73,15 +74,15 @@ export default function WorkspaceToolbar({
         ["Add column", Plus],
         ["Calculate selected", null],
       ],
-      dazzle: [
-        ["Undo", Undo2],
-        ["Redo", Redo2],
-        ["Add slide", Plus],
-        ["Text box", Plus],
-        ["Image", Image],
-        ["Speaker notes", null],
-        ["Slideshow", Play],
-      ],
+      dazzle: ({
+        File: [["New", Plus], ["Open", null], ["Save as", null], ["PDF", null], ["Export slide images", Image]],
+        Home: [["Undo", Undo2], ["Redo", Redo2], ["Add slide", Plus], ["Duplicate slide", Plus], ["Delete slide", null], ["Copy objects", null], ["Paste objects", null], ["Edit object", PenLine]],
+        Text: [["Format text", PenLine], ["Bold", Bold], ["Italic", Italic], ["Underline", Underline], ["Align text left", AlignLeft], ["Align text center", AlignCenter], ["Align text right", AlignRight], ["Bullets", null], ["Numbering", null]],
+        Insert: [["Text box", Plus], ["Image", Image], ["Video", Play], ["Shape", Plus], ["Chart / graph", null], ["Table", null], ["Connector", null], ["Hyperlink", null]],
+        Design: [["Slide layout", null], ["Crop picture", null], ["Background color", null], ["Background image", Image], ["Slide size", null], ["Slide transition", null]],
+        Arrange: [["Duplicate object", Plus], ["Delete object", null], ["Bring to front", null], ["Send to back", null], ["Align left", AlignLeft], ["Align center", AlignCenter], ["Align right", AlignRight], ["Group", null], ["Ungroup", null], ["Distribute horizontally", null], ["Distribute vertically", null], ["Flip horizontal", null], ["Flip vertical", null]],
+        Present: [["Slideshow", Play], ["Presenter view", null], ["Hide / show slide", null], ["Present from beginning", Play], ["Speaker notes", null], ["Fade on click", null], ["Remove animation", null], ["Fit slide", null]],
+      }[slideTab]),
       organize: [
         ["New table", Plus],
         ["Add record", Plus],
@@ -110,9 +111,13 @@ export default function WorkspaceToolbar({
       ],
     }[tool] || [];
   return (
+    <div>
+      {tool === "dazzle" && <div className="flex gap-1 border-b border-white/10 bg-[#1B1B23] px-5 pt-1" role="tablist" aria-label="Presentation tools">
+        {["File", "Home", "Text", "Insert", "Design", "Arrange", "Present"].map(tab => <button key={tab} role="tab" aria-selected={slideTab === tab} className={`workspace-button ${slideTab === tab ? "selected" : ""}`} onClick={() => setSlideTab(tab)}>{tab}</button>)}
+      </div>}
     <div className="workspace-toolbar">
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-1">
-        {tool === "pages" && (
+        {(tool === "pages" || (tool === "dazzle" && slideTab === "Text" && state.textSelected)) && (
           <>
             <select
               aria-label="Font family"
@@ -136,7 +141,7 @@ export default function WorkspaceToolbar({
               aria-label="Font size"
               type="number"
               min="6"
-              max="96"
+              max={tool === "dazzle" ? 180 : 96}
               className="workspace-input w-16"
               value={state.size || 12}
               onChange={(e) => command("size", e.target.value)}
@@ -309,6 +314,7 @@ export default function WorkspaceToolbar({
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

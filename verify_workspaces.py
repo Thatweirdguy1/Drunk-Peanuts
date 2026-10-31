@@ -69,6 +69,14 @@ def run(owner, application, wait, folder, _warnings):
             window.add()
             bridge.command('{"key":"select","value":0}')
             assert window.index==0
+            assert {'Group','Ungroup','Format text','Presenter view','Export slide images'} <= {a['label'] for a in actions}
+            first=window.insert_text('First step');second=window.insert_text('Second step')
+            bridge.command('{"key":"size","value":28}')
+            assert second.text_frame.paragraphs[0].font.size.pt==28
+            from presentation_tools import choose_many,group_objects,selected
+            choose_many(window,[first,second]);group_objects(window)
+            assert len(selected(window))==1 and len(selected(window)[0].shapes)==2
+            window.undo()
         elif tool=='tables':
             window.grid.setCurrentCell(0,0)
             bridge.command(json.dumps(dict(key='formula',value='=2+3')))
