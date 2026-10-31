@@ -173,7 +173,7 @@ def rich_text(editor):
     dialog=QDialog(editor);dialog.setWindowTitle('Format text');dialog.resize(760,500);layout=QVBoxLayout(dialog);bar=QHBoxLayout();layout.addLayout(bar)
     theme=SlideTheme(editor.deck.slides[editor.index])
     text=QTextEdit();text.setAcceptRichText(False);text.setAccessibleName('Slide text editor');text.setStyleSheet('background:'+background(theme.slide,theme).name()+';');text.setHtml(text_html(shape,theme));layout.addWidget(text)
-    family=QFontComboBox();family.setAccessibleName('Text font');bar.addWidget(family);family.currentFontChanged.connect(text.setCurrentFont)
+    family=QFontComboBox();family.setAccessibleName('Text font');bar.addWidget(family);family.currentFontChanged.connect(lambda font:text.setFontFamily(font.family()))
     size=QDoubleSpinBox();size.setRange(6,180);size.setValue(24);size.setAccessibleName('Text size');bar.addWidget(size);size.valueChanged.connect(text.setFontPointSize)
     for label,key in [('B','bold'),('I','italic'),('U','underline')]:
         button=QPushButton(label);button.setCheckable(True);button.setAccessibleName(key.title());bar.addWidget(button)
@@ -293,6 +293,8 @@ def presenter_view(editor):
     row=QHBoxLayout();layout.addLayout(row);started=time.monotonic();index=[editor.index];pixmaps={}
     def refresh():
         slide=editor.deck.slides[index[0]];status.setText(f'Slide {index[0]+1} of {len(editor.deck.slides)} · elapsed {int(time.monotonic()-started)//60:02}:{int(time.monotonic()-started)%60:02}')
+        for cached in list(pixmaps):
+            if cached not in (index[0],index[0]+1):del pixmaps[cached]
         for label,i in ((current,index[0]),(upcoming,index[0]+1)):
             if i<len(editor.deck.slides):
                 if i not in pixmaps:

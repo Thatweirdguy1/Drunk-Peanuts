@@ -245,7 +245,8 @@ class SlideShow(QGraphicsView):
         elif event.key() in (Qt.Key_B,Qt.Key_Period):
             self.blackout=not self.blackout
             for item in self.scene().items():item.setVisible(not self.blackout)
-            self.scene().setBackgroundBrush(QColor('black') if self.blackout else QColor(self.owner._read_slide_colors(self.owner.deck.slides[self.index])['background']))
+            slide=self.owner.deck.slides[self.index]
+            self.scene().setBackgroundBrush(QColor('black') if self.blackout else background_brush(slide,SlideTheme(slide),self.scene().sceneRect()))
         elif self.blackout:return
         elif event.key()==Qt.Key_Home:self.index=0;self.show_slide()
         elif event.key()==Qt.Key_End:self.index=len(self.owner.deck.slides)-1;self.show_slide()

@@ -1,4 +1,4 @@
-## Drunk Peanuts 0.31.0
+## Drunk Peanuts 0.31.1
 
 Dazzle expands as an independent local presentation editor. Office is not required. File, Home, Text, Insert, Design, Arrange and Present tabs connect to the native PPTX model.
 
@@ -16,7 +16,7 @@ This is not full PowerPoint parity. Morph, arbitrary imported animation timeline
 
 ### Downloads
 
-- DrunkPeanuts-0.31.0-Setup.exe — Windows installer.
+- DrunkPeanuts-0.31.1-Setup.exe — Windows installer.
 - DrunkPeanuts-Windows-x64.zip — portable folder.
 - DrunkPeanuts-macOS-Apple-Silicon.zip and DrunkPeanuts-macOS-Intel.zip.
 - SHA256SUMS.txt — checksums.

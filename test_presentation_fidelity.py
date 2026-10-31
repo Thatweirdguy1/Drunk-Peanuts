@@ -46,9 +46,9 @@ class PresentationFidelityTest(unittest.TestCase):
         from PySide6.QtWidgets import QDialog,QTextEdit
         from presentation_tools import rich_text
         editor=Dazzle();editor.insert_text('Original text')
-        before=editor._bytes()
+        before={str(part.partname):part.blob for part in editor.deck.part.package.iter_parts()}
         with patch.object(QDialog,'exec',return_value=QDialog.Rejected):rich_text(editor)
-        self.assertEqual(editor._bytes(),before)
+        self.assertEqual({str(part.partname):part.blob for part in editor.deck.part.package.iter_parts()},before)
         def accept(dialog):
             text=dialog.findChild(QTextEdit)
             text.setHtml('<p align="center"><span style="font-size:20pt;color:#202b3d"><b>Bold</b> and plain</span></p>')
