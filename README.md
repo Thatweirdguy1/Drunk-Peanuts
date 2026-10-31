@@ -12,6 +12,10 @@ A free, local desktop converter and creative suite for Windows and macOS. Conver
 
 **Version 0.30.4 fixes Dazzle slide visibility:** a distinct editing surface and page edge, warm-white new slides with readable text, purple selection handles, and real slide thumbnails that update as you edit. Existing presentation colors are preserved.
 
+| Dazzle: light canvas | Dazzle: preserved dark slides |
+| --- | --- |
+| ![Dazzle light slide and real thumbnails](docs/dazzle-visible-light-0304.jpg) | ![Dazzle dark slide separated from its editing workspace](docs/dazzle-visible-dark-0304.jpg) |
+
 The new React navigation, contextual toolbars, save status, searchable **Commands**, formula bar, scene/table navigation and playlist controls connect directly to the existing native editing canvases and file engines. Use Commands for templates, exports and additional formatting; Inspector reveals contextual native panels. Open With and template launches use the same interface. The converter keeps its native queue; **Home** or **Ctrl+Shift+H** returns without clearing it.
 
 ![Installed Drunk Peanuts 0.30.3 Home on Windows](docs/home-installed-0303.jpg)
