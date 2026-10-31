@@ -8,7 +8,7 @@
 
 A free, local desktop converter and creative suite for Windows and macOS. Convert files, work with PDFs, images, media, ZIPs and OCR, or create documents, tables, presentations, formulas, drawings, databases, screenplays, and play media with Play.
 
-**Version 0.30.3** extends the Stitch-inspired React interface across **Pages, Tables, Dazzle, Organize, Sketch, Formulaic, Writer and Play**. Tailwind CSS, Lucide icons and the original DP identity bring a shared black, yellow and purple workspace to the desktop suite.
+The Stitch-inspired React interface spans **Pages, Tables, Dazzle, Organize, Sketch, Formulaic, Writer and Play**. Tailwind CSS, Lucide icons and the original DP identity bring a shared black, yellow and purple workspace to the desktop suite.
 
 **Version 0.31.2 expands the independent Dazzle editor:** dedicated File, Home, Text, Insert, Design, Arrange and Present tabs; multi-object selection, grouping, clipboard, alignment/distribution, rich text, picture crop/flip, connectors, hyperlinks, presenter notes, and PNG slide export. It runs locally without Microsoft Office.
 
