@@ -58,6 +58,11 @@ class PresentationFidelityTest(unittest.TestCase):
         self.assertEqual(shape.text,'Bold and plain');self.assertTrue(runs[0].font.bold)
         self.assertEqual(runs[0].font.size.pt,20)
         editor.undo();self.assertEqual(editor.deck.slides[0].shapes[-1].text,'Original text')
+        editor.choose(editor.deck.slides[0].shapes[-1]);editor.format_object(color='#ffffff')
+        def cancel_light_text(dialog):
+            self.assertIn('#25252f',dialog.findChild(QTextEdit).styleSheet())
+            return QDialog.Rejected
+        with patch.object(QDialog,'exec',cancel_light_text):rich_text(editor)
         editor.dirty=False;editor.close()
     def test_general_editing_workflow_and_roundtrip(self):
         from presentation_tools import (choose_many,selected,group_objects,ungroup_objects,

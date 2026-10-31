@@ -411,7 +411,7 @@ class Dazzle(Workspace):
             if shape is not None and shape.text!=widget.toPlainText():
                 replace_text_frame(shape,widget.toPlainText());self._native_changed=True;self.dirty=True
         self.slides[self.index]=(self.title.toPlainText(),self.body.toPlainText())
-        if self.list.item(self.index):self.list.item(self.index).setText(self.title.toPlainText() or f'Slide {self.index+1}')
+        if self.list.item(self.index):self.list.item(self.index).setText(('Hidden · ' if slide._element.get('show')=='0' else '')+(self.title.toPlainText() or f'Slide {self.index+1}'))
     def select(self,index):
         if index<0 or index>=len(self.deck.slides):return
         if index!=self.index:self._store()

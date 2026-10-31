@@ -169,10 +169,13 @@ def rich_text(editor):
     shapes=selected(editor)
     if len(shapes)!=1 or not shapes[0].has_text_frame:raise ValueError('Select one text object first. Use Edit object for charts, tables, and diagrams.')
     shape=shapes[0]
-    from slide_rendering import text_html,SlideTheme,background
+    from slide_rendering import text_html,SlideTheme
     dialog=QDialog(editor);dialog.setWindowTitle('Format text');dialog.resize(760,500);layout=QVBoxLayout(dialog);bar=QHBoxLayout();layout.addLayout(bar)
     theme=SlideTheme(editor.deck.slides[editor.index])
-    text=QTextEdit();text.setAcceptRichText(False);text.setAccessibleName('Slide text editor');text.setStyleSheet('background:'+background(theme.slide,theme).name()+';');text.setHtml(text_html(shape,theme));layout.addWidget(text)
+    text=QTextEdit();text.setAcceptRichText(False);text.setAccessibleName('Slide text editor');text.setHtml(text_html(shape,theme))
+    cursor=QTextCursor(text.document());cursor.movePosition(QTextCursor.Start);cursor.movePosition(QTextCursor.NextCharacter,QTextCursor.KeepAnchor)
+    foreground=cursor.charFormat().foreground().color()
+    text.setStyleSheet('background:'+('#25252f' if foreground.lightness()>128 else '#f5f3eb')+';');layout.addWidget(text)
     family=QFontComboBox();family.setAccessibleName('Text font');bar.addWidget(family);family.currentFontChanged.connect(lambda font:text.setFontFamily(font.family()))
     size=QDoubleSpinBox();size.setRange(6,180);size.setValue(24);size.setAccessibleName('Text size');bar.addWidget(size);size.valueChanged.connect(text.setFontPointSize)
     for label,key in [('B','bold'),('I','italic'),('U','underline')]:
@@ -304,7 +307,8 @@ def presenter_view(editor):
                     pixmaps[i]=QPixmap.fromImage(image)
                 label.setPixmap(pixmaps[i].scaled(label.size(),Qt.KeepAspectRatio,Qt.SmoothTransformation))
             else:label.setText('End of presentation')
-        frame=slide.notes_slide.notes_text_frame if slide.has_notes_slide else None;notes.setPlainText(frame.text if frame is not None else 'No speaker notes for this slide.')
+        frame=slide.notes_slide.notes_text_frame if slide.has_notes_slide else None;value=frame.text if frame is not None else 'No speaker notes for this slide.'
+        if notes.toPlainText()!=value:notes.setPlainText(value)
     def navigate(delta):index[0]=max(0,min(len(editor.deck.slides)-1,index[0]+delta));refresh()
     for label,callback in [('Previous',lambda:navigate(-1)),('Next',lambda:navigate(1)),('Present current slide',lambda:editor.present(index[0])),('Close',dialog.close)]:
         button=QPushButton(label);button.clicked.connect(callback);row.addWidget(button)
