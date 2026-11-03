@@ -12,7 +12,7 @@ The Stitch-inspired React interface spans **Pages, Tables, Dazzle, Organize, Ske
 
 **Dazzle 0.32 adds animation authoring and playback:** an animation pane with timing bars, 25 named effects, sequencing, easing, triggers and motion paths; transition controls; on-slide text editing; master/theme properties; a larger shape library; and a table grid editor. DeckCraft animation adaptations retain the upstream MIT notices. See the [0.32 capabilities and remaining compatibility work](docs/DAZZLE_032.md).
 
-![Dazzle animation workspace with a synthetic presentation](docs/dazzle-animation-workspace.png)
+![Installed Dazzle 0.32 animation workspace with a synthetic presentation](docs/dazzle-animation-workspace.png)
 
 ![Dazzle animation order and timing controls](docs/dazzle-animation-pane.png)
 
