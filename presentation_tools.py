@@ -194,21 +194,8 @@ def rich_text(editor):
     color.clicked.connect(choose_color)
     buttons=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject);layout.addWidget(buttons)
     if dialog.exec()!=QDialog.Accepted:return
-    def apply_text():
-        frame=shape.text_frame;frame.clear();block=text.document().begin();index=0
-        while block.isValid():
-            paragraph=frame.paragraphs[0] if index==0 else frame.add_paragraph();index+=1
-            paragraph.alignment={Qt.AlignHCenter:PP_ALIGN.CENTER,Qt.AlignRight:PP_ALIGN.RIGHT,Qt.AlignJustify:PP_ALIGN.JUSTIFY}.get(block.blockFormat().alignment(),PP_ALIGN.LEFT)
-            it=block.begin()
-            while not it.atEnd():
-                fragment=it.fragment()
-                if fragment.isValid():
-                    fmt=fragment.charFormat();run=paragraph.add_run();run.text=fragment.text();font=fmt.font();run.font.name=font.family() or 'Calibri';run.font.size=Pt(font.pointSizeF() if font.pointSizeF()>0 else max(6,font.pixelSize()))
-                    run.font.bold=font.bold();run.font.italic=font.italic();run.font.underline=font.underline()
-                    if fmt.foreground().color().isValid():run.font.color.rgb=RGBColor.from_string(fmt.foreground().color().name()[1:])
-                it+=1
-            block=block.next()
-    editor.change(apply_text)
+    from slide_text import document_to_frame
+    editor.change(lambda:document_to_frame(shape,text.document()))
 
 
 def slide_layout(editor,layout_index=None):
@@ -330,8 +317,17 @@ def sync_connectors(editor):
 
 
 def setup(editor):
+    from slide_animation import animation_pane
+    from slide_text import paragraph_dialog
+    from slide_design import theme_dialog,master_dialog,inherit_background
     editor.slide_page.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
     commands=[
+        ('Design','Masters and layouts',lambda:master_dialog(editor),None),
+        ('Design','Theme colors and fonts',lambda:theme_dialog(editor),None),
+        ('Design','Use master background',lambda:inherit_background(editor),None),
+        ('Design','Paragraph and text frame',lambda:paragraph_dialog(editor),None),
+        ('Animations','Animation pane',lambda:animation_pane(editor),None),
+        ('Animations','Preview animations',lambda:editor.present(editor.index),None),
         ('File','Export slide images',lambda:export_images(editor),None),
         ('Insert','Connector',lambda:insert_connector(editor),None),('Insert','Hyperlink',lambda:set_hyperlink(editor),'Ctrl+K'),
         ('Slide','Presenter view',lambda:presenter_view(editor),None),

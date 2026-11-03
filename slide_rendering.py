@@ -180,7 +180,9 @@ def text_html(shape,theme,element=None):
         align={'ctr':'center','r':'right','just':'justify'}.get(ppr.get('algn') if ppr is not None else '', 'left')
         margin=max(0,number(ppr,'marL')/EMU)
         before=number(child(child(ppr,'spcBef'),'spcPts'),'val')/100;after=number(child(child(ppr,'spcAft'),'spcPts'),'val')/100
-        blocks.append(f'<p style="margin:{before}px 0 {after}px {margin}px;text-align:{align};">'+(''.join(pieces) or '<br>')+'</p>')
+        spacing=child(ppr,'lnSpc');percent=child(spacing,'spcPct');points=child(spacing,'spcPts')
+        line=f'line-height:{number(percent,"val")/1000}%;' if percent is not None else f'line-height:{number(points,"val")/100}px;' if points is not None else ''
+        blocks.append(f'<p style="margin:{before}px 0 {after}px {margin}px;text-align:{align};{line}">'+(''.join(pieces) or '<br>')+'</p>')
     return ''.join(blocks)
 
 
@@ -199,7 +201,39 @@ def paint_text(painter,shape,theme,rect,element=None):
     left=number(properties,'lIns',91440)/EMU;right=number(properties,'rIns',91440)/EMU
     top=number(properties,'tIns',45720)/EMU;bottom=number(properties,'bIns',45720)/EMU
     content=rect.adjusted(left,top,-right,-bottom)
-    doc=QTextDocument();doc.setDocumentMargin(0);doc.setHtml(text_html(shape,theme,element));doc.setTextWidth(max(1,content.width()))
+    from PySide6.QtCore import QSizeF
+    from PySide6.QtGui import QTextCursor,QTextOption
+    import re
+    columns=max(1,min(8,int(number(properties,'numCol',1))));gap=max(0,number(properties,'spcCol')/EMU);column_width=max(1,(content.width()-gap*(columns-1))/columns)
+    doc=QTextDocument();doc.setDocumentMargin(0);markup=text_html(shape,theme,element);doc.setHtml(markup);doc.setTextWidth(column_width)
+    option=doc.defaultTextOption()
+    if properties is not None and properties.get('wrap')=='none':option.setWrapMode(QTextOption.NoWrap)
+    doc.setDefaultTextOption(option)
+    fit=child(properties,'normAutofit')
+    if fit is not None and fit.get('fontScale') is None and content.height()>0 and doc.size().height()>content.height()*columns:
+        low,high=.05,1.
+        for _ in range(8):
+            scale=(low+high)/2;doc.setHtml(re.sub(r'font-size:([\d.]+)px',lambda match:'font-size:'+str(float(match.group(1))*scale)+'px',markup));doc.setTextWidth(column_width)
+            if doc.size().height()>content.height()*columns:high=scale
+            else:low=scale
+        doc.setHtml(re.sub(r'font-size:([\d.]+)px',lambda match:'font-size:'+str(float(match.group(1))*low)+'px',markup));doc.setTextWidth(column_width)
+    block=doc.begin()
+    for paragraph in body.findall('{'+A+'}p'):
+        if not block.isValid():break
+        ppr=child(paragraph,'pPr');tabs=child(ppr,'tabLst')
+        if tabs is not None:
+            fmt=block.blockFormat();positions=[]
+            for node in tabs:
+                tab=QTextOption.Tab();tab.position=number(node,'pos')/EMU;tab.type=QTextOption.LeftTab;positions.append(tab)
+            fmt.setTabPositions(positions);cursor=QTextCursor(block);cursor.setBlockFormat(fmt)
+        block=block.next()
+    if columns>1:
+        if content.height()<=0:return
+        doc.setPageSize(QSizeF(column_width,content.height()))
+        for column in range(columns):
+            target=QRectF(content.x()+column*(column_width+gap),content.y(),column_width,content.height())
+            painter.save();painter.setClipRect(target);painter.translate(target.x(),target.y()-column*content.height());doc.drawContents(painter);painter.restore()
+        return
     free=content.height()-doc.size().height();anchor=properties.get('anchor','t') if properties is not None else 't'
     offset=free/2 if anchor=='ctr' else free if anchor=='b' else 0
     painter.save();painter.translate(content.left(),content.top()+offset);doc.drawContents(painter);painter.restore()
@@ -210,6 +244,12 @@ def properties(element):
 
 
 def geometry_path(props,rect):
+    from preset_geometry import paths
+    resolved=paths(props,rect)
+    if resolved:
+        result=QPainterPath()
+        for path,_,_ in resolved:result.addPath(path)
+        return result
     custom=child(props,'custGeom');result=QPainterPath()
     if custom is None:
         preset=child(props,'prstGeom');kind=preset.get('prst','rect') if preset is not None else 'rect'
@@ -259,7 +299,16 @@ def paint_geometry(painter,element,theme,rect,draw_default=True):
         if dash is not None and dash.get('val')!='solid':pen.setStyle(Qt.DashLine)
     painter.save();painter.setBrush(brush);painter.setPen(pen)
     if draw_default or brush.style()!=Qt.NoBrush or line is not None:
-        path=geometry_path(props,rect);painter.drawPath(path)
+        from preset_geometry import paths
+        resolved=paths(props,rect)
+        if not resolved:resolved=[(geometry_path(props,rect),'norm',True)]
+        path=QPainterPath()
+        for segment,fill_mode,stroke in resolved:
+            painter.setPen(pen if stroke else QPen(Qt.NoPen));current=brush
+            if fill_mode=='none':current=QBrush(Qt.NoBrush)
+            elif brush.style()==Qt.SolidPattern and fill_mode.startswith(('darken','lighten')):
+                color=brush.color();current=QBrush(color.darker(125) if fill_mode.startswith('darken') else color.lighter(125))
+            painter.setBrush(current);painter.drawPath(segment);path.addPath(segment)
         if line is not None and path.elementCount()>=2:
             for key,end in (('headEnd',False),('tailEnd',True)):
                 arrow=child(line,key)

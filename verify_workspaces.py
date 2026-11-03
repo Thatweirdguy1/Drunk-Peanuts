@@ -69,7 +69,7 @@ def run(owner, application, wait, folder, _warnings):
             window.add()
             bridge.command('{"key":"select","value":0}')
             assert window.index==0
-            assert {'Group','Ungroup','Format text','Presenter view','Export slide images'} <= {a['label'] for a in actions}
+            assert {'Group','Ungroup','Format text','Presenter view','Export slide images','Animation pane','Preview animations','Masters and layouts','Theme colors and fonts'} <= {a['label'] for a in actions}
             first=window.insert_text('First step');second=window.insert_text('Second step')
             bridge.command('{"key":"size","value":28}')
             assert second.text_frame.paragraphs[0].font.size.pt==28
@@ -77,6 +77,14 @@ def run(owner, application, wait, folder, _warnings):
             choose_many(window,[first,second]);group_objects(window)
             assert len(selected(window))==1 and len(selected(window)[0].shapes)==2
             window.undo()
+            from slide_animation import Effect,write_timeline
+            from dazzle import SlideShow
+            shape=window.deck.slides[0].shapes[-1]
+            write_timeline(window.deck.slides[0],[Effect(shape.shape_id,'Fade',duration=1)])
+            show=SlideShow(window,0);show.advance();animation=show.timeline_player.running[-1]
+            animation.pause();animation.setCurrentTime(500)
+            assert abs(show.timeline_player.items[shape.shape_id].opacity()-.5)<.01
+            show.close()
         elif tool=='tables':
             window.grid.setCurrentCell(0,0)
             bridge.command(json.dumps(dict(key='formula',value='=2+3')))

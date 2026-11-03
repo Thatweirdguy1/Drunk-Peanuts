@@ -1,3 +1,9 @@
+# 0.32.0 — Dazzle animation and authoring update
+
+Animation pane, 25 effect types, native PPTX timing export, simultaneous playback, easing, triggers and motion paths; Fade/Push/Wipe/object Morph transitions; inline text, paragraph/frame controls, preset geometry, table grid editing and master/theme properties. DeckCraft and Apache POI notices are bundled.
+
+This is an incremental independent-editor release, not full PowerPoint parity. See docs/DAZZLE_032.md for exact support and remaining work.
+
 ## Drunk Peanuts 0.31.2
 
 Dazzle expands as an independent local presentation editor. Office is not required. File, Home, Text, Insert, Design, Arrange and Present tabs connect to the native PPTX model.

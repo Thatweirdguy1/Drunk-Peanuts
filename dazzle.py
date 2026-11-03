@@ -63,51 +63,43 @@ def movie_blob(shape):
     return shape.part.related_part(refs[0].get('{'+NS['r']+'}link')).blob if refs else None
 
 def effects(slide):
+    from slide_animation import own_effects
     result={}
     for element in slide._element.findall('.//{'+FC+'}fade'):
         try:
             shape_id=int(element.get('shape'));duration=float(element.get('seconds'))
             if shape_id>0 and math.isfinite(duration) and .1<=duration<=10:result[shape_id]=duration
         except (TypeError,ValueError):continue
+    result.update({entry.shape:entry.duration for entry in own_effects(slide) if entry.effect=='Fade' and entry.phase=='Entrance'})
     return result
 
-def set_effect(slide, shape_id, seconds):
-    previous=effects(slide);current=dict(previous)
-    if seconds:current[shape_id]=seconds
-    else:current.pop(shape_id,None)
-    template=etree.fromstring((Path(__file__).resolve().parent/'assets/animation-fade.xml').read_bytes())
-    timing=slide._element.find('p:timing',NS)
-    extlst=slide._element.find('p:extLst',NS)
-    if extlst is None:extlst=OxmlElement('p:extLst');slide._element.append(extlst)
-    if timing is None:
-        timing=copy.deepcopy(template)
-        timing.find('.//p:cTn[@nodeType="mainSeq"]/p:childTnLst',NS).clear();timing.find('p:bldLst',NS).clear()
-        slide._element.insert(list(slide._element).index(extlst),timing)
-    seq=timing.find('.//p:cTn[@nodeType="mainSeq"]/p:childTnLst',NS)
-    if seq is None:
-        root=timing.find('.//p:cTn[@nodeType="tmRoot"]/p:childTnLst',NS)
-        if root is None:raise ValueError('This imported animation tree cannot be edited safely.')
-        sequence=copy.deepcopy(template.find('.//p:seq',NS));sequence.find('p:cTn/p:childTnLst',NS).clear();sequence.find('p:cTn',NS).set('id',str(max((int(n.get('id')) for n in timing.findall('.//p:cTn',NS) if n.get('id','').isdigit()),default=1)+1));root.append(sequence);seq=sequence.find('p:cTn/p:childTnLst',NS)
-    for group in list(seq):
-        targets={int(n.get('spid')) for n in group.findall('.//p:spTgt',NS) if n.get('spid','').isdigit()}
-        if targets and targets.issubset(previous):seq.remove(group)
-    build=timing.find('p:bldLst',NS)
-    if build is None:build=OxmlElement('p:bldLst');timing.append(build)
-    for node in list(build):
-        if node.get('spid','').isdigit() and int(node.get('spid')) in previous:build.remove(node)
-    for element in list(extlst):
-        if element.get('uri')==FC:extlst.remove(element)
-    extension=OxmlElement('p:ext');extension.set('uri',FC);extlst.append(extension)
-    group=template.find('.//p:cTn[@nodeType="mainSeq"]/p:childTnLst',NS)[0]
-    identifier=max((int(n.get('id')) for n in timing.findall('.//p:cTn',NS) if n.get('id','').isdigit()),default=2)+1
-    for sid,duration in current.items():
-        clone=copy.deepcopy(group)
-        for node in clone.findall('.//p:cTn',NS):node.set('id',str(identifier));identifier+=1
-        for node in clone.findall('.//p:spTgt',NS):node.set('spid',str(sid))
-        for node in clone.findall('.//p:animEffect/p:cBhvr/p:cTn',NS):node.set('dur',str(round(duration*1000)))
-        seq.append(clone);node=OxmlElement('p:bldP');node.set('spid',str(sid));node.set('grpId','0');build.append(node)
-        node=etree.SubElement(extension,'{'+FC+'}fade');node.set('shape',str(sid));node.set('seconds',str(duration))
-    # Native movie timing remains in the original root alongside the main sequence.
+
+def set_effect(slide,shape_id,seconds):
+    from slide_animation import Effect,own_effects,write_timeline
+    if seconds is not None and (not math.isfinite(seconds) or not .1<=seconds<=10):raise ValueError('Animation duration must be 0.1–10 seconds.')
+    entries=own_effects(slide);legacy={}
+    for node in slide._element.findall('.//{'+FC+'}fade'):
+        try:legacy[int(node.get('shape'))]=float(node.get('seconds'))
+        except (ValueError,TypeError):continue
+    if legacy:
+        # Migrate only the old app-owned fade groups; imported timing stays untouched.
+        for seq in slide._element.findall('.//p:cTn[@nodeType="mainSeq"]/p:childTnLst',NS):
+            for group in list(seq):
+                targets={int(n.get('spid')) for n in group.findall('.//p:spTgt',NS) if n.get('spid','').isdigit()}
+                if targets and targets.issubset(legacy):seq.remove(group)
+        for build in slide._element.findall('p:timing/p:bldLst',NS):
+            for node in list(build):
+                if node.get('spid','').isdigit() and int(node.get('spid')) in legacy:build.remove(node)
+            if not len(build):build.getparent().remove(build)
+        extlst=slide._element.find('p:extLst',NS)
+        if extlst is not None:
+            for node in list(extlst):
+                if node.get('uri')==FC:extlst.remove(node)
+        entries.extend(Effect(sid,duration=value) for sid,value in legacy.items() if sid!=shape_id and math.isfinite(value) and .1<=value<=10)
+    entries=[entry for entry in entries if entry.shape!=shape_id]
+    if seconds is not None:entries.append(Effect(shape_id,duration=seconds))
+    write_timeline(slide,entries)
+
 
 def native_chart_data(kind,data):
     validate_chart(data,kind)
@@ -157,6 +149,16 @@ class SlideObject(QGraphicsObject):
     def boundingRect(self):
         w,h=self.preview_size or (self.native_shape.width/EMU,self.native_shape.height/EMU)
         return QRectF(0,0,max(1,w),max(1,h))
+    def shape(self):
+        from PySide6.QtGui import QPainterPath
+        rect=self.boundingRect();amount,direction=getattr(self,'reveal',(1,'Left'))
+        clip=getattr(self,'animation_clip',None)
+        if clip is not None:rect=QRectF(rect.x()+rect.width()*clip[0],rect.y()+rect.height()*clip[1],rect.width()*(clip[2]-clip[0]),rect.height()*(clip[3]-clip[1]))
+        if direction=='Left':rect.setWidth(rect.width()*amount)
+        elif direction=='Right':rect.setLeft(rect.right()-rect.width()*amount)
+        elif direction=='Up':rect.setHeight(rect.height()*amount)
+        else:rect.setTop(rect.bottom()-rect.height()*amount)
+        path=QPainterPath();path.addRect(rect);return path
     def paint(self,painter,option,widget=None):
         rect=self.boundingRect();shape=self.native_shape;painter.setRenderHint(QPainter.Antialiasing)
         if self.image is not None and not self.image.isNull():painter.drawImage(rect,self.image,QRectF(self.image.rect()).adjusted(self.image.width()*float(getattr(shape,"crop_left",0)),self.image.height()*float(getattr(shape,"crop_top",0)),-self.image.width()*float(getattr(shape,"crop_right",0)),-self.image.height()*float(getattr(shape,"crop_bottom",0))))
@@ -179,7 +181,7 @@ class SlideObject(QGraphicsObject):
                 y+=rh
         elif shape.shape_type!=MSO_SHAPE_TYPE.GROUP:
             paint_geometry(painter,shape._element,self.theme,rect,shape.shape_type!=MSO_SHAPE_TYPE.TEXT_BOX)
-        if shape.has_text_frame:paint_text(painter,shape,self.theme,rect)
+        if shape.has_text_frame and getattr(self,'inline_editor',None) is None:paint_text(painter,shape,self.theme,rect)
         if self.isSelected():
             pen=QPen(QColor('#9457ff'),1.5,Qt.DashLine);pen.setCosmetic(True)
             painter.setPen(pen);painter.setBrush(Qt.NoBrush);painter.drawRect(rect.adjusted(.5,.5,-.5,-.5));painter.fillRect(QRectF(rect.right()-8,rect.bottom()-8,8,8),QColor('#9457ff'))
@@ -203,6 +205,10 @@ class SlideObject(QGraphicsObject):
             self.owner.change(lambda:[(setattr(shape,"left",Pt(pos.x())),setattr(shape,"top",Pt(pos.y()))) for shape,pos in moved])
     def mouseDoubleClickEvent(self,event):
         if self.native_shape.shape_type==MSO_SHAPE_TYPE.MEDIA:self.owner.play_video(self.native_shape)
+        elif self.interactive and self.native_shape.has_text_frame:
+            from slide_text import InlineText
+            self.owner.choose(self.native_shape)
+            if getattr(self,'inline_editor',None) is None:InlineText(self)
         elif self.interactive:self.owner.edit_object(self.native_shape)
         else:super().mouseDoubleClickEvent(event)
 
@@ -227,23 +233,42 @@ class SlideView(QGraphicsView):
 
 class SlideShow(QGraphicsView):
     def __init__(self,owner,start=None):
-        super().__init__();self.owner=owner;self.index=max(0,owner.index if start is None else start);self.setWindowTitle('Dazzle · Slideshow');self.setStyleSheet('background:black;border:none');self.animations=[];self.pending=[];self.blackout=False;self.show_slide();self.showFullScreen()
+        super().__init__();self.owner=owner;self.index=max(0,owner.index if start is None else start);self.setWindowTitle('Dazzle · Slideshow');self.setStyleSheet('background:black;border:none');self.animations=[];self.pending=[];self.blackout=False;self.transition=None;self.shown_index=None;self.advance_remaining=0;self.advance_timer=QTimer(self);self.advance_timer.setSingleShot(True);self.advance_timer.timeout.connect(self.next_slide);self.show_slide();self.showFullScreen()
     def show_slide(self):
+        from slide_transitions import snapshot,settings,Transition
+        self.advance_timer.stop()
+        if self.transition is not None:self.transition.animation.stop();self.transition.deleteLater();self.transition=None
+        previous=snapshot(self.scene()) if self.scene() is not None else None
+        previous_slide=self.owner.deck.slides[self.shown_index] if self.shown_index is not None else None
+        if hasattr(self,'timeline_player'):self.timeline_player.stop();self.timeline_player.deleteLater()
         for animation in self.animations:animation.stop()
         old=self.scene();self.animations=[];scene=self.owner.make_scene(self.index,False);self.setScene(scene);self.pending=[]
         if old:old.deleteLater()
-        for item in reversed(scene.items()):
-            seconds=effects(self.owner.deck.slides[self.index]).get(item.native_shape.shape_id) if item.native_shape.part is self.owner.deck.slides[self.index].part else None
-            if seconds:item.setOpacity(0);self.pending.append((item,seconds))
+        from slide_animation import TimelinePlayer
+        self.timeline_player=TimelinePlayer(self,self.owner.deck.slides[self.index],False);self.pending=self.timeline_player.pending
         self.fitInView(scene.sceneRect(),Qt.KeepAspectRatio)
-        if self.owner.deck.slides[self.index]._element.find('p:transition/p:fade',NS) is not None:
-            for item in scene.items():
-                if item.opacity()>0:
-                    item.setOpacity(0);animation=QVariantAnimation(self);animation.setDuration(450);animation.setStartValue(0.0);animation.setEndValue(1.0);animation.valueChanged.connect(item.setOpacity);self.animations.append(animation);animation.start()
+        config=settings(self.owner.deck.slides[self.index]);self.shown_index=self.index
+        def ready():
+            self.timeline_player.start_auto()
+            if config['advance']:self.advance_timer.start(round(config['advance']*1000))
+        if config['kind']!='None':self.transition=Transition(self,previous,previous_slide,config,ready)
+        else:ready()
+    def drawForeground(self,painter,rect):
+        if not self.blackout and self.transition is not None:self.transition.paint(painter,self.sceneRect())
     def keyPressEvent(self,event):
         if event.key()==Qt.Key_Escape:self.close()
         elif event.key() in (Qt.Key_B,Qt.Key_Period):
             self.blackout=not self.blackout
+            if self.blackout:
+                self.advance_remaining=max(0,self.advance_timer.remainingTime());self.advance_timer.stop()
+                for group in self.timeline_player.running:
+                    if group.state()==group.State.Running:group.pause()
+                if self.transition is not None and self.transition.active:self.transition.animation.pause()
+            else:
+                if self.advance_remaining:self.advance_timer.start(self.advance_remaining)
+                for group in self.timeline_player.running:
+                    if group.state()==group.State.Paused:group.resume()
+                if self.transition is not None and self.transition.active:self.transition.animation.resume()
             for item in self.scene().items():item.setVisible(not self.blackout)
             slide=self.owner.deck.slides[self.index]
             self.scene().setBackgroundBrush(QColor('black') if self.blackout else background_brush(slide,SlideTheme(slide),self.scene().sceneRect()))
@@ -257,6 +282,7 @@ class SlideShow(QGraphicsView):
     def mousePressEvent(self,event):
         if self.blackout:return
         item=self.itemAt(event.pos())
+        if item is not None and hasattr(item,'native_shape') and self.timeline_player.trigger(item.native_shape.shape_id):return
         if item is not None and hasattr(item,'native_shape') and item.native_shape.shape_type==MSO_SHAPE_TYPE.MEDIA:self.owner.play_video(item.native_shape);return
         if item is not None and hasattr(item,'native_shape'):
             from slide_rendering import R,A
@@ -272,15 +298,21 @@ class SlideShow(QGraphicsView):
                         QDesktopServices.openUrl(QUrl(address));return
         if event.button()==Qt.LeftButton:self.advance()
     def advance(self):
-        if self.pending:
-            item,seconds=self.pending.pop(0);animation=QVariantAnimation(self);animation.setDuration(round(seconds*1000));animation.setStartValue(0.0);animation.setEndValue(1.0);animation.valueChanged.connect(item.setOpacity);self.animations.append(animation);animation.start()
-        elif any(self.owner.deck.slides[i]._element.get('show')!='0' for i in range(self.index+1,len(self.owner.deck.slides))):
+        if self.transition is not None and self.transition.active:self.transition.animation.setCurrentTime(self.transition.animation.totalDuration());return
+        if self.timeline_player.advance():return
+        self.next_slide()
+    def next_slide(self):
+        if self.blackout:return
+        if any(self.owner.deck.slides[i]._element.get('show')!='0' for i in range(self.index+1,len(self.owner.deck.slides))):
             self.index=next(i for i in range(self.index+1,len(self.owner.deck.slides)) if self.owner.deck.slides[i]._element.get('show')!='0');self.show_slide()
         else:self.close()
     def resizeEvent(self,event):
         super().resizeEvent(event)
         if self.scene():self.fitInView(self.sceneRect(),Qt.KeepAspectRatio)
     def closeEvent(self,event):
+        self.advance_timer.stop()
+        if self.transition is not None:self.transition.animation.stop()
+        if hasattr(self,'timeline_player'):self.timeline_player.stop()
         for animation in self.animations:animation.stop()
         scene=self.scene();self.setScene(None)
         if scene:scene.deleteLater()
@@ -522,12 +554,16 @@ class Dazzle(Workspace):
         shape=self.change(add);self.choose(shape);return shape
     def insert_shape(self,kind='Rectangle'):
         kinds={'Rectangle':MSO_SHAPE.RECTANGLE,'Rounded rectangle':MSO_SHAPE.ROUNDED_RECTANGLE,'Ellipse':MSO_SHAPE.OVAL,'Triangle':MSO_SHAPE.ISOSCELES_TRIANGLE,'Arrow':MSO_SHAPE.RIGHT_ARROW,'Star':MSO_SHAPE.STAR_5_POINT}
+        from preset_geometry import presets
+        kinds.update({name.replace('_',' ').title():value for name,value in MSO_SHAPE.__members__.items() if value.xml_value in presets()})
         if kind not in kinds:raise ValueError('Unsupported shape')
         def add():
             s=self.deck.slides[self.index].shapes.add_shape(kinds[kind],Pt(140),Pt(160),Pt(240),Pt(140));s.fill.solid();s.fill.fore_color.rgb=RGBColor.from_string('FFDD22');return s
         shape=self.change(add);self.choose(shape);return shape
     def ask_shape(self):
-        kind,ok=QInputDialog.getItem(self,'Insert shape','Shape',['Rectangle','Rounded rectangle','Ellipse','Triangle','Arrow','Star'],0,False)
+        from preset_geometry import presets
+        names=sorted({name.replace('_',' ').title() for name,value in MSO_SHAPE.__members__.items() if value.xml_value in presets()})
+        kind,ok=QInputDialog.getItem(self,'Insert shape','Search or choose a shape',names,0,True)
         if ok:self.insert_shape(kind)
     def insert_image(self,path=None):
         if not path:
@@ -575,12 +611,8 @@ class Dazzle(Workspace):
             value,ok=QInputDialog.getMultiLineText(self,'Edit diagram node','Text (existing layout retained)',labels[index])
             if ok:self.change(lambda:replace_diagram_node(shape,index,value))
         elif shape.has_table:
-            row,ok=QInputDialog.getInt(self,'Edit table cell','Row',1,1,len(shape.table.rows))
-            if not ok:return
-            col,ok=QInputDialog.getInt(self,'Edit table cell','Column',1,1,len(shape.table.columns))
-            if not ok:return
-            value,ok=QInputDialog.getMultiLineText(self,'Edit cell','Text',shape.table.cell(row-1,col-1).text)
-            if ok:self.change(lambda:setattr(shape.table.cell(row-1,col-1),'text',value))
+            from slide_tables import table_dialog
+            table_dialog(self,shape)
         elif shape.has_chart:
             data=chart_info(shape)
             if data:
@@ -632,17 +664,11 @@ class Dazzle(Workspace):
             fill=self.deck.slides[self.index].background.fill;fill.solid();fill.fore_color.rgb=RGBColor.from_string(color[1:])
         self.change(apply)
     def choose_transition(self):
-        value,ok=QInputDialog.getItem(self,'Slide transition','Effect',['None','Fade'],0,False)
-        if ok:self.set_transition(value)
+        from slide_transitions import dialog
+        dialog(self)
     def set_transition(self,value):
-        if value not in ('None','Fade'):raise ValueError('Choose None or Fade.')
-        def apply():
-            slide=self.deck.slides[self.index]._element
-            for old in list(slide):
-                if etree.QName(old).localname=='transition':slide.remove(old)
-            if value=='Fade':
-                node=OxmlElement('p:transition');node.set('spd','med');node.set('advClick','1');node.append(OxmlElement('p:fade'));index=next((i for i,n in enumerate(slide) if etree.QName(n).localname in {'timing','extLst'}),len(slide));slide.insert(index,node)
-        self.change(apply)
+        from slide_transitions import write
+        self.change(lambda:write(self.deck.slides[self.index],value))
     def background_image(self,path=None):
         if path is None:
             name,_=QFileDialog.getOpenFileName(self,'Slide background image','','Images (*.png *.jpg *.jpeg *.webp)');path=Path(name) if name else None
