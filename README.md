@@ -12,9 +12,9 @@ The Stitch-inspired React interface spans **Pages, Tables, Dazzle, Organize, Ske
 
 **Dazzle 0.33 expands independent presentation editing:** imported animation timing, shaped reveals and indefinite repeats; freeform/boolean shape tools; merged-table structure editing; eleven chart types and chart options; local comments, alternative text and reading-order checks; notes/handout printing; templates/slideshows and optional LibreOffice format conversion; synchronized presenter/audience windows with custom sequences, timed playback and temporary ink.
 
-![Dazzle drawing and authoring controls with a synthetic deck](docs/dazzle-authoring-033.png)
+![Installed Dazzle 0.33 drawing and authoring controls with a synthetic deck](docs/dazzle-authoring-033.png)
 
-![Dazzle presenter controls and speaker notes](docs/dazzle-presenter-033.png)
+![Installed Dazzle 0.33 presenter controls and speaker notes](docs/dazzle-presenter-033.png)
 
 See the [0.33 capabilities, interoperability checks and remaining work](docs/DAZZLE_033.md). **This is not complete PowerPoint parity.**
 

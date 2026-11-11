@@ -28,7 +28,8 @@ Presenter shortcuts: **P** toggles ink, **E** clears it, **B** toggles blackout 
 - PowerPoint opened the synthetic custom geometry, merged table, local comment and custom show in PPTX, POTX and PPSX packages.
 - PowerPoint recognized all eleven chart types, including a two-plot combination; scatter labels were recognized. LibreOffice rendered the eleven-slide chart deck to an eleven-page PDF and completed an ODP round trip.
 - Regression checks cover native XML preservation, ordering, masks, indefinite playback, triggers, geometry/undo, merged-table edits, chart options/type changes, comment and format round trips, notes/handout PDFs, presenter navigation, kiosk order and snapshot isolation. The React/native suite checks action bindings and responsive layouts.
-- Native Windows UI checks exercised freeform drawing/undo, imported circular playback and live ink. This laptop exposes one monitor; physical dual-monitor operation remains unverified.
+- All 115 Python tests and the React build passed; Windows, macOS Intel and Apple Silicon packaged checks passed in [release run 43089576763](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/runs/43089576763).
+- Installed Windows 0.33.0 passed dashboard, Office/media/playlist, native conversion and multilingual OCR checks. Native UI verification confirmed imported circular playback, synchronized audience navigation and the on-screen windowed audience title bar. Earlier source checks exercised freeform drawing/undo and live ink. Screenshots show the installed app with synthetic content. This laptop exposes one monitor; physical dual-monitor operation remains unverified.
 
 The user's original presentation and private reference images remain local and unmodified. Screenshots use synthetic content. Recognizing a native object or opening a package does not prove identical appearance in every engine.
 
