@@ -100,6 +100,7 @@ class PresentingBatchTest(unittest.TestCase):
         buttons={button.text():button for button in dialog.findChildren(QPushButton)};buttons['Start audience'].click()
         audience=next(window for window in self.app.topLevelWidgets() if isinstance(window,SlideShow) and window.isVisible())
         self.assertIsNone(audience.windowHandle().transientParent())
+        self.assertTrue(audience.screen().availableGeometry().contains(audience.frameGeometry()))
         position=audience.position;buttons['Next / build'].click();self.assertEqual(audience.position,position+1)
         self.assertEqual(dialog.findChild(QTextEdit).toPlainText(),audience.deck.slides[audience.index].notes_slide.notes_text_frame.text or 'No speaker notes.')
         dialog.close();self.assertFalse(audience.isVisible());editor.dirty=False;editor.close()

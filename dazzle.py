@@ -258,9 +258,13 @@ class SlideShow(QGraphicsView):
         self.position=self.order.index(self.index) if self.index in self.order else 0;self.index=self.order[self.position];self.loop=loop;self.kiosk=kiosk;self.hold=hold;self.ink=[];self.ink_active=False;self.current_ink=None
         self.setWindowFlags(Qt.Window|Qt.WindowTitleHint|Qt.WindowSystemMenuHint|Qt.WindowMinMaxButtonsHint|Qt.WindowCloseButtonHint)
         self.setWindowTitle('Dazzle · Slideshow');self.setStyleSheet('background:black;border:none');self.animations=[];self.pending=[];self.blackout=False;self.transition=None;self.shown_index=None;self.advance_remaining=0;self.advance_timer=QTimer(self);self.advance_timer.setSingleShot(True);self.advance_timer.timeout.connect(self.next_slide);self.show_slide();self.winId();self.windowHandle().setTransientParent(None)
-        if screen is not None:self.windowHandle().setScreen(screen);self.setGeometry(screen.geometry())
-        if fullscreen:self.showFullScreen()
-        else:self.resize(960,600);self.show()
+        if screen is not None:self.windowHandle().setScreen(screen)
+        if fullscreen:
+            if screen is not None:self.setGeometry(screen.geometry())
+            self.showFullScreen()
+        else:
+            available=self.screen().availableGeometry();self.resize(min(960,max(320,available.width()-80)),min(600,max(240,available.height()-100)))
+            self.move(available.x()+40,available.y()+40);self.show()
     def show_slide(self):
         from slide_transitions import snapshot,settings,Transition
         self.advance_timer.stop()
