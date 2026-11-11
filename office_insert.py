@@ -9,7 +9,7 @@ from PySide6.QtCore import QByteArray, QBuffer, QIODevice, Qt, QRectF
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QFont
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QComboBox, QPlainTextEdit, QLabel, QMessageBox
 
-CHART_TYPES = ('Column', 'Bar', 'Line', 'Pie', 'Scatter')
+CHART_TYPES = ('Column', 'Bar', 'Line', 'Pie', 'Scatter', 'Stacked column', 'Stacked bar', 'Area', 'Stacked area', 'Doughnut', 'Column + line')
 COLORS = ('#ffdd22', '#7dc4c0', '#f59b65', '#a69ee8', '#eeeeee')
 
 def chart_data(text):
@@ -57,13 +57,17 @@ def validate_chart(data, kind):
     for series in data['series']:
         if len(series['values']) != len(data['categories']) or not all(math.isfinite(float(v)) for v in series['values']):
             raise ValueError('Series must have one finite value per category.')
-    if kind=='Pie' and (len(data['series'])!=1 or any(v<0 for v in data['series'][0]['values']) or sum(data['series'][0]['values'])<=0):
-        raise ValueError('Pie charts need one series of nonnegative values with a positive total.')
+    if kind in ('Pie','Doughnut') and (len(data['series'])!=1 or any(v<0 for v in data['series'][0]['values']) or sum(data['series'][0]['values'])<=0):
+        raise ValueError('Pie and doughnut charts need one series of nonnegative values with a positive total.')
+    if kind=='Column + line' and len(data['series'])<2:raise ValueError('A column + line chart needs at least two series.')
     if kind=='Scatter' and not all(math.isfinite(float(v)) for v in data['categories']):
         raise ValueError('Scatter chart categories must be numeric X values.')
 
-def chart_png(data, kind='Column', width=900, height=500):
+def chart_png(data, kind='Column', width=900, height=500,options=None):
     validate_chart(data,kind)
+    if options is not None or kind not in ('Column','Bar','Line','Pie','Scatter'):
+        from slide_charts import preview
+        return preview(data,kind,width,height,options)
     image=QImage(width,height,QImage.Format_ARGB32);image.fill(QColor('#ffffff'))
     painter=QPainter(image);painter.setRenderHint(QPainter.Antialiasing);painter.setFont(QFont('Arial',12))
     left,top,right,bottom=65,45,width-25,height-70

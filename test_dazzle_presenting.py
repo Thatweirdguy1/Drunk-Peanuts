@@ -77,6 +77,32 @@ class PresentingBatchTest(unittest.TestCase):
         QTest.keyClick(show,Qt.Key_B);self.assertFalse(show.blackout)
         QTest.keyClick(show,Qt.Key_Home);self.assertEqual(show.index,0)
         QTest.keyClick(show,Qt.Key_Escape);self.assertFalse(show.isVisible())
+    def test_synchronized_custom_order_snapshot_kiosk_and_ink(self):
+        import io
+        from slide_presenter import set_custom_show,custom_shows,presenter_view
+        from PySide6.QtGui import QPainterPath
+        from PySide6.QtCore import QPointF
+        editor=Dazzle();editor.add();editor.add();editor.select(0)
+        set_custom_show(editor.deck,'Short version',[2,0,2]);saved=Presentation(io.BytesIO(editor._bytes()))
+        self.assertEqual(custom_shows(saved)['Short version'],[2,0,2])
+        show=SlideShow(editor,2,order=[2,0,2],loop=True,kiosk=True,hold=2,fullscreen=False)
+        self.assertTrue(show.advance_timer.isActive());show.next_slide();self.assertEqual(show.index,0);show.previous();self.assertEqual(show.index,2)
+        show.toggle_blackout();show.next_slide();self.assertEqual(show.index,2);show.toggle_blackout()
+        path=QPainterPath(QPointF(10,10));path.lineTo(100,100);show.ink.append(path);self.assertEqual(len(show.ink),1)
+        show.next_slide();self.assertFalse(show.ink)
+        count=len(show.deck.slides);editor.add();self.assertEqual(len(show.deck.slides),count)
+        show.next_slide();show.next_slide();self.assertEqual(show.position,0)
+        show.close()
+        editor.select(0);dialog=presenter_view(editor);self.assertTrue(dialog.isVisible())
+        from PySide6.QtWidgets import QPushButton,QCheckBox,QTextEdit
+        for field in dialog.findChildren(QCheckBox):
+            if field.text()=='Full screen audience':field.setChecked(False)
+        buttons={button.text():button for button in dialog.findChildren(QPushButton)};buttons['Start audience'].click()
+        audience=next(window for window in self.app.topLevelWidgets() if isinstance(window,SlideShow) and window.isVisible())
+        self.assertIsNone(audience.windowHandle().transientParent())
+        position=audience.position;buttons['Next / build'].click();self.assertEqual(audience.position,position+1)
+        self.assertEqual(dialog.findChild(QTextEdit).toPlainText(),audience.deck.slides[audience.index].notes_slide.notes_text_frame.text or 'No speaker notes.')
+        dialog.close();self.assertFalse(audience.isVisible());editor.dirty=False;editor.close()
 
 
 if __name__=='__main__':unittest.main()

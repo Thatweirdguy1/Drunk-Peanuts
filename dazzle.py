@@ -18,8 +18,8 @@ from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
 from pptx.enum.chart import XL_CHART_TYPE
 from pptx.chart.data import CategoryChartData, XyChartData
 from pptx.oxml.xmlchemy import OxmlElement
-from PySide6.QtCore import Qt, QRectF, QSignalBlocker, QVariantAnimation, QTimer
-from PySide6.QtGui import QColor, QFontDatabase, QImage, QPainter, QPen, QAction
+from PySide6.QtCore import Qt, QRectF, QSignalBlocker, QVariantAnimation, QTimer,Signal
+from PySide6.QtGui import QColor, QFontDatabase, QImage, QPainter, QPen, QAction,QPainterPath
 from PySide6.QtWidgets import (QApplication, QGraphicsObject, QGraphicsScene, QGraphicsView, QDockWidget,
  QWidget, QVBoxLayout, QFormLayout, QDoubleSpinBox, QComboBox, QToolBar, QTextEdit, QPushButton,
  QColorDialog, QInputDialog, QFileDialog, QMessageBox, QListWidget, QAbstractItemView)
@@ -37,7 +37,7 @@ EMU=12700
 NEW_SLIDE_COLORS=dict(background='#f5f3eb',title='#202b3d',body='#202b3d')
 NS={'p':'http://schemas.openxmlformats.org/presentationml/2006/main','a':'http://schemas.openxmlformats.org/drawingml/2006/main','r':'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
 FC='urn:freeconvert:slide-animation:1'
-CHARTS={'Column':XL_CHART_TYPE.COLUMN_CLUSTERED,'Bar':XL_CHART_TYPE.BAR_CLUSTERED,'Line':XL_CHART_TYPE.LINE,'Pie':XL_CHART_TYPE.PIE,'Scatter':XL_CHART_TYPE.XY_SCATTER}
+CHARTS={'Column':XL_CHART_TYPE.COLUMN_CLUSTERED,'Bar':XL_CHART_TYPE.BAR_CLUSTERED,'Line':XL_CHART_TYPE.LINE,'Pie':XL_CHART_TYPE.PIE,'Scatter':XL_CHART_TYPE.XY_SCATTER,'Stacked column':XL_CHART_TYPE.COLUMN_STACKED,'Stacked bar':XL_CHART_TYPE.BAR_STACKED,'Area':XL_CHART_TYPE.AREA,'Stacked area':XL_CHART_TYPE.AREA_STACKED,'Doughnut':XL_CHART_TYPE.DOUGHNUT,'Column + line':XL_CHART_TYPE.COLUMN_CLUSTERED}
 
 def rgb(color, fallback='#eeeeee'):
     try:return '#'+str(color.rgb) if color.type==1 else fallback
@@ -115,6 +115,7 @@ def native_chart_data(kind,data):
 
 def chart_info(shape):
     chart=shape.chart;kind=next((name for name,value in CHARTS.items() if chart.chart_type==value),'Column')
+    if len(chart.plots)>1 and chart._chartSpace.find('.//{http://schemas.openxmlformats.org/drawingml/2006/chart}lineChart') is not None:kind='Column + line'
     if kind=='Scatter':categories=[float(n.text) for n in chart.series[0]._element.xpath('.//c:xVal/c:numRef/c:numCache/c:pt/c:v')]
     else:categories=[c.label for c in chart.plots[0].categories]
     if not categories:return None
@@ -143,7 +144,9 @@ class SlideObject(QGraphicsObject):
                 self.image=QImage.fromData(shape.image.blob)
             elif shape.has_chart:
                 data=chart_info(shape)
-                if data:self.image=QImage.fromData(chart_png(data[1],data[0]))
+                if data:
+                    from slide_charts import options
+                    self.image=QImage.fromData(chart_png(data[1],data[0],options=options(shape.chart,self.theme)))
         except (AttributeError,ValueError,KeyError):pass
         if self.image is None:self.image=diagram_image(shape,self.theme)
     def boundingRect(self):
@@ -158,7 +161,18 @@ class SlideObject(QGraphicsObject):
         elif direction=='Right':rect.setLeft(rect.right()-rect.width()*amount)
         elif direction=='Up':rect.setHeight(rect.height()*amount)
         else:rect.setTop(rect.bottom()-rect.height()*amount)
-        path=QPainterPath();path.addRect(rect);return path
+        path=QPainterPath();path.addRect(rect)
+        import math
+        for kind,progress in getattr(self,'animation_masks',[]):
+            mask=QPainterPath();bounds=self.boundingRect();center=bounds.center()
+            if progress<=0:path=mask;break
+            if progress>=1:continue
+            radius=(math.hypot(bounds.width(),bounds.height())/2 if kind=='Circle' else (bounds.width()+bounds.height())/2)*progress
+            if kind=='Circle':mask.addEllipse(center,radius,radius)
+            else:
+                mask.moveTo(center.x(),center.y()-radius);mask.lineTo(center.x()+radius,center.y());mask.lineTo(center.x(),center.y()+radius);mask.lineTo(center.x()-radius,center.y());mask.closeSubpath()
+            path=path.intersected(mask)
+        return path
     def paint(self,painter,option,widget=None):
         rect=self.boundingRect();shape=self.native_shape;painter.setRenderHint(QPainter.Antialiasing)
         if self.image is not None and not self.image.isNull():painter.drawImage(rect,self.image,QRectF(self.image.rect()).adjusted(self.image.width()*float(getattr(shape,"crop_left",0)),self.image.height()*float(getattr(shape,"crop_top",0)),-self.image.width()*float(getattr(shape,"crop_right",0)),-self.image.height()*float(getattr(shape,"crop_bottom",0))))
@@ -202,6 +216,9 @@ class SlideObject(QGraphicsObject):
         super().mouseReleaseEvent(event)
         if self.pos()!=self.before:
             moved=[(item.native_shape,item.pos()) for item in self.scene().selectedItems() if item.interactive]
+            if getattr(self.owner,'snap_guides',False):
+                from slide_shapes import snap_positions
+                moved=snap_positions(self.owner)
             self.owner.change(lambda:[(setattr(shape,"left",Pt(pos.x())),setattr(shape,"top",Pt(pos.y()))) for shape,pos in moved])
     def mouseDoubleClickEvent(self,event):
         if self.native_shape.shape_type==MSO_SHAPE_TYPE.MEDIA:self.owner.play_video(self.native_shape)
@@ -232,55 +249,80 @@ class SlideView(QGraphicsView):
         if self.scene():self.fitInView(self.sceneRect(),Qt.KeepAspectRatio)
 
 class SlideShow(QGraphicsView):
-    def __init__(self,owner,start=None):
-        super().__init__();self.owner=owner;self.index=max(0,owner.index if start is None else start);self.setWindowTitle('Dazzle · Slideshow');self.setStyleSheet('background:black;border:none');self.animations=[];self.pending=[];self.blackout=False;self.transition=None;self.shown_index=None;self.advance_remaining=0;self.advance_timer=QTimer(self);self.advance_timer.setSingleShot(True);self.advance_timer.timeout.connect(self.next_slide);self.show_slide();self.showFullScreen()
+    slide_changed=Signal(int)
+    def __init__(self,owner,start=None,*,order=None,loop=False,kiosk=False,hold=5,screen=None,fullscreen=True):
+        super().__init__();self.owner=owner;self.deck=Presentation(io.BytesIO(owner._bytes()));self.index=max(0,owner.index if start is None else start)
+        self.order=list(order) if order is not None else [i for i,s in enumerate(self.deck.slides) if s._element.get('show')!='0' or i==self.index]
+        if not self.order or any(not isinstance(i,int) or not 0<=i<len(self.deck.slides) for i in self.order):raise ValueError('Choose a nonempty sequence of existing slides.')
+        if not math.isfinite(hold) or not 1<=hold<=3600:raise ValueError('Timed playback must be 1–3600 seconds per slide.')
+        self.position=self.order.index(self.index) if self.index in self.order else 0;self.index=self.order[self.position];self.loop=loop;self.kiosk=kiosk;self.hold=hold;self.ink=[];self.ink_active=False;self.current_ink=None
+        self.setWindowFlags(Qt.Window|Qt.WindowTitleHint|Qt.WindowSystemMenuHint|Qt.WindowMinMaxButtonsHint|Qt.WindowCloseButtonHint)
+        self.setWindowTitle('Dazzle · Slideshow');self.setStyleSheet('background:black;border:none');self.animations=[];self.pending=[];self.blackout=False;self.transition=None;self.shown_index=None;self.advance_remaining=0;self.advance_timer=QTimer(self);self.advance_timer.setSingleShot(True);self.advance_timer.timeout.connect(self.next_slide);self.show_slide();self.winId();self.windowHandle().setTransientParent(None)
+        if screen is not None:self.windowHandle().setScreen(screen);self.setGeometry(screen.geometry())
+        if fullscreen:self.showFullScreen()
+        else:self.resize(960,600);self.show()
     def show_slide(self):
         from slide_transitions import snapshot,settings,Transition
         self.advance_timer.stop()
         if self.transition is not None:self.transition.animation.stop();self.transition.deleteLater();self.transition=None
         previous=snapshot(self.scene()) if self.scene() is not None else None
-        previous_slide=self.owner.deck.slides[self.shown_index] if self.shown_index is not None else None
+        previous_slide=self.deck.slides[self.shown_index] if self.shown_index is not None else None
         if hasattr(self,'timeline_player'):self.timeline_player.stop();self.timeline_player.deleteLater()
         for animation in self.animations:animation.stop()
-        old=self.scene();self.animations=[];scene=self.owner.make_scene(self.index,False);self.setScene(scene);self.pending=[]
+        old=self.scene();self.animations=[];self.ink=[];self.current_ink=None;scene=self.owner.make_scene(self.index,False,self.deck);self.setScene(scene);self.pending=[]
         if old:old.deleteLater()
         from slide_animation import TimelinePlayer
-        self.timeline_player=TimelinePlayer(self,self.owner.deck.slides[self.index],False);self.pending=self.timeline_player.pending
+        self.timeline_player=TimelinePlayer(self,self.deck.slides[self.index],False);self.pending=self.timeline_player.pending
         self.fitInView(scene.sceneRect(),Qt.KeepAspectRatio)
-        config=settings(self.owner.deck.slides[self.index]);self.shown_index=self.index
+        config=settings(self.deck.slides[self.index]);self.shown_index=self.index
         def ready():
             self.timeline_player.start_auto()
-            if config['advance']:self.advance_timer.start(round(config['advance']*1000))
+            if self.kiosk:self.timeline_player.play_all()
+            advance=config['advance'] or (self.hold if self.kiosk else 0)
+            if advance:self.advance_timer.start(round(advance*1000))
         if config['kind']!='None':self.transition=Transition(self,previous,previous_slide,config,ready)
         else:ready()
+        self.slide_changed.emit(self.index)
     def drawForeground(self,painter,rect):
         if not self.blackout and self.transition is not None:self.transition.paint(painter,self.sceneRect())
+        if not self.blackout:
+            painter.save();painter.setPen(QPen(QColor('#e84b64'),3,Qt.SolidLine,Qt.RoundCap,Qt.RoundJoin))
+            for path in self.ink:painter.drawPath(path)
+            painter.restore()
+    def toggle_blackout(self):
+        self.blackout=not self.blackout
+        if self.blackout:
+            self.advance_remaining=max(1,self.advance_timer.remainingTime()) if self.advance_timer.isActive() else 0;self.advance_timer.stop()
+            for group in self.timeline_player.running:
+                if group.state()==group.State.Running:group.pause()
+            if self.transition is not None and self.transition.active:self.transition.animation.pause()
+        else:
+            if self.advance_remaining:self.advance_timer.start(self.advance_remaining)
+            for group in self.timeline_player.running:
+                if group.state()==group.State.Paused:group.resume()
+            if self.transition is not None and self.transition.active:self.transition.animation.resume()
+        for item in self.scene().items():item.setVisible(not self.blackout)
+        slide=self.deck.slides[self.index]
+        self.scene().setBackgroundBrush(QColor('black') if self.blackout else background_brush(slide,SlideTheme(slide),self.scene().sceneRect()))
     def keyPressEvent(self,event):
         if event.key()==Qt.Key_Escape:self.close()
-        elif event.key() in (Qt.Key_B,Qt.Key_Period):
-            self.blackout=not self.blackout
-            if self.blackout:
-                self.advance_remaining=max(0,self.advance_timer.remainingTime());self.advance_timer.stop()
-                for group in self.timeline_player.running:
-                    if group.state()==group.State.Running:group.pause()
-                if self.transition is not None and self.transition.active:self.transition.animation.pause()
-            else:
-                if self.advance_remaining:self.advance_timer.start(self.advance_remaining)
-                for group in self.timeline_player.running:
-                    if group.state()==group.State.Paused:group.resume()
-                if self.transition is not None and self.transition.active:self.transition.animation.resume()
-            for item in self.scene().items():item.setVisible(not self.blackout)
-            slide=self.owner.deck.slides[self.index]
-            self.scene().setBackgroundBrush(QColor('black') if self.blackout else background_brush(slide,SlideTheme(slide),self.scene().sceneRect()))
+        elif event.key() in (Qt.Key_B,Qt.Key_Period):self.toggle_blackout()
         elif self.blackout:return
-        elif event.key()==Qt.Key_Home:self.index=0;self.show_slide()
-        elif event.key()==Qt.Key_End:self.index=len(self.owner.deck.slides)-1;self.show_slide()
+        elif event.key()==Qt.Key_P:self.ink_active=not self.ink_active
+        elif event.key()==Qt.Key_E:self.ink=[];self.viewport().update()
+        elif self.kiosk:return
+        elif event.key()==Qt.Key_Home:self.go(0)
+        elif event.key()==Qt.Key_End:self.go(len(self.order)-1)
         elif event.key() in (Qt.Key_Space,Qt.Key_Right,Qt.Key_PageDown):self.advance()
         elif event.key() in (Qt.Key_Left,Qt.Key_PageUp):
-            self.index=next((i for i in range(self.index-1,-1,-1) if self.owner.deck.slides[i]._element.get('show')!='0'),self.index);self.show_slide()
+            self.previous()
         else:super().keyPressEvent(event)
     def mousePressEvent(self,event):
         if self.blackout:return
+        if self.ink_active and event.button()==Qt.LeftButton:
+            point=self.mapToScene(event.pos())
+            if self.sceneRect().contains(point):self.current_ink=QPainterPath(point);self.ink.append(self.current_ink)
+            return
         item=self.itemAt(event.pos())
         if item is not None and hasattr(item,'native_shape') and self.timeline_player.trigger(item.native_shape.shape_id):return
         if item is not None and hasattr(item,'native_shape') and item.native_shape.shape_type==MSO_SHAPE_TYPE.MEDIA:self.owner.play_video(item.native_shape);return
@@ -296,15 +338,29 @@ class SlideShow(QGraphicsView):
                         from PySide6.QtCore import QUrl
                         from PySide6.QtGui import QDesktopServices
                         QDesktopServices.openUrl(QUrl(address));return
-        if event.button()==Qt.LeftButton:self.advance()
+        if not self.kiosk and event.button()==Qt.LeftButton:self.advance()
+    def mouseMoveEvent(self,event):
+        if self.current_ink is not None and event.buttons() & Qt.LeftButton:
+            point=self.mapToScene(event.pos())
+            if self.sceneRect().contains(point):self.current_ink.lineTo(point);self.viewport().update()
+            return
+        super().mouseMoveEvent(event)
+    def mouseReleaseEvent(self,event):
+        if self.current_ink is not None:self.current_ink=None;return
+        super().mouseReleaseEvent(event)
+    def go(self,position):
+        if self.blackout:return
+        self.position=max(0,min(len(self.order)-1,position));self.index=self.order[self.position];self.show_slide()
+    def previous(self):self.go(self.position-1)
     def advance(self):
+        if self.blackout:return
         if self.transition is not None and self.transition.active:self.transition.animation.setCurrentTime(self.transition.animation.totalDuration());return
         if self.timeline_player.advance():return
         self.next_slide()
     def next_slide(self):
         if self.blackout:return
-        if any(self.owner.deck.slides[i]._element.get('show')!='0' for i in range(self.index+1,len(self.owner.deck.slides))):
-            self.index=next(i for i in range(self.index+1,len(self.owner.deck.slides)) if self.owner.deck.slides[i]._element.get('show')!='0');self.show_slide()
+        if self.position+1<len(self.order):self.go(self.position+1)
+        elif self.loop:self.go(0)
         else:self.close()
     def resizeEvent(self,event):
         super().resizeEvent(event)
@@ -320,6 +376,14 @@ class SlideShow(QGraphicsView):
 
 
 class Dazzle(Workspace):
+    def closeEvent(self,event):
+        super().closeEvent(event)
+        if event.isAccepted():
+            for name in ('presenter_window','show_window'):
+                window=getattr(self,name,None)
+                if window is not None and window.isVisible():window.close()
+            active=getattr(self,'freeform_tool',None)
+            if active is not None:active.stop()
     def __init__(self):
         super().__init__('Dazzle')
         self.ready=True;self.loading=False;self.history=[];self.future=[];self._native_changed=False;self._loaded_path=None;self.players=[];self.imported_pptx=None;self.original_slides=[];self.index=0
@@ -350,7 +414,7 @@ class Dazzle(Workspace):
         if self.path:self.report(lambda:self._write(self.path))
         else:self.save_as()
     def save_as(self):
-        name,_=QFileDialog.getSaveFileName(self,'Save presentation','','PowerPoint (*.pptx);;Dazzle project (*.dazzle)')
+        name,_=QFileDialog.getSaveFileName(self,'Save presentation','','PowerPoint (*.pptx);;PowerPoint template (*.potx);;PowerPoint slideshow (*.ppsx);;OpenDocument — needs LibreOffice (*.odp);;Dazzle project (*.dazzle)')
         if name:self.report(lambda:self._write(Path(name)))
     @staticmethod
     def _read_slide_colors(slide):
@@ -460,9 +524,9 @@ class Dazzle(Workspace):
                 with QSignalBlocker(widget):widget.setPlainText(value);widget.setStyleSheet('color:'+colors[role])
             self.refresh_scene()
         finally:self.loading=False
-    def make_scene(self,index,interactive=True):
-        slide=self.deck.slides[index];theme=SlideTheme(slide)
-        scene=QGraphicsScene(self);scene.setSceneRect(0,0,self.deck.slide_width/EMU,self.deck.slide_height/EMU);scene.setBackgroundBrush(background_brush(slide,theme,scene.sceneRect()))
+    def make_scene(self,index,interactive=True,deck=None):
+        slide=(deck or self.deck).slides[index];theme=SlideTheme(slide)
+        source=deck or self.deck;scene=QGraphicsScene(self);scene.setSceneRect(0,0,source.slide_width/EMU,source.slide_height/EMU);scene.setBackgroundBrush(background_brush(slide,theme,scene.sceneRect()))
         from pptx.shapes.shapetree import SlideShapeFactory
         layers=[(s,False) for s in inherited_shapes(slide)]+[(s,interactive) for s in slide.shapes]
         for z,(shape,editable) in enumerate(layers):
@@ -486,6 +550,8 @@ class Dazzle(Workspace):
         return result
     def refresh_scene(self):
         if not getattr(self,'ready',False) or not hasattr(self,'deck'):return
+        active=getattr(self,'freeform_tool',None)
+        if active is not None:active.stop()
         self.preview_revision+=1;self._thumbnail_cache.clear()
         selected={item.native_shape.shape_id for item in self.scene.selectedItems() if item.interactive} if getattr(self,'scene',None) else set()
         old=self.scene;self.scene=self.make_scene(self.index);self.slide_page.setScene(self.scene);self.slide_page.fitInView(self.scene.sceneRect(),Qt.KeepAspectRatio)
@@ -585,7 +651,13 @@ class Dazzle(Workspace):
             if not selected:return
             kind,data=selected
         chartdata=native_chart_data(kind,data)
-        shape=self.change(lambda:self.deck.slides[self.index].shapes.add_chart(CHARTS[kind],Pt(90),Pt(130),Pt(600),Pt(330),chartdata))
+        def add():
+            shape=self.deck.slides[self.index].shapes.add_chart(CHARTS[kind],Pt(90),Pt(130),Pt(600),Pt(330),chartdata)
+            if kind=='Column + line':
+                from slide_charts import combination
+                combination(shape.chart)
+            return shape
+        shape=self.change(add)
         self.choose(shape);return shape
     def insert_table(self,rows=None,columns=None):
         if rows is None:
@@ -618,8 +690,11 @@ class Dazzle(Workspace):
             if data:
                 result=ask_chart(self,data[1],data[0])
                 if result:
-                    if result[0]!=data[0]:raise ValueError('Insert a new chart to change its type.')
-                    cd=native_chart_data(result[0],result[1]);self.change(lambda:shape.chart.replace_data(cd))
+                    if result[0]!=data[0]:
+                        from slide_charts import change_type
+                        change_type(self,shape,result[0],result[1])
+                    else:
+                        cd=native_chart_data(result[0],result[1]);self.change(lambda:shape.chart.replace_data(cd))
         elif shape.has_text_frame:
             if text is None:text,ok=QInputDialog.getMultiLineText(self,'Edit text box','Text',shape.text)
             else:ok=True
@@ -771,38 +846,42 @@ class Dazzle(Workspace):
         player=WatchIT();player.add_media([str(path)]);player.show();self.players.append(player)
     def open(self,path=None):
         if path is None:
-            name,_=QFileDialog.getOpenFileName(self,'Open presentation','','Presentations (*.pptx *.dazzle)');path=Path(name) if name else None
+            name,_=QFileDialog.getOpenFileName(self,'Open presentation','','Presentations (*.pptx *.potx *.ppsx *.odp *.ppt *.dazzle)');path=Path(name) if name else None
         if not path or not self.discard_changes():return
         def read():
             path_obj=Path(path)
-            if path_obj.suffix.lower()=='.pptx':deck=Presentation(path_obj)
+            from slide_formats import IMPORTS,load
+            if path_obj.suffix.lower() in IMPORTS:deck=load(path_obj)
             else:
                 data=json.loads(path_obj.read_text(encoding='utf-8'));slides=data['slides'];styles=data.get('styles',[dict(SLIDE_COLORS) for _ in slides])
                 if not isinstance(slides,list) or not slides or not all(isinstance(s,list) and len(s)==2 and all(isinstance(v,str) for v in s) for s in slides):raise ValueError('Invalid Dazzle slides')
                 if not isinstance(styles,list) or len(styles)!=len(slides) or any(not isinstance(s,dict) or set(s)!=set(SLIDE_COLORS) or any(not isinstance(v,str) or not re.fullmatch('#[0-9a-fA-F]{6}',v) for v in s.values()) for s in styles):raise ValueError('Invalid slide colors')
                 deck=Presentation(io.BytesIO(base64.b64decode(data['pptx'],validate=True))) if 'pptx' in data else self._from_legacy(slides,styles)
             if not len(deck.slides):raise ValueError('Presentation contains no slides.')
-            self.deck=deck;self.index=0;self.history=[];self.future=[];self.imported_pptx=path_obj if path_obj.suffix.lower()=='.pptx' else None;self._loaded_path=self.imported_pptx;self.path=None if self.imported_pptx else path_obj;self._native_changed=False;self.refresh();self.original_slides=list(self.slides);self.dirty=False
+            self.deck=deck;self.index=0;self.history=[];self.future=[];self.imported_pptx=path_obj if path_obj.suffix.lower() in IMPORTS else None;self._loaded_path=self.imported_pptx;self.path=None if self.imported_pptx else path_obj;self._native_changed=False;self.refresh();self.original_slides=list(self.slides);self.dirty=False
         self.report(read)
     def _write(self,path):
         path=Path(path)
         if self.imported_pptx and self.imported_pptx!=self._loaded_path:
             # Compatibility for callers supplying an original deck and edited title/body.
-            pending=(self.title.toPlainText(),self.body.toPlainText());self.deck=Presentation(self.imported_pptx);self._loaded_path=self.imported_pptx;self.index=0;self._native_changed=False;self.refresh()
+            from slide_formats import load
+            pending=(self.title.toPlainText(),self.body.toPlainText());self.deck=load(self.imported_pptx);self._loaded_path=self.imported_pptx;self.index=0;self._native_changed=False;self.refresh()
             with QSignalBlocker(self.title),QSignalBlocker(self.body):self.title.setPlainText(pending[0]);self.body.setPlainText(pending[1])
         self._store()
         if self.imported_pptx and path.resolve()==Path(self.imported_pptx).resolve() and self.path is None:raise ValueError('Save an imported presentation to a new file')
-        if path.suffix.lower() not in ('.pptx','.dazzle'):raise ValueError('Choose PPTX or Dazzle format')
-        if path.suffix.lower()=='.pptx' and self.imported_pptx and not self._native_changed:
+        from slide_formats import EXPORTS,export
+        if path.suffix.lower() not in EXPORTS|{'.dazzle'}:raise ValueError('Choose PPTX, POTX, PPSX, ODP or Dazzle format')
+        if self.imported_pptx and path.suffix.lower()==Path(self.imported_pptx).suffix.lower() and not self._native_changed:
             if path.resolve()!=Path(self.imported_pptx).resolve():shutil.copyfile(self.imported_pptx,path)
         else:
             blob=self._bytes()
             if path.suffix.lower()=='.dazzle':blob=json.dumps({'slides':self.slides,'styles':self.slide_styles,'pptx':base64.b64encode(blob).decode()},ensure_ascii=False).encode()
+            elif path.suffix.lower()!='.pptx':blob=export(blob,path.suffix.lower())
             with tempfile.NamedTemporaryFile(dir=path.parent,suffix=path.suffix,delete=False) as stream:stream.write(blob);temporary=Path(stream.name)
             try:temporary.replace(path)
             finally:temporary.unlink(missing_ok=True)
         self.path=path;self._native_changed=False;self.dirty=False
-        if path.suffix.lower()=='.pptx':self.imported_pptx=self._loaded_path=path;self.original_slides=list(self.slides)
+        if path.suffix.lower() in EXPORTS:self.imported_pptx=self._loaded_path=path;self.original_slides=list(self.slides)
     def export_pdf(self):
         # Use the same canvas for print and editing, including inserted objects.
         import office_suite

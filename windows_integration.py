@@ -7,7 +7,7 @@ PLAYLIST_EXTENSIONS = ('.m3u', '.m3u8')
 WORKSPACE_EXTENSIONS = {
     'Pages': ('.docx', '.txt', '.html', '.htm'),
     'Tables': ('.xlsx', '.csv'),
-    'Dazzle': ('.pptx', '.dazzle'),
+    'Dazzle': ('.pptx', '.potx', '.ppsx', '.odp', '.ppt', '.dazzle'),
     'Sketch': ('.png', '.jpg', '.jpeg', '.bmp'),
     'Organize': ('.sqlite', '.db'),
     'Formulaic': ('.formulaic', '.mml'),

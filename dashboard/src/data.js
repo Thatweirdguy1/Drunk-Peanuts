@@ -116,7 +116,7 @@ export function toolForFile(name) {
     return "play";
   if (["docx", "doc", "odt", "txt"].includes(extension)) return "pages";
   if (["xlsx", "xls", "csv", "ods"].includes(extension)) return "tables";
-  if (["pptx", "ppt", "odp"].includes(extension)) return "dazzle";
+  if (["pptx", "potx", "ppsx", "ppt", "odp", "dazzle"].includes(extension)) return "dazzle";
   if (["fountain"].includes(extension)) return "writer";
   return "convert";
 }

@@ -6,7 +6,8 @@ https://github.com/storytold/deckcraft, pinned to
 
 Sources: `crates/anim/src/easing.rs`, `crates/anim/src/effects.rs`, and the
 native timing/preset mappings in `crates/model/src/anim.rs` and
-`crates/pptx/src/write/timing.rs`.
+`crates/pptx/src/write/timing.rs`. Subsequent timing work also consulted
+`crates/pptx/src/read/timing.rs` and `crates/pptx/src/maps.rs` at the same commit.
 
 These adaptations use the MIT license option. `deckcraft-LICENSE-MIT.txt` and
 `deckcraft-NOTICE.txt` retain upstream notices. The Python/Qt implementation is

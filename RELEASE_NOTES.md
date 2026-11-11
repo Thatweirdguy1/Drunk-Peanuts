@@ -1,3 +1,9 @@
+# 0.33.0 — Dazzle authoring and presenter update
+
+Imported timing edits/reordering, shaped masks and indefinite repeats; native freeform/boolean shapes and snapping; merged-table structure edits; eleven chart types and chart options; local comments, alt text and basic accessibility/reading-order checks; notes/handout printing; POTX/PPSX and optional LibreOffice ODP/PPT imports; synchronized presenter/audience windows, custom sequences, timed/kiosk looping, blackout, zoom and temporary ink.
+
+PowerPoint and LibreOffice interoperability checks use synthetic files. Full PowerPoint parity remains incomplete; see docs/DAZZLE_033.md for exact limits. Physical dual-monitor operation has not been verified on this single-monitor laptop.
+
 # 0.32.0 — Dazzle animation and authoring update
 
 Animation pane, 25 effect types, native PPTX timing export, simultaneous playback, easing, triggers and motion paths; Fade/Push/Wipe/object Morph transitions; inline text, paragraph/frame controls, preset geometry, table grid editing and master/theme properties. DeckCraft and Apache POI notices are bundled.

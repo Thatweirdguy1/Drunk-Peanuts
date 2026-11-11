@@ -5,7 +5,7 @@ from pptx.dml.color import RGBColor
 from pptx.util import Pt
 from pptx.table import _Cell
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QTableWidget,QTableWidgetItem,
+from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QTableWidget,QTableWidgetItem,QHeaderView,
     QPushButton,QDialogButtonBox,QMessageBox,QColorDialog,QInputDialog)
 from PySide6.QtGui import QColor
 
@@ -16,8 +16,11 @@ def structural_edit(table,axis,index,insert):
     if not 0<=index<(count+1 if insert else count):raise ValueError('Choose a valid table position.')
     if not insert and count==1:raise ValueError('A table needs at least one row and column.')
     if insert and count>=(100 if axis=='row' else 40):raise ValueError('Table limit: 100 rows and 40 columns.')
-    if any(c.is_merge_origin or c.is_spanned for row in table.rows for c in row.cells):
-        raise ValueError('Split merged cells before adding or deleting rows or columns.')
+    merged=[]
+    for r,row in enumerate(table.rows):
+        for c,cell in enumerate(row.cells):
+            if cell.is_merge_origin:merged.append(([r,c,r+cell.span_height-1,c+cell.span_width-1],copy.deepcopy(cell._tc)))
+    for region,_ in merged:table.cell(region[0],region[1]).split()
     root=table._tbl
     if axis=='row':
         rows=list(root.tr_lst)
@@ -36,6 +39,20 @@ def structural_edit(table,axis,index,insert):
         else:
             grid.remove(columns[index])
             for row in root.tr_lst:row.remove(row.tc_lst[index])
+    for region,template in merged:
+        first,last=(0,2) if axis=='row' else (1,3);start,end=region[first],region[last]
+        if insert:
+            if index<=start:region[first]+=1;region[last]+=1
+            elif index<=end:region[last]+=1
+        else:
+            if start==end==index:continue
+            if index<start:region[first]-=1;region[last]-=1
+            elif index<=end:region[last]-=1
+        r,c,rr,cc=region;origin=table.cell(r,c)
+        for attribute in ('gridSpan','rowSpan','hMerge','vMerge'):template.attrib.pop(attribute,None)
+        origin._tc.getparent().replace(origin._tc,template)
+        if (r,c)!=(rr,cc):table.cell(r,c).merge(table.cell(rr,cc))
+    table.notify_height_changed();table.notify_width_changed()
 
 
 def table_dialog(editor,shape=None):
@@ -44,6 +61,7 @@ def table_dialog(editor,shape=None):
     working=SlideShapeFactory(copy.deepcopy(shape._element),shape._parent);table=working.table
     dialog=QDialog(editor);dialog.setWindowTitle('Edit table');dialog.resize(950,640)
     layout=QVBoxLayout(dialog);grid=QTableWidget();grid.setAccessibleName('Slide table cells');layout.addWidget(grid,1)
+    grid.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
     def refresh():
         grid.blockSignals(True);grid.clearSpans();grid.setRowCount(len(table.rows));grid.setColumnCount(len(table.columns))
         for r,row in enumerate(table.rows):

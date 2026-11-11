@@ -69,7 +69,7 @@ def run(owner, application, wait, folder, _warnings):
             window.add()
             bridge.command('{"key":"select","value":0}')
             assert window.index==0
-            assert {'Group','Ungroup','Format text','Presenter view','Export slide images','Animation pane','Preview animations','Masters and layouts','Theme colors and fonts'} <= {a['label'] for a in actions}
+            assert {'Group','Ungroup','Format text','Presenter view','Export slide images','Animation pane','Preview animations','Masters and layouts','Theme colors and fonts','Draw freeform','Union shapes','Accessibility checks','Slide comments','Alternative text','Print slides / notes / handouts','Chart options','Custom show sequence'} <= {a['label'] for a in actions}
             first=window.insert_text('First step');second=window.insert_text('Second step')
             bridge.command('{"key":"size","value":28}')
             assert second.text_frame.paragraphs[0].font.size.pt==28

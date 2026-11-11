@@ -59,13 +59,29 @@ def paste_objects(editor):
 def delete_objects(editor):
     shapes=selected(editor)
     if not shapes:return
-    from dazzle import effects,set_effect
-    def remove():
-        slide=editor.deck.slides[editor.index]
-        for shape in shapes:
-            if shape.shape_id in effects(slide):set_effect(slide,shape.shape_id,None)
-            shape._element.getparent().remove(shape._element)
-    editor.change(remove)
+    editor.change(lambda:remove_native_shapes(editor.deck.slides[editor.index],shapes))
+
+
+def remove_native_shapes(slide,shapes,retained_ids=()):
+    from slide_animation import timeline,save_sequence,NS,P
+    from slide_rendering import R,A
+    removed={shape.shape_id for shape in shapes}-set(retained_ids);original=timeline(slide)
+    remaining=[entry for entry in original if entry.shape not in removed and entry.trigger not in removed]
+    if remaining!=original:save_sequence(slide,remaining,original)
+    relationships={value for shape in shapes for node in shape._element.iter() for key,value in node.attrib.items() if key.startswith('{'+R+'}')}
+    for shape in shapes:shape._element.getparent().remove(shape._element)
+    for tag in ('video','audio'):
+        for node in list(slide._element.findall('.//p:'+tag,NS)):
+            if any(target.get('spid','').isdigit() and int(target.get('spid')) in removed for target in node.findall('.//p:spTgt',NS)):node.getparent().remove(node)
+    for tag in ('stCxn','endCxn'):
+        for node in list(slide._element.findall('.//{'+A+'}'+tag)):
+            if node.get('id','').isdigit() and int(node.get('id')) in removed:node.getparent().remove(node)
+    timing=slide._element.find('p:timing',NS)
+    root=timing.find('.//p:cTn[@nodeType="tmRoot"]/p:childTnLst',NS) if timing is not None else None
+    if root is not None and not len(root):slide._element.remove(timing)
+    live={value for node in slide._element.iter() for key,value in node.attrib.items() if key.startswith('{'+R+'}')}
+    for rid in relationships-live:
+        if rid in slide.part.rels:slide.part.drop_rel(rid)
 
 
 def group_objects(editor):
@@ -270,36 +286,8 @@ def export_images(editor):
 
 
 def presenter_view(editor):
-    from PySide6.QtCore import QTimer
-    from PySide6.QtGui import QPixmap,QImage,QPainter
-    from PySide6.QtCore import QRectF
-    from PySide6.QtWidgets import QSizePolicy
-    import time
-    dialog=QDialog(editor);dialog.setWindowTitle('Dazzle · Presenter view');dialog.resize(1000,650);layout=QVBoxLayout(dialog);status=QLabel();layout.addWidget(status)
-    previews=QHBoxLayout();layout.addLayout(previews);current=QLabel();upcoming=QLabel()
-    for label in (current,upcoming):
-        label.setAlignment(Qt.AlignCenter);label.setMinimumSize(300,180);label.setSizePolicy(QSizePolicy.Ignored,QSizePolicy.Expanding);previews.addWidget(label)
-    notes=QTextEdit();notes.setReadOnly(True);notes.setAccessibleName('Current slide speaker notes');layout.addWidget(notes)
-    row=QHBoxLayout();layout.addLayout(row);started=time.monotonic();index=[editor.index];pixmaps={}
-    def refresh():
-        slide=editor.deck.slides[index[0]];status.setText(f'Slide {index[0]+1} of {len(editor.deck.slides)} · elapsed {int(time.monotonic()-started)//60:02}:{int(time.monotonic()-started)%60:02}')
-        for cached in list(pixmaps):
-            if cached not in (index[0],index[0]+1):del pixmaps[cached]
-        for label,i in ((current,index[0]),(upcoming,index[0]+1)):
-            if i<len(editor.deck.slides):
-                if i not in pixmaps:
-                    scene=editor.make_scene(i,False);image=QImage(960,round(960*editor.deck.slide_height/editor.deck.slide_width),QImage.Format_ARGB32);image.fill(Qt.transparent);painter=QPainter(image)
-                    try:scene.render(painter,QRectF(image.rect()))
-                    finally:painter.end();scene.deleteLater()
-                    pixmaps[i]=QPixmap.fromImage(image)
-                label.setPixmap(pixmaps[i].scaled(label.size(),Qt.KeepAspectRatio,Qt.SmoothTransformation))
-            else:label.setText('End of presentation')
-        frame=slide.notes_slide.notes_text_frame if slide.has_notes_slide else None;value=frame.text if frame is not None else 'No speaker notes for this slide.'
-        if notes.toPlainText()!=value:notes.setPlainText(value)
-    def navigate(delta):index[0]=max(0,min(len(editor.deck.slides)-1,index[0]+delta));refresh()
-    for label,callback in [('Previous',lambda:navigate(-1)),('Next',lambda:navigate(1)),('Present current slide',lambda:editor.present(index[0])),('Close',dialog.close)]:
-        button=QPushButton(label);button.clicked.connect(callback);row.addWidget(button)
-    timer=QTimer(dialog);timer.timeout.connect(refresh);timer.start(1000);QTimer.singleShot(0,refresh);dialog.exec()
+    from slide_presenter import presenter_view as show
+    return show(editor)
 
 
 def sync_connectors(editor):
@@ -320,8 +308,26 @@ def setup(editor):
     from slide_animation import animation_pane
     from slide_text import paragraph_dialog
     from slide_design import theme_dialog,master_dialog,inherit_background
+    from slide_shapes import start_freeform,edit_points,combine
+    from slide_review import alt_dialog,comments_dialog,accessibility_dialog,reading_order_dialog
+    from slide_printing import dialog as print_dialog
+    from slide_presenter import custom_show_dialog
+    from slide_charts import settings_dialog as chart_settings
     editor.slide_page.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
     commands=[
+        ('Design','Chart options',lambda:chart_settings(editor),None),
+        ('Slide','Custom show sequence',lambda:custom_show_dialog(editor),None),
+        ('File','Print slides / notes / handouts',lambda:print_dialog(editor),'Ctrl+P'),
+        ('Review','Alternative text',lambda:alt_dialog(editor),None),
+        ('Review','Slide comments',lambda:comments_dialog(editor),None),
+        ('Review','Accessibility checks',lambda:accessibility_dialog(editor),None),
+        ('Review','Reading order',lambda:reading_order_dialog(editor),None),
+        ('Insert','Draw freeform',lambda:start_freeform(editor),None),
+        ('Arrange','Edit geometry points',lambda:edit_points(editor),None),
+        ('Arrange','Union shapes',lambda:combine(editor,'Union'),None),
+        ('Arrange','Intersect shapes',lambda:combine(editor,'Intersect'),None),
+        ('Arrange','Subtract shapes',lambda:combine(editor,'Subtract'),None),
+        ('Arrange','Exclude shapes',lambda:combine(editor,'Exclude'),None),
         ('Design','Masters and layouts',lambda:master_dialog(editor),None),
         ('Design','Theme colors and fonts',lambda:theme_dialog(editor),None),
         ('Design','Use master background',lambda:inherit_background(editor),None),
@@ -344,3 +350,5 @@ def setup(editor):
         ('Slide','Hide / show slide',lambda:hide_slide(editor),None),
     ]
     for menu,label,callback,shortcut in commands:command(editor,menu,label,callback,'settings',shortcut)
+    snap_action=command(editor,'Arrange','Snap to guides',lambda:setattr(editor,'snap_guides',snap_action.isChecked()),'settings')
+    snap_action.setCheckable(True)

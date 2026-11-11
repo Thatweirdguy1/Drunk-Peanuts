@@ -10,13 +10,15 @@ A free, local desktop converter and creative suite for Windows and macOS. Conver
 
 The Stitch-inspired React interface spans **Pages, Tables, Dazzle, Organize, Sketch, Formulaic, Writer and Play**. Tailwind CSS, Lucide icons and the original DP identity bring a shared black, yellow and purple workspace to the desktop suite.
 
-**Dazzle 0.32 adds animation authoring and playback:** an animation pane with timing bars, 25 named effects, sequencing, easing, triggers and motion paths; transition controls; on-slide text editing; master/theme properties; a larger shape library; and a table grid editor. DeckCraft animation adaptations retain the upstream MIT notices. See the [0.32 capabilities and remaining compatibility work](docs/DAZZLE_032.md).
+**Dazzle 0.33 expands independent presentation editing:** imported animation timing, shaped reveals and indefinite repeats; freeform/boolean shape tools; merged-table structure editing; eleven chart types and chart options; local comments, alternative text and reading-order checks; notes/handout printing; templates/slideshows and optional LibreOffice format conversion; synchronized presenter/audience windows with custom sequences, timed playback and temporary ink.
 
-![Installed Dazzle 0.32 animation workspace with a synthetic presentation](docs/dazzle-animation-workspace.png)
+![Dazzle drawing and authoring controls with a synthetic deck](docs/dazzle-authoring-033.png)
 
-![Dazzle animation order and timing controls](docs/dazzle-animation-pane.png)
+![Dazzle presenter controls and speaker notes](docs/dazzle-presenter-033.png)
 
-**Version 0.32.0 expands the independent Dazzle editor:** dedicated File, Home, Text, Insert, Design, Arrange and Present tabs; multi-object selection, grouping, clipboard, alignment/distribution, rich text, picture crop/flip, connectors, hyperlinks, presenter notes, and PNG slide export. It runs locally without Microsoft Office.
+See the [0.33 capabilities, interoperability checks and remaining work](docs/DAZZLE_033.md). **This is not complete PowerPoint parity.**
+
+**Earlier releases added:** dedicated File, Home, Text, Insert, Design, Arrange and Present tabs; multi-object selection, grouping, clipboard, alignment/distribution, rich text, picture crop/flip, connectors, hyperlinks, presenter notes, and PNG slide export. It runs locally without Microsoft Office.
 
 ![Dazzle independent editor with a synthetic production presentation](docs/dazzle-independent-031.jpg)
 
@@ -48,7 +50,7 @@ Get the app from the [latest release](https://github.com/Thatweirdguy1/Drunk-Pea
 
 | Platform | Download | How to open |
 | --- | --- | --- |
-| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.32.0-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and Office and media-file registration. |
+| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.33.0-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and Office and media-file registration. |
 | Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
 | macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Apple-Silicon.zip) | Extract and open `DrunkPeanuts.app`. |
 | macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Intel.zip) | Extract and open `DrunkPeanuts.app`. |

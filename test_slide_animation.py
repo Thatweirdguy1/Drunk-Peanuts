@@ -72,4 +72,49 @@ class AnimationTest(unittest.TestCase):
         show.advance_timer.timeout.emit();self.assertEqual(show.index,1)
         show.close();editor.dirty=False;editor.close()
 
+    def test_native_timing_edits_preserve_graph_and_mask_repeat_playback(self):
+        import copy
+        from PySide6.QtCore import QPointF
+        from slide_animation import save_sequence,NS
+        editor=Dazzle();shape=editor.insert_shape();slide=editor.deck.slides[0]
+        write_timeline(slide,[Effect(shape.shape_id,'Spin',phase='Emphasis',duration=1)])
+        ext=slide._element.find('.//{urn:drunkpeanuts:timeline:1}timeline');ext.getparent().getparent().remove(ext.getparent())
+        original=timeline(slide);changed=copy.deepcopy(original);changed[0].duration=2;changed[0].repeat=-1
+        old_shape=shape._element;save_sequence(slide,changed,original)
+        self.assertIs(slide.shapes[-1]._element,old_shape)
+        self.assertEqual(timeline(slide)[0].repeat,-1);self.assertEqual(timeline(slide)[0].duration,2)
+        self.assertEqual(slide._element.find('.//p:animRot',NS).get('by'),'21600000')
+        show=SlideShow(editor,0);show.advance();group=show.timeline_player.running[-1]
+        self.assertEqual(group.totalDuration(),-1);show.advance();self.assertEqual(group.state(),group.State.Stopped);show.close()
+        save_sequence(slide,[],timeline(slide))
+        for effect in ('Circle','Diamond'):
+            write_timeline(slide,[Effect(shape.shape_id,effect,duration=1)])
+            show=SlideShow(editor,0);player=show.timeline_player;item=player.items[shape.shape_id]
+            player.advance();group=player.running[-1];group.pause();group.setCurrentTime(400)
+            rect=item.boundingRect();self.assertTrue(item.shape().contains(rect.center()));self.assertFalse(item.shape().contains(QPointF(1,1)))
+            group.setCurrentTime(1000);self.assertTrue(item.shape().contains(QPointF(1,1)));show.close()
+        original=timeline(slide);ext=slide._element.find('.//{urn:drunkpeanuts:timeline:1}timeline');ext.getparent().getparent().remove(ext.getparent());original=timeline(slide)
+        changed=copy.deepcopy(original);changed[0].effect='Wipe';save_sequence(slide,changed,original)
+        self.assertEqual(len(timeline(slide)),1);self.assertEqual(timeline(slide)[0].effect,'Wipe')
+        editor.dirty=False;editor.close()
+    def test_imported_order_and_trigger_batches(self):
+        import copy
+        from slide_animation import save_sequence
+        editor=Dazzle();a=editor.insert_shape();b=editor.insert_shape();slide=editor.deck.slides[0]
+        write_timeline(slide,[Effect(a.shape_id,'Fade'),Effect(b.shape_id,'Circle')])
+        ext=slide._element.find('.//{urn:drunkpeanuts:timeline:1}timeline');ext.getparent().getparent().remove(ext.getparent());original=timeline(slide)
+        save_sequence(slide,list(reversed(copy.deepcopy(original))),original)
+        self.assertEqual([entry.effect for entry in timeline(slide)],['Circle','Fade'])
+        write_timeline(slide,[Effect(a.shape_id,'Fade',trigger=b.shape_id),Effect(a.shape_id,'Spin','Emphasis','After previous',trigger=b.shape_id),Effect(a.shape_id,'Fade','Exit',trigger=b.shape_id)])
+        show=SlideShow(editor,0);player=show.timeline_player;self.assertEqual(len(player.triggered[b.shape_id]),2)
+        player.trigger(b.shape_id);group=player.running[-1];group.pause();self.assertEqual(len(group.entries),2);group.setCurrentTime(group.totalDuration());player.trigger(b.shape_id)
+        self.assertEqual(len(player.running[-1].entries),1);show.close();editor.dirty=False;editor.close()
+    def test_delete_cleans_all_effect_types_and_keeps_other_objects(self):
+        from presentation_tools import choose_many,delete_objects
+        editor=Dazzle();a=editor.insert_shape();b=editor.insert_shape();slide=editor.deck.slides[0]
+        write_timeline(slide,[Effect(a.shape_id,'Spin','Emphasis'),Effect(b.shape_id,'Circle')])
+        choose_many(editor,[a]);delete_objects(editor)
+        self.assertEqual([e.shape for e in timeline(slide)],[b.shape_id]);editor.undo()
+        self.assertEqual(len(timeline(editor.deck.slides[0])),2);editor.dirty=False;editor.close()
+
 if __name__=='__main__':unittest.main()

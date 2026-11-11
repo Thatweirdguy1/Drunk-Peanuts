@@ -75,14 +75,16 @@ export default function WorkspaceToolbar({
         ["Calculate selected", null],
       ],
       dazzle: ({
-        File: [["New", Plus], ["Open", null], ["Save as", null], ["PDF", null], ["Export slide images", Image]],
+        File: [["New", Plus], ["Open", null], ["Save as", null], ["PDF", null], ["Print slides / notes / handouts", null], ["Export slide images", Image]],
         Home: [["Undo", Undo2], ["Redo", Redo2], ["Add slide", Plus], ["Duplicate slide", Plus], ["Delete slide", null], ["Copy objects", null], ["Paste objects", null], ["Edit object", PenLine]],
         Text: [["Format text", PenLine], ["Paragraph and text frame", null], ["Bold", Bold], ["Italic", Italic], ["Underline", Underline], ["Align text left", AlignLeft], ["Align text center", AlignCenter], ["Align text right", AlignRight], ["Bullets", null], ["Numbering", null]],
         Insert: [["Text box", Plus], ["Image", Image], ["Video", Play], ["Shape", Plus], ["Chart / graph", null], ["Table", null], ["Connector", null], ["Hyperlink", null]],
-        Design: [["Masters and layouts", null], ["Theme colors and fonts", null], ["Slide layout", null], ["Use master background", null], ["Crop picture", null], ["Background color", null], ["Background image", Image], ["Slide size", null], ["Slide transition", null]],
+        Design: [["Masters and layouts", null], ["Theme colors and fonts", null], ["Slide layout", null], ["Use master background", null], ["Chart options", null], ["Crop picture", null], ["Background color", null], ["Background image", Image], ["Slide size", null], ["Slide transition", null]],
         Arrange: [["Duplicate object", Plus], ["Delete object", null], ["Bring to front", null], ["Send to back", null], ["Align left", AlignLeft], ["Align center", AlignCenter], ["Align right", AlignRight], ["Group", null], ["Ungroup", null], ["Distribute horizontally", null], ["Distribute vertically", null], ["Flip horizontal", null], ["Flip vertical", null]],
-        Present: [["Slideshow", Play], ["Presenter view", null], ["Hide / show slide", null], ["Present from beginning", Play], ["Speaker notes", null], ["Fade on click", null], ["Remove animation", null], ["Fit slide", null]],
+        Present: [["Slideshow", Play], ["Presenter view", null], ["Custom show sequence", null], ["Hide / show slide", null], ["Present from beginning", Play], ["Speaker notes", null], ["Fit slide", null]],
         Animations: [["Animation pane", null], ["Preview animations", Play], ["Fade on click", null], ["Remove animation", null], ["Slide transition", null]],
+        Draw: [["Draw freeform", PenLine], ["Edit geometry points", PenLine], ["Union shapes", null], ["Intersect shapes", null], ["Subtract shapes", null], ["Exclude shapes", null], ["Snap to guides", null]],
+        Review: [["Alternative text", PenLine], ["Slide comments", null], ["Accessibility checks", null], ["Reading order", null]],
       }[slideTab]),
       organize: [
         ["New table", Plus],
@@ -114,7 +116,7 @@ export default function WorkspaceToolbar({
   return (
     <div>
       {tool === "dazzle" && <div className="flex gap-1 border-b border-white/10 bg-[#1B1B23] px-5 pt-1" role="tablist" aria-label="Presentation tools">
-        {["File", "Home", "Text", "Insert", "Design", "Arrange", "Animations", "Present"].map(tab => <button key={tab} role="tab" aria-selected={slideTab === tab} className={`workspace-button ${slideTab === tab ? "selected" : ""}`} onClick={() => setSlideTab(tab)}>{tab}</button>)}
+        {["File", "Home", "Text", "Insert", "Draw", "Design", "Arrange", "Animations", "Review", "Present"].map(tab => <button key={tab} role="tab" aria-selected={slideTab === tab} className={`workspace-button ${slideTab === tab ? "selected" : ""}`} onClick={() => setSlideTab(tab)}>{tab}</button>)}
       </div>}
     <div className="workspace-toolbar">
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-1">
