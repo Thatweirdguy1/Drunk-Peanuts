@@ -3,6 +3,7 @@
 import os
 import sys
 import unittest
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -10,10 +11,19 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 from watchit import WatchIT
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSettings
 
 
 class WatchITTest(unittest.TestCase):
+    def test_single_custom_control_survives_settings_reload(self):
+        app=QApplication.instance() or QApplication([])
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'play.ini';path.write_text('[play]\nbottomControls=speed\n',encoding='utf-8')
+            with patch('watchit.QSettings',return_value=QSettings(str(path),QSettings.IniFormat)):
+                window=WatchIT(engine=(MagicMock(),MagicMock(),MagicMock()))
+                try:self.assertEqual(window.bottom_controls,['speed'])
+                finally:window.close()
+
     def test_controls_expire_after_fifteen_seconds_and_reveal_on_activity(self):
         app=QApplication.instance() or QApplication([])
         window=WatchIT(engine=(MagicMock(),MagicMock(),MagicMock()));window.timer.stop();window._react_shell=True

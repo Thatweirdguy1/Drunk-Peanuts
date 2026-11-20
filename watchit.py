@@ -122,7 +122,7 @@ class WatchIT(QMainWindow):
         self.controls_focused = False
         self._controls_until = time.monotonic() + 15
         self._mouse_position = QCursor.pos()
-        saved = QSettings().value('play/bottomControls', ['speed', 'audio', 'subtitles'])
+        saved = QSettings().value('play/bottomControls', ['speed', 'audio', 'subtitles'], type=list)
         self.bottom_controls = [key for key in saved if key in ('speed','audio','subtitles')] if isinstance(saved,list) else ['speed','audio','subtitles']
         self.scanner = None
         self.scan_requests = []
