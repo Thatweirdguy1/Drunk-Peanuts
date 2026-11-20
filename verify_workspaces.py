@@ -122,12 +122,12 @@ def run(owner, application, wait, folder, _warnings):
             size=window.surface.size();bounds=window.frontend_host.geometry()
             if window.player is not None:
                 bridge.command('{"key":"speed","value":1.5}');assert window.speed.currentData()==1.5
-                wait(lambda:js('document.querySelector("select[aria-label=\"Playback speed\"]").value')=='1.5')
+                wait(lambda:js('document.querySelector(`select[aria-label="Playback speed"]`).value')=='1.5')
             original_controls=list(window.bottom_controls)
             with patch('desktop_workspaces.QSettings') as preferences:
                 bridge.command('{"key":"bottomControls","value":["speed","subtitles"]}')
                 preferences.return_value.setValue.assert_called_with('play/bottomControls',['speed','subtitles'])
-                wait(lambda:not js('!!document.querySelector("select[aria-label=\"Playback audio\"]")'))
+                wait(lambda:not js('!!document.querySelector(`select[aria-label="Playback audio"]`)'))
                 bridge.command(json.dumps(dict(key='bottomControls',value=original_controls)))
             window._show_controls(False);bridge.publish()
             wait(lambda:js('document.querySelector("[data-player-overlay]").hidden'))
