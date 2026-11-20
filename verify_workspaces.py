@@ -115,6 +115,8 @@ def run(owner, application, wait, folder, _warnings):
             assert int(window.surface.winId())==surface and int(window.winId())==handle
             bridge.command('{"key":"pip"}');wait(lambda:not js('!!document.querySelector(".player-controls.compact")'))
             bridge.command('{"key":"fullscreen"}');assert window.isFullScreen()
+            wait(lambda:not js('!!document.querySelector(".workspace-header")'))
+            wait(lambda:window.frontend_host.geometry()==window.frontend.geometry())
             wait(lambda:js('!!document.querySelector("[data-player-overlay]")'))
             wait(lambda:not window.frontend_host.mask().isEmpty())
             size=window.surface.size();bounds=window.frontend_host.geometry()
@@ -130,7 +132,7 @@ def run(owner, application, wait, folder, _warnings):
             window._show_controls(False);bridge.publish()
             wait(lambda:js('document.querySelector("[data-player-overlay]").hidden'))
             wait(lambda:window.frontend_host.mask().isEmpty())
-            assert window.frontend_host.geometry()==bounds and window.surface.size()==size,'Controls must not resize the video'
+            assert window.frontend_host.geometry()==bounds and window.surface.size()==size,('Controls must not resize the video',bounds,window.frontend_host.geometry(),size,window.surface.size())
             window.controls_activity();bridge.publish()
             wait(lambda:not js('document.querySelector("[data-player-overlay]").hidden'))
             wait(lambda:not window.frontend_host.mask().isEmpty())
