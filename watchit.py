@@ -8,7 +8,7 @@ import ctypes
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, Signal, QThread
+from PySide6.QtCore import Qt, QTimer, Signal, QThread, QSettings
 from PySide6.QtGui import QAction, QKeySequence, QCursor
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QHBoxLayout,
     QLabel, QListWidget, QListWidgetItem, QAbstractItemView, QMainWindow, QMessageBox, QPushButton, QSlider, QSpinBox,
@@ -118,6 +118,12 @@ class WatchIT(QMainWindow):
         self._fullscreen_state = None
         self._pip_state = None
         self._last_state = None
+        self.controls_visible = True
+        self.controls_focused = False
+        self._controls_until = time.monotonic() + 15
+        self._mouse_position = QCursor.pos()
+        saved = QSettings().value('play/bottomControls', ['speed', 'audio', 'subtitles'])
+        self.bottom_controls = [key for key in saved if key in ('speed','audio','subtitles')] if isinstance(saved,list) else ['speed','audio','subtitles']
         self.scanner = None
         self.scan_requests = []
         self.scan_generation = 0
@@ -330,6 +336,7 @@ class WatchIT(QMainWindow):
             action = QAction(self)
             action.setShortcut(QKeySequence(keys))
             action.triggered.connect(callback)
+            action.triggered.connect(self.controls_activity)
             self.addAction(action)
 
     def _volume_changed(self, value):
@@ -550,7 +557,7 @@ class WatchIT(QMainWindow):
             return
         self._fullscreen_state = self.windowState()
         self._mouse_position = QCursor.pos()
-        self._controls_until = time.monotonic() + 2.5
+        self.controls_activity()
         self._options_visible = self.options_scroll.isVisible()
         self._playlist_visible = self.playlist.isVisible()
         self._fullscreen_margins = self.centralWidget().layout().contentsMargins()
@@ -630,19 +637,25 @@ class WatchIT(QMainWindow):
             self.exit_fullscreen()
 
     def _show_controls(self, visible):
+        self.controls_visible = visible
         if getattr(self, '_react_shell', False):return
         for widget in (self.seek, self.time_label, self.transport, self.volume_controls):
             widget.setVisible(visible)
 
+    def controls_activity(self):
+        self._controls_until = time.monotonic() + 15
+        self._show_controls(True)
+
     def _fullscreen_controls(self):
-        if not self.isFullScreen():
+        if self._pip_state is not None or not (self.isFullScreen() or (getattr(self,'_react_shell',False) and self.player is not None and self.player.is_playing())):
+            self._show_controls(True)
             return
         position = QCursor.pos()
         if position != self._mouse_position:
             self._mouse_position = position
-            self._controls_until = time.monotonic() + 2.5
-            self._show_controls(True)
-        if time.monotonic() > self._controls_until and not self.transport.underMouse() and not self.volume_controls.underMouse():
+            self.controls_activity()
+        if self.controls_focused or self.options_scroll.isVisible():self.controls_activity()
+        if time.monotonic() > self._controls_until:
             self._show_controls(False)
 
     def _skip(self, delta):

@@ -115,6 +115,25 @@ def run(owner, application, wait, folder, _warnings):
             assert int(window.surface.winId())==surface and int(window.winId())==handle
             bridge.command('{"key":"pip"}');wait(lambda:not js('!!document.querySelector(".player-controls.compact")'))
             bridge.command('{"key":"fullscreen"}');assert window.isFullScreen()
+            wait(lambda:js('!!document.querySelector("[data-player-overlay]")'))
+            wait(lambda:not window.frontend_host.mask().isEmpty())
+            size=window.surface.size();bounds=window.frontend_host.geometry()
+            if window.player is not None:
+                bridge.command('{"key":"speed","value":1.5}');assert window.speed.currentData()==1.5
+                wait(lambda:js('document.querySelector("select[aria-label=\"Playback speed\"]").value')=='1.5')
+            original_controls=list(window.bottom_controls)
+            with patch('desktop_workspaces.QSettings') as preferences:
+                bridge.command('{"key":"bottomControls","value":["speed","subtitles"]}')
+                preferences.return_value.setValue.assert_called_with('play/bottomControls',['speed','subtitles'])
+                wait(lambda:not js('!!document.querySelector("select[aria-label=\"Playback audio\"]")'))
+                bridge.command(json.dumps(dict(key='bottomControls',value=original_controls)))
+            window._show_controls(False);bridge.publish()
+            wait(lambda:js('document.querySelector("[data-player-overlay]").hidden'))
+            wait(lambda:window.frontend_host.mask().isEmpty())
+            assert window.frontend_host.geometry()==bounds and window.surface.size()==size,'Controls must not resize the video'
+            window.controls_activity();bridge.publish()
+            wait(lambda:not js('document.querySelector("[data-player-overlay]").hidden'))
+            wait(lambda:not window.frontend_host.mask().isEmpty())
             window._show_controls(True)
             assert window.transport.isHidden() and window.seek.isHidden()
             window.escape_view();assert not window.isFullScreen()

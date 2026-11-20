@@ -1,5 +1,7 @@
 # Drunk Peanuts
 
+**Play 0.33.1:** the bottom bar auto-hides after 15 idle seconds during playback/fullscreen. Moving the mouse or using the keyboard reveals it. The video surface keeps its size, preserving the selected aspect ratio. Speed, audio and subtitles have separate controls; **Customize bar** saves which selectors are shown. Keyboard navigation keeps focused controls available, and PiP keeps its compact controls.
+
 <p align="center"><img src="assets/logo.png" alt="Drunk Peanuts." width="480"></p>
 
 [![Desktop builds](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/workflows/release.yml/badge.svg)](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/workflows/release.yml)
@@ -50,7 +52,7 @@ Get the app from the [latest release](https://github.com/Thatweirdguy1/Drunk-Pea
 
 | Platform | Download | How to open |
 | --- | --- | --- |
-| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.33.0-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and Office and media-file registration. |
+| **Windows x64 — installer** | [Drunk Peanuts Setup](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-0.33.1-Setup.exe) | Run Setup, then use **Drunk Peanuts on your Desktop or Start menu**. Installs for your user, with an uninstaller and Office and media-file registration. |
 | Windows x64 — portable | [Portable ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-Windows-x64.zip) | Extract the entire folder and open `LocalFileConverter.exe`. Keep the bundled files together. Use the installer for Desktop/Start menu integration. |
 | macOS — Apple Silicon | [Apple Silicon ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Apple-Silicon.zip) | Extract and open `DrunkPeanuts.app`. |
 | macOS — Intel | [Intel ZIP](https://github.com/Thatweirdguy1/Drunk-Peanuts/releases/latest/download/DrunkPeanuts-macOS-Intel.zip) | Extract and open `DrunkPeanuts.app`. |

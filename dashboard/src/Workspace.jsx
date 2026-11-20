@@ -254,6 +254,8 @@ export default function Workspace() {
   const [notice, setNotice] = useState("");
   const [commandsOpen, setCommandsOpen] = useState(false);
   const canvas = useRef(null);
+  const playerOverlay = useRef(null);
+  const keyboardNavigation = useRef(false);
   useEffect(() => {
     if (!window.qt?.webChannelTransport) return;
     const script = document.createElement("script");
@@ -276,10 +278,11 @@ export default function Workspace() {
     if (!bridge || !canvas.current) return;
     const update = () => {
       const r = canvas.current.getBoundingClientRect();
-      bridge.canvas(JSON.stringify([r.x, r.y, r.width, r.height]));
+      bridge.canvas(JSON.stringify([r.x, r.y, r.width, r.height, playerOverlay.current?.getBoundingClientRect().height || 0]));
     };
     const observer = new ResizeObserver(update);
     observer.observe(canvas.current);
+    if (playerOverlay.current) observer.observe(playerOverlay.current);
     window.addEventListener("resize", update);
     update();
     return () => {
@@ -287,6 +290,12 @@ export default function Workspace() {
       window.removeEventListener("resize", update);
     };
   }, [bridge, state.pip, state.fullscreen, collapsed, rail, playlist]);
+  useEffect(() => {
+    if (!bridge || tool !== "play") return;
+    const activity = (event) => {if (event.key === "Tab") keyboardNavigation.current = true;bridge.command(JSON.stringify({key:"activity"}));};
+    document.addEventListener("keydown", activity);
+    return () => document.removeEventListener("keydown", activity);
+  }, [bridge]);
   const command = (key, value = null) => {
     if (bridge) bridge.command(JSON.stringify({ key, value }));
     else
@@ -488,6 +497,16 @@ export default function Workspace() {
             className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-[#15151c]"
           >
             {!state.native && <PreviewCanvas />}
+            {tool === "play" && (
+              <div ref={playerOverlay} data-player-overlay
+                hidden={state.controlsVisible === false && !state.pip}
+                className="absolute inset-x-0 bottom-0"
+                onPointerDownCapture={() => {keyboardNavigation.current = false;command("controlsFocus", false);}}
+                onFocusCapture={() => command("controlsFocus", keyboardNavigation.current)}
+                onBlurCapture={(e) => {if (!e.currentTarget.contains(e.relatedTarget)) command("controlsFocus", false);}}>
+                <PlayerControls state={state} command={command} playlist={playlist} onPlaylist={() => setPlaylist(!playlist)} />
+              </div>
+            )}
           </div>
           {tool === "play" && playlist && !immersive && (
             <Playlist
@@ -497,14 +516,6 @@ export default function Workspace() {
             />
           )}
         </div>
-        {tool === "play" && (
-          <PlayerControls
-            state={state}
-            command={command}
-            playlist={playlist}
-            onPlaylist={() => setPlaylist(!playlist)}
-          />
-        )}
         {!immersive && (
           <footer
             className="flex h-7 shrink-0 items-center justify-between gap-4 border-t border-line bg-panel px-4 text-[10px] text-muted"

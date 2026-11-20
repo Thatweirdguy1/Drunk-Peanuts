@@ -1,3 +1,9 @@
+# 0.33.1 — Play controls and fullscreen fix
+
+Play's React bottom bar now auto-hides after 15 seconds without activity during playback and in fullscreen. Mouse movement or keyboard input reveals it. Keyboard navigation and an open playback-options panel keep controls available. The bar overlays a fixed-size native video surface, avoiding aspect-ratio changes when controls appear or disappear. PiP retains its compact controls.
+
+Speed, audio tracks and subtitles are directly accessible on the bottom bar, including loading a local subtitle file. Customize bar saves which selectors are shown. Existing playback options remain available.
+
 # 0.33.0 — Dazzle authoring and presenter update
 
 Imported timing edits/reordering, shaped masks and indefinite repeats; native freeform/boolean shapes and snapping; merged-table structure edits; eleven chart types and chart options; local comments, alt text and basic accessibility/reading-order checks; notes/handout printing; POTX/PPSX and optional LibreOffice ODP/PPT imports; synchronized presenter/audience windows, custom sequences, timed/kiosk looping, blackout, zoom and temporary ink.

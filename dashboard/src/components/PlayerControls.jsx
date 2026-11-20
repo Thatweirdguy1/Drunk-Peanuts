@@ -19,6 +19,7 @@ import {
   Trash2,
   GripVertical,
   Settings2,
+  SlidersHorizontal,
 } from "lucide-react";
 
 export function MediaButton({
@@ -167,9 +168,38 @@ export default function PlayerControls({
   onPlaylist,
 }) {
   const [scrub, setScrub] = useState(null);
+  const shown = state.bottomControls || ["speed", "audio", "subtitles"];
+  const selectors = [
+    ["speed", "Speed", state.speeds || [], state.speed],
+    ["audio", "Audio", state.audioTracks || [], state.audio],
+    ["subtitles", "Subtitles", state.subtitleTracks || [], state.subtitles],
+  ];
   return (
     <div className={`player-controls ${state.pip ? "compact" : ""}`}>
       {!state.pip && (
+        <>
+        <div className="mb-2 flex flex-wrap items-center gap-3 text-xs">
+          {selectors.filter(([key]) => shown.includes(key)).map(([key,label,options,value]) => (
+            <label key={key} className="flex min-w-0 items-center gap-2">
+              {label}
+              <select aria-label={`Playback ${label.toLowerCase()}`} value={value ?? ""}
+                disabled={state.ready === false || !options.length}
+                onChange={(e) => command(key,e.target.value)} className="max-w-40 rounded border border-line bg-base px-2 py-1.5">
+                {!options.length && <option value="">No tracks</option>}
+                {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+              </select>
+            </label>
+          ))}
+          {shown.includes("subtitles") && <button className="workspace-button" onClick={() => command("loadSubtitles")}>Load subtitles</button>}
+          <details className="ml-auto">
+            <summary className="workspace-button cursor-pointer"><SlidersHorizontal size={14} />Customize bar</summary>
+            <div className="flex flex-wrap gap-3 py-2" aria-label="Bottom bar customization">
+              {selectors.map(([key,label]) => <label key={key} className="flex items-center gap-2">
+                <input type="checkbox" checked={shown.includes(key)} onChange={(e) => command("bottomControls",e.target.checked ? [...shown,key] : shown.filter((v) => v !== key))} />{label}
+              </label>)}
+            </div>
+          </details>
+        </div>
         <div className="mb-3 flex items-center gap-3">
           <span className="min-w-24 text-[11px] tabular-nums text-muted">
             {state.time || "00:00 / 00:00"}
@@ -192,6 +222,7 @@ export default function PlayerControls({
             className="min-w-0 flex-1 accent-purple"
           />
         </div>
+        </>
       )}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1">

@@ -14,6 +14,20 @@ from PySide6.QtCore import Qt
 
 
 class WatchITTest(unittest.TestCase):
+    def test_controls_expire_after_fifteen_seconds_and_reveal_on_activity(self):
+        app=QApplication.instance() or QApplication([])
+        window=WatchIT(engine=(MagicMock(),MagicMock(),MagicMock()));window.timer.stop();window._react_shell=True
+        try:
+            with patch('watchit.time.monotonic',return_value=100),patch('watchit.QCursor.pos',return_value=window._mouse_position):
+                window.controls_activity();self.assertEqual(window._controls_until,115)
+                with patch('watchit.time.monotonic',return_value=114.9):window._fullscreen_controls();self.assertTrue(window.controls_visible)
+                with patch('watchit.time.monotonic',return_value=115.1):window._fullscreen_controls();self.assertFalse(window.controls_visible)
+                window.controls_activity();self.assertTrue(window.controls_visible)
+                window.controls_focused=True
+                with patch('watchit.time.monotonic',return_value=120):window._fullscreen_controls();self.assertTrue(window.controls_visible)
+            window.player.is_playing.return_value=False;window._fullscreen_controls();self.assertTrue(window.controls_visible)
+        finally:window.close()
+
     def test_boost_and_pip_keep_player_surface_queue_and_restore_layout(self):
         app = QApplication.instance() or QApplication([])
         player = MagicMock()

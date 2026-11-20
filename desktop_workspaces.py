@@ -3,8 +3,8 @@ import json
 import math
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QRect, Qt, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QObject, QRect, Qt, QTimer, QUrl, Signal, Slot, QSettings
+from PySide6.QtGui import QColor, QRegion
 from PySide6.QtWidgets import (QDockWidget, QMainWindow, QMessageBox, QToolBar,
                                QVBoxLayout, QWidget, QWidgetAction)
 from PySide6.QtWebChannel import QWebChannel
@@ -79,6 +79,10 @@ class WorkspaceBridge(QObject):
                          muted=w.mute.isChecked(), seek=w.seek.value(), time=w.time_label.text(),
                          playing=bool(player and player.is_playing()), pip=w._pip_state is not None,
                          fullscreen=w.isFullScreen(), ready=player is not None)
+            def choices(combo):return [dict(id=combo.itemData(i),label=combo.itemText(i)) for i in range(combo.count())]
+            state.update(controlsVisible=w.controls_visible,bottomControls=w.bottom_controls,
+                         speed=w.speed.currentData(),speeds=choices(w.speed),audio=w.audio.currentData(),audioTracks=choices(w.audio),
+                         subtitles=w.subtitles.currentData(),subtitleTracks=choices(w.subtitles))
         return state
 
     @Slot()
@@ -150,11 +154,18 @@ class WorkspaceBridge(QObject):
                     w.canvas.color=QColor(value);w.canvas.eraser=False
                 elif key == 'pen':w.canvas.eraser=False
             elif self.tool == 'play':
+                w.controls_activity()
                 callbacks = {'toggle':w.toggle,'previous':w.previous,'next':w.next,'stop':w.stop,
                              'open':w.open_files,'add':w.enqueue_files,'folder':w.add_folder,'openList':w.open_playlist,
                              'saveList':w.save_playlist,'clear':w.clear_playlist,'mute':w.mute.click,
-                             'pip':w.picture_in_picture,'fullscreen':w.fullscreen,'options':w.options_toggle.click}
+                             'pip':w.picture_in_picture,'fullscreen':w.fullscreen,'options':w.options_toggle.click,'loadSubtitles':w.load_subtitles}
                 if key in callbacks:callbacks[key]()
+                elif key == 'controlsFocus' and isinstance(value,bool):w.controls_focused=value
+                elif key == 'bottomControls' and isinstance(value,list) and len(value)<=3 and all(v in ('speed','audio','subtitles') for v in value):
+                    w.bottom_controls=list(dict.fromkeys(value));QSettings().setValue('play/bottomControls',w.bottom_controls)
+                elif key in ('speed','audio','subtitles'):
+                    combo=getattr(w,key);index=combo.findData(float(value) if key=='speed' else int(value))
+                    if index>=0 and w.player is not None:combo.setCurrentIndex(index)
                 elif key == 'volume':w.volume.setValue(max(0,min(200,int(value))))
                 elif key == 'seek' and w.player is not None:
                     w.seek.setValue(max(0,min(1000,int(value))));w._seek()
@@ -183,10 +194,14 @@ class WorkspaceBridge(QObject):
     def canvas(self, payload):
         try:
             values = json.loads(payload)
-            if len(values)!=4 or not all(isinstance(v,(float,int)) and math.isfinite(v) for v in values):return
-            x,y,width,height = map(round,values)
+            if len(values) not in (4,5) or not all(isinstance(v,(float,int)) and math.isfinite(v) for v in values):return
+            x,y,width,height = map(round,values[:4])
             bounds=QRect(x,y,max(0,width),max(0,height)).intersected(self.view.rect())
             self.host.setGeometry(bounds.translated(self.view.pos()))
+            # Cut a window for the web controls without resizing the VLC surface.
+            cutout=max(0,min(bounds.height(),round(values[4]))) if len(values)==5 and self.tool=='play' else 0
+            if cutout:self.host.setMask(QRegion(self.host.rect()).subtracted(QRegion(0,bounds.height()-cutout,bounds.width(),cutout)))
+            else:self.host.clearMask()
             self.host.setVisible(bounds.width()>0 and bounds.height()>0)
             self.host.raise_()
         except (ValueError,TypeError):return
@@ -218,6 +233,7 @@ def install(owner, window, tool):
         # Keep the original root/layout for native PiP geometry and stable VLC handles.
         for widget in (window.heading,window.seek,window.time_label,window.transport,window.volume_controls,window.playlist,window.playlist_tools):widget.hide()
         window.surface.setMinimumHeight(0)
+        original.layout().setContentsMargins(0,0,0,0);original.layout().setSpacing(0)
     profile=QWebEngineProfile(view);requests=LocalRequests(profile);profile.setUrlRequestInterceptor(requests)
     page=LocalPage(profile,view);page.setBackgroundColor(QColor('#101014'))
     page.settings().setAttribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls,False)
