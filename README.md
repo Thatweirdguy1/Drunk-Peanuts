@@ -2,6 +2,10 @@
 
 **Play 0.33.1:** the bottom bar auto-hides after 15 idle seconds during playback/fullscreen. Moving the mouse or using the keyboard reveals it. The video surface keeps its size, preserving the selected aspect ratio. Speed, audio and subtitles have separate controls; **Customize bar** saves which selectors are shown. Keyboard navigation keeps focused controls available, and PiP keeps its compact controls.
 
+| Play controls revealed | Fullscreen after 15 idle seconds |
+| --- | --- |
+| ![Play controls with a synthetic aspect-ratio test](docs/play-controls-0331.png) | ![The same fullscreen frame after controls hide](docs/play-fullscreen-0331.png) |
+
 <p align="center"><img src="assets/logo.png" alt="Drunk Peanuts." width="480"></p>
 
 [![Desktop builds](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/workflows/release.yml/badge.svg)](https://github.com/Thatweirdguy1/Drunk-Peanuts/actions/workflows/release.yml)
